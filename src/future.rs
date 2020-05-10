@@ -20,12 +20,7 @@ pub struct WriteFuture {
 
 impl WriteFuture {
   pub fn new() -> WriteFuture {
-    WriteFuture {
-      state: Arc::new(Mutex::new(WriteFutureState {
-        term_index: None,
-        waker: None,
-      })),
-    }
+    WriteFuture { state: Arc::new(Mutex::new(WriteFutureState { term_index: None, waker: None })) }
   }
 
   pub(crate) fn _fill(&mut self, term: Term, index: Index) {
@@ -44,10 +39,7 @@ impl Future for WriteFuture {
   fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
     let mut state = self.state.lock().unwrap();
     if let Some((term, index)) = state.term_index {
-      Poll::Ready(WriteRes {
-        term: term,
-        index: index,
-      })
+      Poll::Ready(WriteRes { term: term, index: index })
     } else {
       state.waker = Some(cx.waker().clone());
       Poll::Pending

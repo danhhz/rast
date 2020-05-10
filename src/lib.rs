@@ -68,13 +68,12 @@ pub struct Rast {
 }
 
 impl Rast {
-  pub fn new(config: Config, current_time: Instant) -> Rast {
+  pub fn new(id: NodeID, nodes: Vec<NodeID>, config: Config, current_time: Instant) -> Rast {
     // WIP: hack to initialize last_communication such that an election is
     // immediately called
     let last_communication = current_time - config.election_timeout;
-    // TODO: Immediately call an election and return the output?
     Rast {
-      id: NodeID(0), // WIP
+      id: id,
       config: config,
       role: Role::Candidate,
       current_term: Term(0),
@@ -82,7 +81,7 @@ impl Rast {
       log: vec![],
       commit_index: Index(0),
       last_applied: Index(0),
-      nodes: vec![],
+      nodes: nodes,
       current_time: current_time,
       last_communication: last_communication,
       next_index: vec![],
@@ -90,19 +89,6 @@ impl Rast {
       received_votes: 0,
       command_buffer: HashMap::new(),
     }
-  }
-
-  // WIP: get rid of this
-  #[cfg(test)]
-  pub fn set_id(&mut self, id: NodeID) {
-    self.id = id;
-  }
-
-  // WIP: get rid of this
-  #[cfg(test)]
-  pub fn set_nodes(&mut self, nodes: &Vec<NodeID>) {
-    self.nodes.truncate(0);
-    self.nodes.extend(nodes);
   }
 
   pub fn write_async(&mut self, req: WriteReq) -> (WriteFuture, Vec<Output>) {
@@ -166,18 +152,13 @@ impl Rast {
 
   fn write(&mut self, req: WriteReq, state: WriteFuture) -> Vec<Output> {
     let (prev_log_term, prev_log_index) = match self.role {
-      Role::Leader => self
-        .log
-        .last()
-        .map_or((Term(0), Index(0)), |entry| (entry.term, entry.index)),
+      Role::Leader => {
+        self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index))
+      }
       Role::Candidate => unimplemented!(),
       Role::Follower => unimplemented!(),
     };
-    let entry = Entry {
-      term: self.current_term,
-      index: prev_log_index + 1,
-      payload: req.payload,
-    };
+    let entry = Entry { term: self.current_term, index: prev_log_index + 1, payload: req.payload };
     // WIP debug assertion that this doesn't exist.
     self.command_buffer.insert((entry.term, entry.index), state);
     let payload = Payload::AppendEntriesReq(AppendEntriesReq {
@@ -251,14 +232,9 @@ impl Rast {
   fn process_append_entries(&mut self, req: AppendEntriesReq) -> Vec<Output> {
     // Reply false if term < currentTerm (§5.1)
     if req.term < self.current_term {
-      let payload = Payload::AppendEntriesRes(AppendEntriesRes {
-        term: self.current_term,
-        success: false,
-      });
-      let mut output = vec![Output::Message(Message {
-        dest: req.leader_id,
-        payload: payload,
-      })];
+      let payload =
+        Payload::AppendEntriesRes(AppendEntriesRes { term: self.current_term, success: false });
+      let mut output = vec![Output::Message(Message { dest: req.leader_id, payload: payload })];
       output.extend(self.convert_to_follower());
       return output;
     }
@@ -291,14 +267,9 @@ impl Rast {
   fn process_request_vote(&mut self, req: &RequestVoteReq) -> Vec<Output> {
     // Reply false if term < currentTerm (§5.1)
     if req.term < self.current_term {
-      let payload = Payload::RequestVoteRes(RequestVoteRes {
-        term: self.current_term,
-        vote_granted: false,
-      });
-      return vec![Output::Message(Message {
-        dest: req.candidate_id,
-        payload: payload,
-      })];
+      let payload =
+        Payload::RequestVoteRes(RequestVoteRes { term: self.current_term, vote_granted: false });
+      return vec![Output::Message(Message { dest: req.candidate_id, payload: payload })];
     }
     // If votedFor is null or candidateId, and candidate’s log is at least as
     // up-to-date as receiver’s log, grant vote (§5.2, §5.4)
@@ -309,14 +280,9 @@ impl Rast {
     if should_grant {
       // WIP what was this? volatile.current_time = self.volatile.current_time;
       self.voted_for = Some(req.candidate_id);
-      let payload = Payload::RequestVoteRes(RequestVoteRes {
-        term: self.current_term,
-        vote_granted: true,
-      });
-      return vec![Output::Message(Message {
-        dest: req.candidate_id,
-        payload: payload,
-      })];
+      let payload =
+        Payload::RequestVoteRes(RequestVoteRes { term: self.current_term, vote_granted: true });
+      return vec![Output::Message(Message { dest: req.candidate_id, payload: payload })];
     }
     return vec![];
   }
@@ -350,10 +316,8 @@ impl Rast {
     // Reset election timer
     self.last_communication = now;
     // Send RequestVote RPCs to all other servers
-    let (last_log_term, last_log_index) = self
-      .log
-      .last()
-      .map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
+    let (last_log_term, last_log_index) =
+      self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
     let payload = Payload::RequestVoteReq(RequestVoteReq {
       term: self.current_term,
       candidate_id: self.id,
@@ -368,12 +332,7 @@ impl Rast {
       .nodes
       .iter()
       .filter(|node| **node != self.id)
-      .map(|node| {
-        Output::Message(Message {
-          dest: *node,
-          payload: payload.clone(),
-        })
-      })
+      .map(|node| Output::Message(Message { dest: *node, payload: payload.clone() }))
       .collect()
   }
 
@@ -404,38 +363,4 @@ impl Rast {
 mod testgroup;
 
 #[cfg(test)]
-mod tests {
-  use super::testgroup::*;
-  use super::*;
-  use std::boxed::Box;
-  use std::future::Future;
-  use std::pin::Pin;
-  use std::task::{Context, Poll, Waker};
-  use std::task::{RawWaker, RawWakerVTable};
-
-  fn dummy_raw_waker() -> RawWaker {
-    fn no_op(_: *const ()) {}
-    fn clone(_: *const ()) -> RawWaker {
-      dummy_raw_waker()
-    }
-    let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
-    RawWaker::new(0 as *const (), vtable)
-  }
-
-  #[test]
-  fn it_works() {
-    let mut g = TestGroup::new(3);
-    assert_eq!(g.node(NodeID(0)).role, Role::Candidate);
-
-    g.tick_one(NodeID(0), Duration::from_millis(101));
-    g.drain();
-    assert_eq!(g.node(NodeID(0)).role, Role::Leader);
-
-    let req = WriteReq { payload: vec![] };
-    let (mut res, _output) = g.node_mut(NodeID(0)).write_async(req);
-    let res: Box<Pin<_>> = Box::new(Pin::new(&mut res));
-    let waker = unsafe { Waker::from_raw(dummy_raw_waker()) };
-    let mut context = Context::from_waker(&waker);
-    assert_eq!(res.poll(&mut context), Poll::Pending);
-  }
-}
+mod tests;
