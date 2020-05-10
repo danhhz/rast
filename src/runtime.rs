@@ -47,7 +47,7 @@ impl Runtime {
       let output = sm.step(input);
       output.map(|o| {
         match o {
-          Apply(_) => unimplemented!()
+          Apply(_) => todo!()
           Message(message) => {
             let dest = message.destination();
             let conn = conns.entry().or_insert(rpc.dial(dest, res.clone()));

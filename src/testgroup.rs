@@ -19,15 +19,28 @@ impl TestNode {
     self.step(Input::Tick(self.sm.current_time + inc));
   }
 
+  pub fn write_async(&mut self, req: WriteReq) -> WriteFuture {
+    let (future, output) = self.sm.write_async(req);
+    println!("write_async {:?}", output);
+    self.output.extend(output);
+    future
+  }
+
   pub fn step(&mut self, input: Input) {
     self.output.extend(self.sm.step(input));
   }
 
   fn drain_inputs(&mut self) -> bool {
     let mut did_work = false;
+    let id = self.sm.id;
     for input in self.input.drain(..) {
       did_work = true;
-      self.output.extend(self.sm.step(input));
+      println!("input  {:?}: {:?}", id, input);
+      let output = self.sm.step(input);
+      output.iter().for_each(|output| {
+        println!("output {:?}: {:?}", id, output);
+      });
+      self.output.extend(output);
     }
     did_work
   }
@@ -107,22 +120,30 @@ fn drain_inputs(nodes: &mut HashMap<NodeID, &mut TestNode>) -> bool {
 }
 
 fn drain_outputs(nodes: &mut HashMap<NodeID, &mut TestNode>) {
-  // TODO: Do this without the intermediate vector.
-  let mut output = vec![];
+  // TODO: do this without the intermediate vector
+  let mut rpcs = vec![];
   for (_, node) in nodes.iter_mut() {
-    output.append(&mut node.output);
-  }
-  for output in output.drain(..) {
-    match output {
-      Output::Apply(_) => todo!(),
-      Output::Message(msg) => {
-        nodes
-          .get_mut(&msg.dest)
-          .iter_mut()
-          // TODO: Get rid of this clone.
-          .for_each(|dest| dest.input.push(Input::Message(msg.clone())));
+    for output in node.output.drain(..) {
+      match output {
+        Output::PersistReq(index, req) => {
+          // TODO: test this being delayed
+          node.input.push(Input::PersistRes(index, req))
+        }
+        Output::ApplyReq(_) => {
+          // TODO: test this being delayed
+          // No-op
+        }
+        Output::Message(msg) => rpcs.push(msg),
       }
     }
+  }
+  for msg in rpcs.drain(..) {
+    let dest = msg.dest.clone();
+    nodes
+      .get_mut(&dest)
+      .iter_mut()
+      // TODO: get rid of this clone
+      .for_each(|dest| dest.input.push(Input::Message(msg.clone())));
   }
 }
 

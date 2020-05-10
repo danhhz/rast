@@ -15,14 +15,16 @@ pub use log::*;
 #[derive(Debug)]
 pub enum Input {
   Write((WriteReq, WriteFuture)),
-  Message(Message),
   Tick(Instant),
+  Message(Message),
+  PersistRes(Index, NodeID),
 }
 
 #[derive(Debug)]
 pub enum Output {
   Message(Message),
-  Apply(Index),
+  PersistReq(Index, NodeID),
+  ApplyReq(Index),
 }
 
 // WIP: keep the role-specific state in this enum
@@ -53,14 +55,14 @@ pub struct Rast {
   // Volatile state
   commit_index: Index,
   last_applied: Index,
-  nodes: Vec<NodeID>, // WIP: Double check this doesn't need to be persisted
+  nodes: Vec<NodeID>, // WIP: double check this doesn't need to be persisted
   current_time: Instant,
   // WIP this is overloaded fixme
   last_communication: Instant,
 
   // Leader volatile state
-  next_index: Vec<Index>,
-  match_index: Vec<Index>,
+  next_index: HashMap<NodeID, Index>,
+  match_index: HashMap<NodeID, Index>,
   command_buffer: HashMap<(Term, Index), WriteFuture>,
 
   // Candidate volatile state
@@ -84,8 +86,8 @@ impl Rast {
       nodes: nodes,
       current_time: current_time,
       last_communication: last_communication,
-      next_index: vec![],
-      match_index: vec![],
+      next_index: HashMap::new(),
+      match_index: HashMap::new(),
       received_votes: 0,
       command_buffer: HashMap::new(),
     }
@@ -99,18 +101,67 @@ impl Rast {
 
   pub fn step(&mut self, input: Input) -> Vec<Output> {
     let mut output = vec![];
-    if self.commit_index > self.last_applied {
-      // All Servers: If commitIndex > lastApplied: increment lastApplied, apply
-      // log[lastApplied] to state machine (§5.3)
-      let Index(last_applied) = self.last_applied;
-      self.last_applied = Index(last_applied + 1);
-      output.push(Output::Apply(self.last_applied));
-    }
+    // All Servers: If commitIndex > lastApplied: increment lastApplied, apply
+    // log[lastApplied] to state machine (§5.3)
+    output.extend(self.maybe_apply());
     output.extend(match input {
       Input::Write((req, state)) => self.write(req.payload, Some(state)),
       Input::Tick(now) => self.tick(now),
+      Input::PersistRes(index, leader_id) => self.persist_res(index, leader_id),
       Input::Message(message) => self.message(message),
     });
+    output
+  }
+
+  fn maybe_wake(&mut self) {
+    let current_term = self.current_term;
+    let commit_index = self.commit_index;
+    self.command_buffer.retain(|(term, index), future| {
+      debug_assert!(*term == current_term);
+      if *index >= commit_index {
+        future.fill(*term, *index);
+        false
+      } else {
+        true
+      }
+    });
+  }
+
+  fn maybe_apply(&mut self) -> Vec<Output> {
+    if self.commit_index > self.last_applied {
+      let Index(last_applied) = self.last_applied;
+      self.last_applied = Index(last_applied + 1);
+      vec![Output::ApplyReq(self.last_applied)]
+    } else {
+      vec![]
+    }
+  }
+
+  fn write(&mut self, payload: Vec<u8>, state: Option<WriteFuture>) -> Vec<Output> {
+    let (prev_log_term, prev_log_index) = match self.role {
+      Role::Leader => {
+        self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index))
+      }
+      Role::Candidate => todo!(),
+      Role::Follower => todo!(),
+    };
+    let entry = Entry { term: self.current_term, index: prev_log_index + 1, payload: payload };
+    // WIP debug assertion that this doesn't exist.
+    if let Some(state) = state {
+      self.command_buffer.insert((entry.term, entry.index), state);
+    }
+    // WIP: is this really the right place for this?
+    self.log.extend(vec![entry.clone()]);
+    let mut output = self.ack_term_index(self.id, entry.term, entry.index);
+    let payload = Payload::AppendEntriesReq(AppendEntriesReq {
+      term: self.current_term,
+      leader_id: self.id,
+      prev_log_index: prev_log_index,
+      prev_log_term: prev_log_term,
+      leader_commit: self.commit_index,
+      entries: vec![entry],
+    });
+    output.extend(self.message_to_all_other_nodes(payload));
     output
   }
 
@@ -150,49 +201,36 @@ impl Rast {
     }
   }
 
-  fn write(&mut self, payload: Vec<u8>, state: Option<WriteFuture>) -> Vec<Output> {
-    let (prev_log_term, prev_log_index) = match self.role {
-      Role::Leader => {
-        self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index))
-      }
-      Role::Candidate => unimplemented!(),
-      Role::Follower => unimplemented!(),
-    };
-    let entry = Entry { term: self.current_term, index: prev_log_index + 1, payload: payload };
-    // WIP debug assertion that this doesn't exist.
-    if let Some(state) = state {
-      self.command_buffer.insert((entry.term, entry.index), state);
-    }
-    let payload = Payload::AppendEntriesReq(AppendEntriesReq {
+  fn persist_res(&mut self, index: Index, leader_id: NodeID) -> Vec<Output> {
+    let payload = Payload::AppendEntriesRes(AppendEntriesRes {
       term: self.current_term,
-      leader_id: self.id,
-      prev_log_index: prev_log_index,
-      prev_log_term: prev_log_term,
-      leader_commit: self.commit_index,
-      entries: vec![entry],
+      index: index,
+      success: true,
     });
-    self.message_to_all_other_nodes(payload)
+    vec![Output::Message(Message { src: self.id, dest: leader_id, payload: payload })]
   }
 
   fn message(&mut self, message: Message) -> Vec<Output> {
     // TODO: avoid calling payload multiple times
-    // let term = match &message.payload {
-    //   Payload::AppendEntriesReq(req) => req.term,
-    //   Payload::RequestVoteReq(req) => req.term,
-    //   Payload::AppendEntriesRes(res) => res.term,
-    //   Payload::RequestVoteRes(res) => res.term,
-    // };
-    // if term > self.current_term {
-    //   // All Servers: If RPC request or response contains term T > currentTerm:
-    //   // set currentTerm = T, convert to follower (§5.1)
-    //   self.current_term = term;
-    //   return self.convert_to_follower();
-    // }
-    match &mut self.role {
+    let term = match &message.payload {
+      Payload::AppendEntriesReq(req) => req.term,
+      Payload::RequestVoteReq(req) => req.term,
+      Payload::AppendEntriesRes(res) => res.term,
+      Payload::RequestVoteRes(res) => res.term,
+    };
+    let mut output = vec![];
+    if term > self.current_term {
+      // All Servers: If RPC request or response contains term T > currentTerm:
+      // set currentTerm = T, convert to follower (§5.1)
+      self.current_term = term;
+      output.extend(self.convert_to_follower());
+    }
+    output.extend(match &mut self.role {
       Role::Candidate => self.step_candidate(message),
       Role::Follower => self.step_follower(message),
       Role::Leader => self.step_leader(message),
-    }
+    });
+    output
   }
 
   fn step_candidate(&mut self, message: Message) -> Vec<Output> {
@@ -203,7 +241,7 @@ impl Rast {
           // Candidates (§5.2): If AppendEntries RPC received from new leader:
           // convert to follower
           let mut output = self.convert_to_follower();
-          // WIP: This is awkward
+          // WIP: this is awkward
           output.extend(self.step(Input::Message(message)));
           return output;
         }
@@ -225,24 +263,25 @@ impl Rast {
 
   fn step_leader(&mut self, message: Message) -> Vec<Output> {
     match message.payload {
-      Payload::AppendEntriesRes(res) => self.process_append_entries_res(res),
+      Payload::AppendEntriesRes(res) => self.process_append_entries_res(message.src, res),
       Payload::RequestVoteRes(res) => self.process_request_vote_res(&res),
-      _ => unimplemented!("{:?}", message.payload),
+      _ => todo!("{:?}", message.payload),
     }
   }
 
   fn process_append_entries(&mut self, req: AppendEntriesReq) -> Vec<Output> {
     // Reply false if term < currentTerm (§5.1)
     if req.term < self.current_term {
-      let payload =
-        Payload::AppendEntriesRes(AppendEntriesRes { term: self.current_term, success: false });
-      let mut output = vec![Output::Message(Message { dest: req.leader_id, payload: payload })];
+      let payload = Payload::AppendEntriesRes(AppendEntriesRes {
+        term: self.current_term,
+        index: Index(0),
+        success: false,
+      });
+      let mut output =
+        vec![Output::Message(Message { src: self.id, dest: req.leader_id, payload: payload })];
       output.extend(self.convert_to_follower());
       return output;
     }
-
-    // WIP: Implement the real logic
-    self.log.extend(req.entries);
 
     // WIP: Reply false if log doesn’t contain an entry at prevLogIndex whose
     // term matches prevLogTerm (§5.3)
@@ -251,19 +290,52 @@ impl Rast {
     // different terms), delete the existing entry and all that follow it (§5.3)
 
     // WIP: Append any new entries not already in the log
+    self.log.extend(req.entries);
+    let new_index = self.log.last().map_or(Index(0), |entry| entry.index);
+    let mut output = vec![Output::PersistReq(new_index, req.leader_id)];
 
     // If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index
     // of last new entry)
     if req.leader_commit > self.commit_index {
       let last_entry_index = self.log.last().map_or(Index(0), |entry| entry.index);
-      self.commit_index = cmp::min(req.leader_commit, last_entry_index)
+      self.commit_index = cmp::min(req.leader_commit, last_entry_index);
+      output.extend(self.maybe_apply());
     }
 
-    vec![]
+    output
   }
 
-  fn process_append_entries_res(&mut self, _req: AppendEntriesRes) -> Vec<Output> {
-    unimplemented!()
+  fn process_append_entries_res(&mut self, src: NodeID, res: AppendEntriesRes) -> Vec<Output> {
+    // If successful: update nextIndex and matchIndex for follower (§5.3)
+    if res.success {
+      return self.ack_term_index(src, res.term, res.index);
+    }
+    // If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
+    todo!()
+  }
+
+  fn ack_term_index(&mut self, src: NodeID, _term: Term, index: Index) -> Vec<Output> {
+    println!("ack_term_index src {:?} index {:?}", src, index);
+    self.match_index.insert(src, index);
+    // If there exists an N such that N > commitIndex, a majority of
+    // matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N
+    // (§5.3, §5.4).
+    let needed = self.majority();
+    for entry in self.log.iter().rev() {
+      println!("ack_term_index needed {:?} entry {:?}", needed, entry);
+      if entry.index <= self.commit_index || entry.term < self.current_term {
+        break;
+      }
+      // TODO: inefficient; instead, compute once the min index that has a
+      // majority in match_index
+      let count = self.match_index.iter().filter(|(_, index)| **index >= entry.index).count();
+      if count >= needed {
+        self.commit_index = entry.index;
+        self.maybe_wake();
+        return self.maybe_apply();
+      }
+    }
+    return vec![];
   }
 
   fn process_request_vote(&mut self, req: &RequestVoteReq) -> Vec<Output> {
@@ -271,7 +343,11 @@ impl Rast {
     if req.term < self.current_term {
       let payload =
         Payload::RequestVoteRes(RequestVoteRes { term: self.current_term, vote_granted: false });
-      return vec![Output::Message(Message { dest: req.candidate_id, payload: payload })];
+      return vec![Output::Message(Message {
+        src: self.id,
+        dest: req.candidate_id,
+        payload: payload,
+      })];
     }
     // If votedFor is null or candidateId, and candidate’s log is at least as
     // up-to-date as receiver’s log, grant vote (§5.2, §5.4)
@@ -284,7 +360,11 @@ impl Rast {
       self.voted_for = Some(req.candidate_id);
       let payload =
         Payload::RequestVoteRes(RequestVoteRes { term: self.current_term, vote_granted: true });
-      return vec![Output::Message(Message { dest: req.candidate_id, payload: payload })];
+      return vec![Output::Message(Message {
+        src: self.id,
+        dest: req.candidate_id,
+        payload: payload,
+      })];
     }
     return vec![];
   }
@@ -295,7 +375,7 @@ impl Rast {
     if res.vote_granted {
       // WIP what happens if we get this message twice?
       self.received_votes += 1;
-      let needed_votes = (self.nodes.len() + 1) / 2;
+      let needed_votes = self.majority();
       if self.received_votes >= needed_votes {
         // Candidates (§5.2): If votes received from majority of servers:
         // become leader
@@ -306,11 +386,11 @@ impl Rast {
   }
 
   fn send_append_entries(&mut self, _entries: Vec<Entry>) -> Vec<Output> {
-    unimplemented!()
+    todo!()
   }
 
   fn start_election(&mut self, now: Instant) -> Vec<Output> {
-    // TODO: This is a little awkward, revisit.
+    // TODO: this is a little awkward, revisit
     if self.nodes.len() == 1 {
       return self.convert_to_leader();
     }
@@ -338,7 +418,7 @@ impl Rast {
       .nodes
       .iter()
       .filter(|node| **node != self.id)
-      .map(|node| Output::Message(Message { dest: *node, payload: payload.clone() }))
+      .map(|node| Output::Message(Message { src: self.id, dest: *node, payload: payload.clone() }))
       .collect()
   }
 
@@ -356,12 +436,16 @@ impl Rast {
 
   fn convert_to_leader(&mut self) -> Vec<Output> {
     self.role = Role::Leader;
-    self.next_index.truncate(0);
-    self.match_index.truncate(0);
+    self.next_index.clear();
+    self.match_index.clear();
     // Leaders: Upon election: send initial empty AppendEntries RPCs
     // (heartbeat) to each server; repeat during idle periods to prevent
     // election timeouts (§5.2)
     self.write(vec![], None)
+  }
+
+  fn majority(&self) -> usize {
+    (self.nodes.len() + 1) / 2
   }
 }
 

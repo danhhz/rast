@@ -23,7 +23,7 @@ impl WriteFuture {
     WriteFuture { state: Arc::new(Mutex::new(WriteFutureState { term_index: None, waker: None })) }
   }
 
-  pub(crate) fn _fill(&mut self, term: Term, index: Index) {
+  pub(crate) fn fill(&mut self, term: Term, index: Index) {
     // WIP: what should we do if the lock is poisoned?
     if let Ok(mut state) = self.state.lock() {
       debug_assert!(state.term_index.is_none());
