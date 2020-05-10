@@ -39,6 +39,7 @@ pub struct Entry {
 
 #[derive(Debug, Clone)]
 pub struct Message {
+  pub src: NodeID,
   pub dest: NodeID,
   pub payload: Payload,
 }
@@ -65,6 +66,9 @@ pub struct AppendEntriesReq {
 pub struct AppendEntriesRes {
   pub term: Term,
   pub success: bool,
+
+  // NB: This is our own little extention.
+  pub index: Index,
 }
 
 #[derive(Debug, Clone)]

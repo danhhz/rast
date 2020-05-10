@@ -2,40 +2,56 @@
 
 use super::testgroup::*;
 use super::*;
-use std::boxed::Box;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll, Waker};
-use std::task::{RawWaker, RawWakerVTable};
 
-fn noop_raw_waker() -> RawWaker {
-  fn no_op(_: *const ()) {}
-  fn clone(_: *const ()) -> RawWaker {
-    noop_raw_waker()
+mod future {
+  use super::*;
+  use std::boxed::Box;
+  use std::future::Future;
+  use std::pin::Pin;
+  use std::task::{Context, Poll, Waker};
+  use std::task::{RawWaker, RawWakerVTable};
+
+  fn noop_raw_waker() -> RawWaker {
+    fn no_op(_: *const ()) {}
+    fn clone(_: *const ()) -> RawWaker {
+      noop_raw_waker()
+    }
+    let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
+    RawWaker::new(0 as *const (), vtable)
   }
-  let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
-  RawWaker::new(0 as *const (), vtable)
-}
 
-fn noop_waker() -> Waker {
-  unsafe { Waker::from_raw(noop_raw_waker()) }
-}
+  fn noop_waker() -> Waker {
+    unsafe { Waker::from_raw(noop_raw_waker()) }
+  }
 
-fn poll(f: &mut WriteFuture) -> Poll<WriteRes> {
-  let pinned: Box<Pin<_>> = Box::new(Pin::new(f));
-  let waker = noop_waker();
-  let mut context = Context::from_waker(&waker);
-  pinned.poll(&mut context)
-}
+  fn poll(f: &mut WriteFuture) -> Poll<WriteRes> {
+    let pinned: Box<Pin<_>> = Box::new(Pin::new(f));
+    let waker = noop_waker();
+    let mut context = Context::from_waker(&waker);
+    pinned.poll(&mut context)
+  }
 
-fn wait(f: &mut WriteFuture) -> WriteRes {
-  loop {
+  pub fn assert_pending(f: &mut WriteFuture) {
     match poll(f) {
       Poll::Pending => {} // No-op
-      Poll::Ready(res) => return res,
+      Poll::Ready(res) => panic!("unexpectedly ready: {:?}", res),
+    }
+  }
+
+  pub fn assert_ready(f: &mut WriteFuture) -> WriteRes {
+    match poll(f) {
+      Poll::Pending => panic!("unexpectedly not ready: {:?}"),
+      Poll::Ready(res) => res,
     }
   }
 }
+use future::*;
+
+// TODO: Tests
+// - election timeout, node isn't elected in a short enough time
+// - stuck election, all nodes vote for themselves
+// - election completes with majority but not all nodes
+// - expand this list with examples from the raft paper
 
 #[test]
 fn election_one() {
@@ -64,13 +80,27 @@ fn election_multi() {
 
 #[test]
 fn write_future() {
-  let mut g = TestGroup1::new();
-  g.n.tick(g.cfg().election_timeout);
+  let mut g = TestGroup3::new();
+  g.n0.tick(g.cfg().election_timeout);
+  g.drain();
 
   let req = WriteReq { payload: vec![] };
-  let (mut res, _output) = g.n.sm.write_async(req);
-  assert_eq!(poll(&mut res), Poll::Pending);
+  let mut res = g.n0.write_async(req);
+  assert_pending(&mut res);
 
   g.drain();
-  assert_eq!(wait(&mut res), WriteRes { term: Term(0), index: Index(0) });
+  assert_eq!(assert_ready(&mut res), WriteRes { term: Term(1), index: Index(3) });
+}
+
+#[test]
+fn leader_timeout() {
+  let mut g = TestGroup3::new();
+  g.n0.tick(g.cfg().election_timeout);
+  g.drain();
+  assert_eq!(g.n0.sm.role, Role::Leader);
+
+  // n1 doesn't see a heartbeat from n0 for too long and calls an election
+  g.n1.tick(g.cfg().election_timeout * 2);
+  g.drain();
+  assert_eq!(g.n1.sm.role, Role::Leader);
 }
