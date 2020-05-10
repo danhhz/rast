@@ -107,7 +107,7 @@ impl Rast {
       output.push(Output::Apply(self.last_applied));
     }
     output.extend(match input {
-      Input::Write((req, state)) => self.write(req, state),
+      Input::Write((req, state)) => self.write(req.payload, Some(state)),
       Input::Tick(now) => self.tick(now),
       Input::Message(message) => self.message(message),
     });
@@ -150,7 +150,7 @@ impl Rast {
     }
   }
 
-  fn write(&mut self, req: WriteReq, state: WriteFuture) -> Vec<Output> {
+  fn write(&mut self, payload: Vec<u8>, state: Option<WriteFuture>) -> Vec<Output> {
     let (prev_log_term, prev_log_index) = match self.role {
       Role::Leader => {
         self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index))
@@ -158,9 +158,11 @@ impl Rast {
       Role::Candidate => unimplemented!(),
       Role::Follower => unimplemented!(),
     };
-    let entry = Entry { term: self.current_term, index: prev_log_index + 1, payload: req.payload };
+    let entry = Entry { term: self.current_term, index: prev_log_index + 1, payload: payload };
     // WIP debug assertion that this doesn't exist.
-    self.command_buffer.insert((entry.term, entry.index), state);
+    if let Some(state) = state {
+      self.command_buffer.insert((entry.term, entry.index), state);
+    }
     let payload = Payload::AppendEntriesReq(AppendEntriesReq {
       term: self.current_term,
       leader_id: self.id,
@@ -308,6 +310,10 @@ impl Rast {
   }
 
   fn start_election(&mut self, now: Instant) -> Vec<Output> {
+    // TODO: This is a little awkward, revisit.
+    if self.nodes.len() == 1 {
+      return self.convert_to_leader();
+    }
     // Increment currentTerm
     let Term(current_term) = self.current_term;
     self.current_term = Term(current_term + 1);
@@ -355,7 +361,7 @@ impl Rast {
     // Leaders: Upon election: send initial empty AppendEntries RPCs
     // (heartbeat) to each server; repeat during idle periods to prevent
     // election timeouts (§5.2)
-    vec![]
+    self.write(vec![], None)
   }
 }
 
