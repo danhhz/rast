@@ -37,7 +37,7 @@ pub struct Entry {
   pub payload: Vec<u8>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
   pub dest: NodeID,
   pub payload: Payload,
