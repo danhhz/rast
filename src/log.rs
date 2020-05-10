@@ -2,13 +2,13 @@
 
 use std::ops::Add;
 
-#[derive(Debug,Copy,Clone,PartialEq,Eq,PartialOrd,Ord,Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Term(pub u64);
 
-#[derive(Debug,Copy,Clone,PartialEq,Eq,PartialOrd,Ord,Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Index(pub u64);
 
-#[derive(Debug,Copy,Clone,PartialEq,Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NodeID(pub u64);
 
 impl Add<u64> for Index {
@@ -21,26 +21,29 @@ impl Add<u64> for Index {
 
 #[derive(Debug)]
 pub struct WriteReq {
-  pub payload: Vec<u8>
+  pub payload: Vec<u8>,
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct WriteRes {
   pub term: Term,
   pub index: Index,
 }
 
+#[derive(Debug, Clone)]
 pub struct Entry {
   pub term: Term,
   pub index: Index,
   pub payload: Vec<u8>,
 }
 
+#[derive(Debug)]
 pub struct Message {
   pub dest: NodeID,
   pub payload: Payload,
 }
 
+#[derive(Debug, Clone)]
 pub enum Payload {
   AppendEntriesReq(AppendEntriesReq),
   AppendEntriesRes(AppendEntriesRes),
@@ -48,6 +51,7 @@ pub enum Payload {
   RequestVoteRes(RequestVoteRes),
 }
 
+#[derive(Debug, Clone)]
 pub struct AppendEntriesReq {
   pub term: Term,
   pub leader_id: NodeID,
@@ -57,11 +61,13 @@ pub struct AppendEntriesReq {
   pub entries: Vec<Entry>,
 }
 
+#[derive(Debug, Clone)]
 pub struct AppendEntriesRes {
   pub term: Term,
   pub success: bool,
 }
 
+#[derive(Debug, Clone)]
 pub struct RequestVoteReq {
   pub term: Term,
   pub candidate_id: NodeID,
@@ -69,6 +75,7 @@ pub struct RequestVoteReq {
   pub last_log_term: Term,
 }
 
+#[derive(Debug, Clone)]
 pub struct RequestVoteRes {
   pub term: Term,
   pub vote_granted: bool,
