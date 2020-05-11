@@ -20,14 +20,17 @@ impl TestNode {
   }
 
   pub fn write_async(&mut self, req: WriteReq) -> WriteFuture {
-    let (future, output) = self.sm.write_async(req);
+    let mut output = vec![];
+    let future = self.sm.write_async(req, &mut output);
     println!("write_async {:?}", output);
     self.output.extend(output);
     future
   }
 
   pub fn step(&mut self, input: Input) {
-    self.output.extend(self.sm.step(input));
+    let mut output = vec![];
+    self.sm.step(&mut output, input);
+    self.output.extend(output);
   }
 
   fn drain_inputs(&mut self) -> bool {
@@ -36,7 +39,8 @@ impl TestNode {
     for input in self.input.drain(..) {
       did_work = true;
       println!("input  {:?}: {:?}", id, input);
-      let output = self.sm.step(input);
+      let mut output = vec![];
+      self.sm.step(&mut output, input);
       output.iter().for_each(|output| {
         println!("output {:?}: {:?}", id, output);
       });
