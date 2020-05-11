@@ -4,6 +4,7 @@
 
 use std::cmp;
 use std::collections::HashMap;
+use std::iter::Extend;
 use std::time::{Duration, Instant};
 
 mod future;
@@ -11,6 +12,10 @@ mod log;
 
 pub use future::*;
 pub use log::*;
+
+// TODO: figure out how to call output.extend without creating a vec
+// TODO: more consistent method naming
+// TODO: refactor out a statemachine lib
 
 #[derive(Debug)]
 pub enum Input {
@@ -93,24 +98,22 @@ impl Rast {
     }
   }
 
-  pub fn write_async(&mut self, req: WriteReq) -> (WriteFuture, Vec<Output>) {
+  pub fn write_async(&mut self, req: WriteReq, output: &mut impl Extend<Output>) -> WriteFuture {
     let future = WriteFuture::new();
-    let output = self.step(Input::Write((req, future.clone())));
-    (future, output)
+    self.step(output, Input::Write((req, future.clone())));
+    future
   }
 
-  pub fn step(&mut self, input: Input) -> Vec<Output> {
-    let mut output = vec![];
+  pub fn step(&mut self, output: &mut impl Extend<Output>, input: Input) {
     // All Servers: If commitIndex > lastApplied: increment lastApplied, apply
     // log[lastApplied] to state machine (§5.3)
-    output.extend(self.maybe_apply());
-    output.extend(match input {
-      Input::Write((req, state)) => self.write(req.payload, Some(state)),
-      Input::Tick(now) => self.tick(now),
-      Input::PersistRes(index, leader_id) => self.persist_res(index, leader_id),
-      Input::Message(message) => self.message(message),
-    });
-    output
+    self.maybe_apply(output);
+    match input {
+      Input::Write((req, state)) => self.write(output, req.payload, Some(state)),
+      Input::Tick(now) => self.tick(output, now),
+      Input::PersistRes(index, leader_id) => self.persist_res(output, index, leader_id),
+      Input::Message(message) => self.message(output, message),
+    };
   }
 
   fn maybe_wake(&mut self) {
@@ -127,17 +130,20 @@ impl Rast {
     });
   }
 
-  fn maybe_apply(&mut self) -> Vec<Output> {
+  fn maybe_apply(&mut self, output: &mut impl Extend<Output>) {
     if self.commit_index > self.last_applied {
       let Index(last_applied) = self.last_applied;
       self.last_applied = Index(last_applied + 1);
-      vec![Output::ApplyReq(self.last_applied)]
-    } else {
-      vec![]
+      output.extend(vec![Output::ApplyReq(self.last_applied)]);
     }
   }
 
-  fn write(&mut self, payload: Vec<u8>, state: Option<WriteFuture>) -> Vec<Output> {
+  fn write(
+    &mut self,
+    output: &mut impl Extend<Output>,
+    payload: Vec<u8>,
+    state: Option<WriteFuture>,
+  ) {
     let (prev_log_term, prev_log_index) = match self.role {
       Role::Leader => {
         self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index))
@@ -152,7 +158,7 @@ impl Rast {
     }
     // WIP: is this really the right place for this?
     self.log.extend(vec![entry.clone()]);
-    let mut output = self.ack_term_index(self.id, entry.term, entry.index);
+    self.ack_term_index(output, self.id, entry.term, entry.index);
     let payload = Payload::AppendEntriesReq(AppendEntriesReq {
       term: self.current_term,
       leader_id: self.id,
@@ -161,56 +167,53 @@ impl Rast {
       leader_commit: self.commit_index,
       entries: vec![entry],
     });
-    output.extend(self.message_to_all_other_nodes(payload));
-    output
+    self.message_to_all_other_nodes(output, payload);
   }
 
-  fn tick(&mut self, now: Instant) -> Vec<Output> {
+  fn tick(&mut self, output: &mut impl Extend<Output>, now: Instant) {
     if now <= self.current_time {
       // Ignore a repeat tick (as well as one in the past, which shouldn't
       // happen).
-      return vec![];
+      return;
     }
     self.current_time = now;
     match self.role {
       Role::Candidate => {
         // Candidates (§5.2): If election timeout elapses: start new election
         if now.duration_since(self.last_communication) > self.config.election_timeout {
-          return self.start_election(now);
+          self.start_election(output, now);
         }
-        return vec![];
       }
       Role::Follower => {
         // Followers (§5.2): If election timeout elapses without receiving
         // AppendEntries RPC from current leader or granting vote to candidate:
         // convert to candidate
         if now.duration_since(self.last_communication) > self.config.election_timeout {
-          return self.convert_to_candidate(now);
+          self.convert_to_candidate(output, now);
         }
-        return vec![];
       }
       Role::Leader => {
         if now.duration_since(self.last_communication) > self.config.heartbeat_interval {
           // Leaders: Upon election: send initial empty AppendEntries RPCs
           // (heartbeat) to each server; repeat during idle periods to prevent
           // election timeouts (§5.2)
-          return self.send_append_entries(vec![]);
+          self.send_append_entries(output, vec![]);
         }
-        return vec![];
       }
     }
   }
 
-  fn persist_res(&mut self, index: Index, leader_id: NodeID) -> Vec<Output> {
+  fn persist_res(&mut self, output: &mut impl Extend<Output>, index: Index, leader_id: NodeID) {
     let payload = Payload::AppendEntriesRes(AppendEntriesRes {
       term: self.current_term,
       index: index,
       success: true,
     });
-    vec![Output::Message(Message { src: self.id, dest: leader_id, payload: payload })]
+    let msg = Output::Message(Message { src: self.id, dest: leader_id, payload: payload });
+    output.extend(vec![msg]);
   }
 
-  fn message(&mut self, message: Message) -> Vec<Output> {
+  fn message(&mut self, output: &mut impl Extend<Output>, message: Message) {
     // TODO: avoid calling payload multiple times
     let term = match &message.payload {
       Payload::AppendEntriesReq(req) => req.term,
@@ -218,58 +221,54 @@ impl Rast {
       Payload::AppendEntriesRes(res) => res.term,
       Payload::RequestVoteRes(res) => res.term,
     };
-    let mut output = vec![];
     if term > self.current_term {
       // All Servers: If RPC request or response contains term T > currentTerm:
       // set currentTerm = T, convert to follower (§5.1)
       self.current_term = term;
-      output.extend(self.convert_to_follower());
+      self.convert_to_follower(output);
     }
-    output.extend(match &mut self.role {
-      Role::Candidate => self.step_candidate(message),
-      Role::Follower => self.step_follower(message),
-      Role::Leader => self.step_leader(message),
-    });
-    output
+    match &mut self.role {
+      Role::Candidate => self.step_candidate(output, message),
+      Role::Follower => self.step_follower(output, message),
+      Role::Leader => self.step_leader(output, message),
+    };
   }
 
-  fn step_candidate(&mut self, message: Message) -> Vec<Output> {
+  fn step_candidate(&mut self, output: &mut impl Extend<Output>, message: Message) {
     match &message.payload {
-      Payload::RequestVoteRes(res) => self.process_request_vote_res(&res),
+      Payload::RequestVoteRes(res) => self.process_request_vote_res(output, &res),
       Payload::AppendEntriesReq(req) => {
         if req.term > self.current_term {
           // Candidates (§5.2): If AppendEntries RPC received from new leader:
           // convert to follower
-          let mut output = self.convert_to_follower();
+          self.convert_to_follower(output);
           // WIP: this is awkward
-          output.extend(self.step(Input::Message(message)));
-          return output;
+          self.step(output, Input::Message(message));
         }
-        return vec![];
       }
-      Payload::RequestVoteReq(req) => self.process_request_vote(req),
-      _ => vec![], // WIP no-op
+      Payload::RequestVoteReq(req) => self.process_request_vote(output, req),
+      payload => todo!("{:?}", payload),
     }
   }
 
-  fn step_follower(&mut self, message: Message) -> Vec<Output> {
+  fn step_follower(&mut self, output: &mut impl Extend<Output>, message: Message) {
     match message.payload {
       // Followers (§5.2): Respond to RPCs from candidates and leaders
-      Payload::AppendEntriesReq(req) => self.process_append_entries(req),
-      Payload::RequestVoteReq(req) => self.process_request_vote(&req),
-      _ => vec![], // WIP no-op
+      Payload::AppendEntriesReq(req) => self.process_append_entries(output, req),
+      Payload::RequestVoteReq(req) => self.process_request_vote(output, &req),
+      payload => todo!("{:?}", payload),
     }
   }
 
-  fn step_leader(&mut self, message: Message) -> Vec<Output> {
+  fn step_leader(&mut self, output: &mut impl Extend<Output>, message: Message) {
     match message.payload {
-      Payload::AppendEntriesRes(res) => self.process_append_entries_res(message.src, res),
-      Payload::RequestVoteRes(res) => self.process_request_vote_res(&res),
-      _ => todo!("{:?}", message.payload),
+      Payload::AppendEntriesRes(res) => self.process_append_entries_res(output, message.src, res),
+      Payload::RequestVoteRes(res) => self.process_request_vote_res(output, &res),
+      payload => todo!("{:?}", payload),
     }
   }
 
-  fn process_append_entries(&mut self, req: AppendEntriesReq) -> Vec<Output> {
+  fn process_append_entries(&mut self, output: &mut impl Extend<Output>, req: AppendEntriesReq) {
     // Reply false if term < currentTerm (§5.1)
     if req.term < self.current_term {
       let payload = Payload::AppendEntriesRes(AppendEntriesRes {
@@ -277,10 +276,9 @@ impl Rast {
         index: Index(0),
         success: false,
       });
-      let mut output =
-        vec![Output::Message(Message { src: self.id, dest: req.leader_id, payload: payload })];
-      output.extend(self.convert_to_follower());
-      return output;
+      let msg = Output::Message(Message { src: self.id, dest: req.leader_id, payload: payload });
+      output.extend(vec![msg]);
+      self.convert_to_follower(output);
     }
 
     // WIP: Reply false if log doesn’t contain an entry at prevLogIndex whose
@@ -292,29 +290,40 @@ impl Rast {
     // WIP: Append any new entries not already in the log
     self.log.extend(req.entries);
     let new_index = self.log.last().map_or(Index(0), |entry| entry.index);
-    let mut output = vec![Output::PersistReq(new_index, req.leader_id)];
+    let msg = Output::PersistReq(new_index, req.leader_id);
+    output.extend(vec![msg]);
 
     // If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index
     // of last new entry)
     if req.leader_commit > self.commit_index {
       let last_entry_index = self.log.last().map_or(Index(0), |entry| entry.index);
       self.commit_index = cmp::min(req.leader_commit, last_entry_index);
-      output.extend(self.maybe_apply());
+      self.maybe_apply(output);
     }
-
-    output
   }
 
-  fn process_append_entries_res(&mut self, src: NodeID, res: AppendEntriesRes) -> Vec<Output> {
+  fn process_append_entries_res(
+    &mut self,
+    output: &mut impl Extend<Output>,
+    src: NodeID,
+    res: AppendEntriesRes,
+  ) {
     // If successful: update nextIndex and matchIndex for follower (§5.3)
     if res.success {
-      return self.ack_term_index(src, res.term, res.index);
+      self.ack_term_index(output, src, res.term, res.index);
+      return;
     }
     // If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
     todo!()
   }
 
-  fn ack_term_index(&mut self, src: NodeID, _term: Term, index: Index) -> Vec<Output> {
+  fn ack_term_index(
+    &mut self,
+    output: &mut impl Extend<Output>,
+    src: NodeID,
+    _term: Term,
+    index: Index,
+  ) {
     println!("ack_term_index src {:?} index {:?}", src, index);
     self.match_index.insert(src, index);
     // If there exists an N such that N > commitIndex, a majority of
@@ -332,22 +341,20 @@ impl Rast {
       if count >= needed {
         self.commit_index = entry.index;
         self.maybe_wake();
-        return self.maybe_apply();
+        self.maybe_apply(output);
+        return;
       }
     }
-    return vec![];
   }
 
-  fn process_request_vote(&mut self, req: &RequestVoteReq) -> Vec<Output> {
+  fn process_request_vote(&mut self, output: &mut impl Extend<Output>, req: &RequestVoteReq) {
     // Reply false if term < currentTerm (§5.1)
     if req.term < self.current_term {
       let payload =
         Payload::RequestVoteRes(RequestVoteRes { term: self.current_term, vote_granted: false });
-      return vec![Output::Message(Message {
-        src: self.id,
-        dest: req.candidate_id,
-        payload: payload,
-      })];
+      let msg = Output::Message(Message { src: self.id, dest: req.candidate_id, payload: payload });
+      output.extend(vec![msg]);
+      return;
     }
     // If votedFor is null or candidateId, and candidate’s log is at least as
     // up-to-date as receiver’s log, grant vote (§5.2, §5.4)
@@ -360,16 +367,12 @@ impl Rast {
       self.voted_for = Some(req.candidate_id);
       let payload =
         Payload::RequestVoteRes(RequestVoteRes { term: self.current_term, vote_granted: true });
-      return vec![Output::Message(Message {
-        src: self.id,
-        dest: req.candidate_id,
-        payload: payload,
-      })];
+      let msg = Output::Message(Message { src: self.id, dest: req.candidate_id, payload: payload });
+      output.extend(vec![msg]);
     }
-    return vec![];
   }
 
-  fn process_request_vote_res(&mut self, res: &RequestVoteRes) -> Vec<Output> {
+  fn process_request_vote_res(&mut self, output: &mut impl Extend<Output>, res: &RequestVoteRes) {
     // NB: The term was checked earlier so don't need to check it again.
     // WIP debug_assert!(res.term == self.current_term);
     if res.vote_granted {
@@ -379,20 +382,21 @@ impl Rast {
       if self.received_votes >= needed_votes {
         // Candidates (§5.2): If votes received from majority of servers:
         // become leader
-        return self.convert_to_leader();
+        self.convert_to_leader(output);
+        return;
       }
     }
-    return vec![];
   }
 
-  fn send_append_entries(&mut self, _entries: Vec<Entry>) -> Vec<Output> {
+  fn send_append_entries(&mut self, _output: &mut impl Extend<Output>, _entries: Vec<Entry>) {
     todo!()
   }
 
-  fn start_election(&mut self, now: Instant) -> Vec<Output> {
+  fn start_election(&mut self, output: &mut impl Extend<Output>, now: Instant) {
     // TODO: this is a little awkward, revisit
     if self.nodes.len() == 1 {
-      return self.convert_to_leader();
+      self.convert_to_leader(output);
+      return;
     }
     // Increment currentTerm
     let Term(current_term) = self.current_term;
@@ -410,38 +414,35 @@ impl Rast {
       last_log_index: last_log_index,
       last_log_term: last_log_term,
     });
-    self.message_to_all_other_nodes(payload)
+    self.message_to_all_other_nodes(output, payload);
   }
 
-  fn message_to_all_other_nodes(&self, payload: Payload) -> Vec<Output> {
-    self
-      .nodes
-      .iter()
-      .filter(|node| **node != self.id)
-      .map(|node| Output::Message(Message { src: self.id, dest: *node, payload: payload.clone() }))
-      .collect()
+  fn message_to_all_other_nodes(&self, output: &mut impl Extend<Output>, payload: Payload) {
+    output.extend(
+      self.nodes.iter().filter(|node| **node != self.id).map(|node| {
+        Output::Message(Message { src: self.id, dest: *node, payload: payload.clone() })
+      }),
+    )
   }
 
-  fn convert_to_candidate(&mut self, now: Instant) -> Vec<Output> {
+  fn convert_to_candidate(&mut self, output: &mut impl Extend<Output>, now: Instant) {
     self.role = Role::Candidate;
     // Candidates (§5.2): On conversion to candidate, start election:
-    self.start_election(now)
+    self.start_election(output, now)
   }
 
-  fn convert_to_follower(&mut self) -> Vec<Output> {
+  fn convert_to_follower(&mut self, _output: &mut impl Extend<Output>) {
     self.role = Role::Follower;
-    // WIP set last_communication?
-    vec![]
   }
 
-  fn convert_to_leader(&mut self) -> Vec<Output> {
+  fn convert_to_leader(&mut self, output: &mut impl Extend<Output>) {
     self.role = Role::Leader;
     self.next_index.clear();
     self.match_index.clear();
     // Leaders: Upon election: send initial empty AppendEntries RPCs
     // (heartbeat) to each server; repeat during idle periods to prevent
     // election timeouts (§5.2)
-    self.write(vec![], None)
+    self.write(output, vec![], None);
   }
 
   fn majority(&self) -> usize {
