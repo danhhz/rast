@@ -24,7 +24,7 @@ mod future {
     unsafe { Waker::from_raw(noop_raw_waker()) }
   }
 
-  fn poll(f: &mut WriteFuture) -> Poll<WriteRes> {
+  fn poll(f: &mut WriteFuture) -> Poll<Result<WriteRes, NotLeaderError>> {
     let pinned: Box<Pin<_>> = Box::new(Pin::new(f));
     let waker = noop_waker();
     let mut context = Context::from_waker(&waker);
@@ -38,7 +38,7 @@ mod future {
     }
   }
 
-  pub fn assert_ready(f: &mut WriteFuture) -> WriteRes {
+  pub fn assert_ready(f: &mut WriteFuture) -> Result<WriteRes, NotLeaderError> {
     match poll(f) {
       Poll::Pending => panic!("unexpectedly not ready: {:?}"),
       Poll::Ready(res) => res,
@@ -90,7 +90,7 @@ fn write_future() {
   assert_pending(&mut res);
 
   g.drain();
-  let res = assert_ready(&mut res);
+  let res = assert_ready(&mut res).unwrap();
   // TODO: don't assume that the leader has it synced, it's possible for the
   // majority to be all followers
   assert_eq!(g.n0.log.get(res.index), Some(&payload));
@@ -103,8 +103,16 @@ fn leader_timeout() {
   g.drain();
   assert_eq!(g.n0.sm.role, Role::Leader);
 
-  // n1 doesn't see a heartbeat from n0 for too long and calls an election
+  // A write is sent to n0 while it's the leader.
+  let payload = String::from("leader_timeout").into_bytes();
+  let req = WriteReq { payload: payload };
+  let mut res = g.n0.write_async(req);
+
+  // n1 doesn't see a heartbeat from n0 for too long and calls an election.
   g.n1.tick(g.cfg().election_timeout * 2);
   g.drain();
   assert_eq!(g.n1.sm.role, Role::Leader);
+
+  // The n0 write should have errored.
+  assert_eq!(assert_ready(&mut res), Err(NotLeaderError::new(g.n1.sm.id)));
 }
