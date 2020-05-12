@@ -16,6 +16,8 @@ pub use log::*;
 // TODO: figure out how to call output.extend without creating a vec
 // TODO: more consistent method naming
 // TODO: refactor out a statemachine lib
+// TODO: write to a separate log in tests
+// TODO:
 
 #[derive(Debug)]
 pub enum Input {
@@ -28,7 +30,7 @@ pub enum Input {
 #[derive(Debug)]
 pub enum Output {
   Message(Message),
-  PersistReq(Index, NodeID),
+  PersistReq(NodeID, Vec<Entry>), // WIP NodeID is the leader
   ApplyReq(Index),
 }
 
@@ -158,6 +160,8 @@ impl Rast {
     }
     // WIP: is this really the right place for this?
     self.log.extend(vec![entry.clone()]);
+    // TODO: this is duplicated with the one in `process_append_entries`
+    output.extend(vec![Output::PersistReq(self.id, vec![entry.clone()])]);
     self.ack_term_index(output, self.id, entry.term, entry.index);
     let payload = Payload::AppendEntriesReq(AppendEntriesReq {
       term: self.current_term,
@@ -288,9 +292,8 @@ impl Rast {
     // different terms), delete the existing entry and all that follow it (§5.3)
 
     // WIP: Append any new entries not already in the log
-    self.log.extend(req.entries);
-    let new_index = self.log.last().map_or(Index(0), |entry| entry.index);
-    let msg = Output::PersistReq(new_index, req.leader_id);
+    self.log.extend(req.entries.clone());
+    let msg = Output::PersistReq(req.leader_id, req.entries);
     output.extend(vec![msg]);
 
     // If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index
@@ -324,14 +327,12 @@ impl Rast {
     _term: Term,
     index: Index,
   ) {
-    println!("ack_term_index src {:?} index {:?}", src, index);
     self.match_index.insert(src, index);
     // If there exists an N such that N > commitIndex, a majority of
     // matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N
     // (§5.3, §5.4).
     let needed = self.majority();
     for entry in self.log.iter().rev() {
-      println!("ack_term_index needed {:?} entry {:?}", needed, entry);
       if entry.index <= self.commit_index || entry.term < self.current_term {
         break;
       }
@@ -452,6 +453,9 @@ impl Rast {
 
 #[cfg(test)]
 mod testgroup;
+
+#[cfg(test)]
+mod testlog;
 
 #[cfg(test)]
 mod tests;
