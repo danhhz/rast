@@ -84,12 +84,16 @@ fn write_future() {
   g.n0.tick(g.cfg().election_timeout);
   g.drain();
 
-  let req = WriteReq { payload: vec![] };
+  let payload = String::from("write_future").into_bytes();
+  let req = WriteReq { payload: payload.clone() };
   let mut res = g.n0.write_async(req);
   assert_pending(&mut res);
 
   g.drain();
-  assert_eq!(assert_ready(&mut res), WriteRes { term: Term(1), index: Index(3) });
+  let res = assert_ready(&mut res);
+  // TODO: don't assume that the leader has it synced, it's possible for the
+  // majority to be all followers
+  assert_eq!(g.n0.log.get(res.index), Some(&payload));
 }
 
 #[test]

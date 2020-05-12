@@ -2,17 +2,24 @@
 
 use std::time::{Duration, Instant};
 
+use super::testlog::*;
 use super::*;
 
 pub struct TestNode {
   pub sm: Rast,
   pub input: Vec<Input>,
   pub output: Vec<Output>,
+  pub log: TestLog,
 }
 
 impl TestNode {
   fn new(id: NodeID, nodes: Vec<NodeID>, cfg: Config, now: Instant) -> TestNode {
-    TestNode { sm: Rast::new(id, nodes, cfg, now), input: vec![], output: vec![] }
+    TestNode {
+      sm: Rast::new(id, nodes, cfg, now),
+      input: vec![],
+      output: vec![],
+      log: TestLog::new(),
+    }
   }
 
   pub fn tick(&mut self, inc: Duration) {
@@ -38,12 +45,13 @@ impl TestNode {
     let id = self.sm.id;
     for input in self.input.drain(..) {
       did_work = true;
-      println!("input  {:?}: {:?}", id, input);
+      println!("input  {:?}: {:?}", id.0, input);
       let mut output = vec![];
       self.sm.step(&mut output, input);
       output.iter().for_each(|output| {
-        println!("output {:?}: {:?}", id, output);
+        println!("output {:?}: {:?}", id.0, output);
       });
+      println!();
       self.output.extend(output);
     }
     did_work
@@ -129,13 +137,16 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut TestNode>) {
   for (_, node) in nodes.iter_mut() {
     for output in node.output.drain(..) {
       match output {
-        Output::PersistReq(index, req) => {
+        Output::PersistReq(leader_id, entries) => {
           // TODO: test this being delayed
-          node.input.push(Input::PersistRes(index, req))
+          for entry in entries {
+            node.log.add(entry);
+          }
+          node.input.push(Input::PersistRes(node.log.highest_index(), leader_id));
         }
-        Output::ApplyReq(_) => {
+        Output::ApplyReq(index) => {
           // TODO: test this being delayed
-          // No-op
+          node.log.mark_stable(index);
         }
         Output::Message(msg) => rpcs.push(msg),
       }
