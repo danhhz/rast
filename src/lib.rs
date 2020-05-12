@@ -7,17 +7,18 @@ use std::collections::HashMap;
 use std::iter::Extend;
 use std::time::{Duration, Instant};
 
+mod error;
 mod future;
 mod log;
 
+pub use error::*;
 pub use future::*;
 pub use log::*;
 
 // TODO: figure out how to call output.extend without creating a vec
 // TODO: more consistent method naming
 // TODO: refactor out a statemachine lib
-// TODO: write to a separate log in tests
-// TODO:
+// TODO: compress log implementation
 
 #[derive(Debug)]
 pub enum Input {
@@ -124,7 +125,7 @@ impl Rast {
     self.command_buffer.retain(|(term, index), future| {
       debug_assert!(*term == current_term);
       if *index >= commit_index {
-        future.fill(*term, *index);
+        future.fill(Ok(WriteRes { term: *term, index: *index }));
         false
       } else {
         true
@@ -229,7 +230,7 @@ impl Rast {
       // All Servers: If RPC request or response contains term T > currentTerm:
       // set currentTerm = T, convert to follower (§5.1)
       self.current_term = term;
-      self.convert_to_follower(output);
+      self.convert_to_follower(output, message.src);
     }
     match &mut self.role {
       Role::Candidate => self.step_candidate(output, message),
@@ -245,7 +246,7 @@ impl Rast {
         if req.term > self.current_term {
           // Candidates (§5.2): If AppendEntries RPC received from new leader:
           // convert to follower
-          self.convert_to_follower(output);
+          self.convert_to_follower(output, message.src);
           // WIP: this is awkward
           self.step(output, Input::Message(message));
         }
@@ -260,6 +261,10 @@ impl Rast {
       // Followers (§5.2): Respond to RPCs from candidates and leaders
       Payload::AppendEntriesReq(req) => self.process_append_entries(output, req),
       Payload::RequestVoteReq(req) => self.process_request_vote(output, &req),
+      Payload::AppendEntriesRes(_) => {
+        // TODO: double check this
+        // No-op, stale response to a request sent out by this node when it was a leader.
+      }
       payload => todo!("{:?}", payload),
     }
   }
@@ -282,7 +287,7 @@ impl Rast {
       });
       let msg = Output::Message(Message { src: self.id, dest: req.leader_id, payload: payload });
       output.extend(vec![msg]);
-      self.convert_to_follower(output);
+      self.convert_to_follower(output, req.leader_id);
     }
 
     // WIP: Reply false if log doesn’t contain an entry at prevLogIndex whose
@@ -427,12 +432,18 @@ impl Rast {
   }
 
   fn convert_to_candidate(&mut self, output: &mut impl Extend<Output>, now: Instant) {
+    if self.role == Role::Leader {
+      self.clear_outstanding_requests(None);
+    }
     self.role = Role::Candidate;
     // Candidates (§5.2): On conversion to candidate, start election:
     self.start_election(output, now)
   }
 
-  fn convert_to_follower(&mut self, _output: &mut impl Extend<Output>) {
+  fn convert_to_follower(&mut self, _output: &mut impl Extend<Output>, leader_hint: NodeID) {
+    if self.role == Role::Leader {
+      self.clear_outstanding_requests(Some(leader_hint));
+    }
     self.role = Role::Follower;
   }
 
@@ -444,6 +455,13 @@ impl Rast {
     // (heartbeat) to each server; repeat during idle periods to prevent
     // election timeouts (§5.2)
     self.write(output, vec![], None);
+  }
+
+  fn clear_outstanding_requests(&mut self, leader_hint: Option<NodeID>) {
+    debug_assert_eq!(self.role, Role::Leader);
+    self.command_buffer.drain().for_each(|(_, mut future)| {
+      future.fill(Err(NotLeaderError::new(leader_hint.unwrap_or(NodeID(0)))));
+    })
   }
 
   fn majority(&self) -> usize {

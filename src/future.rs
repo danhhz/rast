@@ -2,14 +2,15 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context, Poll, Waker};
 
+use super::error::*;
 use super::log::*;
 
 #[derive(Debug)]
 struct WriteFutureState {
-  term_index: Option<(Term, Index)>,
+  result: Option<Result<WriteRes, NotLeaderError>>,
   waker: Option<Waker>,
 }
 
@@ -20,26 +21,35 @@ pub struct WriteFuture {
 
 impl WriteFuture {
   pub fn new() -> WriteFuture {
-    WriteFuture { state: Arc::new(Mutex::new(WriteFutureState { term_index: None, waker: None })) }
+    WriteFuture { state: Arc::new(Mutex::new(WriteFutureState { result: None, waker: None })) }
   }
 
-  pub(crate) fn fill(&mut self, term: Term, index: Index) {
+  pub(crate) fn fill(&mut self, result: Result<WriteRes, NotLeaderError>) {
     // WIP: what should we do if the lock is poisoned?
     if let Ok(mut state) = self.state.lock() {
-      debug_assert!(state.term_index.is_none());
-      state.term_index = Some((term, index));
+      debug_assert!(state.result.is_none());
+      state.result = Some(result);
       state.waker.iter_mut().for_each(|waker| waker.wake_by_ref());
     }
   }
 }
 
 impl Future for WriteFuture {
-  type Output = WriteRes;
+  type Output = Result<WriteRes, NotLeaderError>;
 
   fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-    let mut state = self.state.lock().unwrap();
-    if let Some((term, index)) = state.term_index {
-      Poll::Ready(WriteRes { term: term, index: index })
+    let mut state: MutexGuard<WriteFutureState> = match self.state.lock() {
+      Ok(guard) => guard,
+      Err(_) => {
+        // TODO: this isn't the right error but close enough for now
+        return Poll::Ready(Err(NotLeaderError::new(NodeID(0))));
+      }
+    };
+    // TODO: this `take()` is technically correct since the Future api requires
+    // that poll never be called once it's returned Ready, but it makes me
+    // uncomfortable
+    if let Some(result) = state.result.take() {
+      Poll::Ready(result)
     } else {
       state.waker = Some(cx.waker().clone());
       Poll::Pending
