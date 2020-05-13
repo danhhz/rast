@@ -10,6 +10,7 @@ pub struct TestNode {
   pub input: Vec<Input>,
   pub output: Vec<Output>,
   pub log: TestLog,
+  pub state: Vec<u8>,
 }
 
 impl TestNode {
@@ -19,6 +20,7 @@ impl TestNode {
       input: vec![],
       output: vec![],
       log: TestLog::new(),
+      state: vec![],
     }
   }
 
@@ -28,8 +30,22 @@ impl TestNode {
 
   pub fn write_async(&mut self, req: WriteReq) -> WriteFuture {
     let mut output = vec![];
-    let future = self.sm.write_async(req, &mut output);
+    let future = self.sm.write_async(&mut output, req);
     println!("write_async {:?}", output);
+    output.iter().for_each(|output| {
+      println!("output {:?}: {:?}", self.sm.id, output);
+    });
+    self.output.extend(output);
+    future
+  }
+
+  pub fn read_async(&mut self, req: ReadReq) -> ReadFuture {
+    let mut output = vec![];
+    let future = self.sm.read_async(&mut output, req);
+    println!("read_async {:?}", output);
+    output.iter().for_each(|output| {
+      println!("output {:?}: {:?}", self.sm.id, output);
+    });
     self.output.extend(output);
     future
   }
@@ -140,6 +156,7 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut TestNode>) {
         Output::PersistReq(leader_id, entries) => {
           // TODO: test this being delayed
           for entry in entries {
+            println!("adding entry {:?} {:?}", node.sm.id, &entry);
             node.log.add(entry);
           }
           node.input.push(Input::PersistRes(node.log.highest_index(), leader_id));
@@ -147,6 +164,15 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut TestNode>) {
         Output::ApplyReq(index) => {
           // TODO: test this being delayed
           node.log.mark_stable(index);
+          let payload = node.log.get(index).unwrap();
+          node.state.extend(payload);
+          println!("STATE {:?} {:?}", node.sm.id, &node.state);
+        }
+        Output::ReadStateMachine(index, idx, _) => {
+          // TODO: test this being delayed
+          println!("READ  {:?} {:?}", node.sm.id, &node.state);
+          let payload = node.state.clone();
+          node.input.push(Input::ReadStateMachine(index, idx, payload));
         }
         Output::Message(msg) => rpcs.push(msg),
       }

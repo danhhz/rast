@@ -9,22 +9,26 @@ use super::error::*;
 use super::log::*;
 
 #[derive(Debug)]
-struct WriteFutureState {
-  result: Option<Result<WriteRes, NotLeaderError>>,
+struct RastFutureState<T> {
+  result: Option<Result<T, NotLeaderError>>,
   waker: Option<Waker>,
 }
 
 #[derive(Debug, Clone)]
-pub struct WriteFuture {
-  state: Arc<Mutex<WriteFutureState>>,
+pub struct RastFuture<T: Clone> {
+  state: Arc<Mutex<RastFutureState<T>>>,
 }
 
-impl WriteFuture {
-  pub fn new() -> WriteFuture {
-    WriteFuture { state: Arc::new(Mutex::new(WriteFutureState { result: None, waker: None })) }
+pub type WriteFuture = RastFuture<WriteRes>;
+
+pub type ReadFuture = RastFuture<ReadRes>;
+
+impl<T: Clone> RastFuture<T> {
+  pub fn new() -> RastFuture<T> {
+    RastFuture { state: Arc::new(Mutex::new(RastFutureState { result: None, waker: None })) }
   }
 
-  pub(crate) fn fill(&mut self, result: Result<WriteRes, NotLeaderError>) {
+  pub(crate) fn fill(&mut self, result: Result<T, NotLeaderError>) {
     // WIP: what should we do if the lock is poisoned?
     if let Ok(mut state) = self.state.lock() {
       debug_assert!(state.result.is_none());
@@ -34,11 +38,11 @@ impl WriteFuture {
   }
 }
 
-impl Future for WriteFuture {
-  type Output = Result<WriteRes, NotLeaderError>;
+impl<T: Clone> Future for RastFuture<T> {
+  type Output = Result<T, NotLeaderError>;
 
   fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-    let mut state: MutexGuard<WriteFutureState> = match self.state.lock() {
+    let mut state: MutexGuard<RastFutureState<T>> = match self.state.lock() {
       Ok(guard) => guard,
       Err(_) => {
         // TODO: this isn't the right error but close enough for now
