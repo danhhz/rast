@@ -24,10 +24,22 @@ pub struct WriteReq {
   pub payload: Vec<u8>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WriteRes {
   pub term: Term,
   pub index: Index,
+}
+
+#[derive(Debug)]
+pub struct ReadReq {
+  pub payload: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReadRes {
+  pub term: Term,
+  pub index: Index,
+  pub payload: Vec<u8>,
 }
 
 #[derive(Debug, Clone)]

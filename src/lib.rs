@@ -19,13 +19,18 @@ pub use log::*;
 // TODO: more consistent method naming
 // TODO: refactor out a statemachine lib
 // TODO: compress log implementation
+// TODO: randomzized invariant testing
+// TODO: failure testing
+// TODO: ensure that heartbeat (empty append) is no disk write in common case
 
 #[derive(Debug)]
 pub enum Input {
   Write((WriteReq, WriteFuture)),
+  Read((ReadReq, ReadFuture)),
   Tick(Instant),
   Message(Message),
   PersistRes(Index, NodeID),
+  ReadStateMachine(Index, usize, Vec<u8>),
 }
 
 #[derive(Debug)]
@@ -33,6 +38,7 @@ pub enum Output {
   Message(Message),
   PersistReq(NodeID, Vec<Entry>), // WIP NodeID is the leader
   ApplyReq(Index),
+  ReadStateMachine(Index, usize, Vec<u8>),
 }
 
 // WIP: keep the role-specific state in this enum
@@ -71,7 +77,11 @@ pub struct Rast {
   // Leader volatile state
   next_index: HashMap<NodeID, Index>,
   match_index: HashMap<NodeID, Index>,
-  command_buffer: HashMap<(Term, Index), WriteFuture>,
+  write_buffer: HashMap<(Term, Index), WriteFuture>,
+  min_read_index: Option<Index>,
+  read_index: Option<Index>,
+  read_buffer_pending: Vec<(ReadReq, ReadFuture)>,
+  read_buffer_running: HashMap<usize, (ReadReq, ReadFuture)>,
 
   // Candidate volatile state
   received_votes: usize,
@@ -94,16 +104,26 @@ impl Rast {
       nodes: nodes,
       current_time: current_time,
       last_communication: last_communication,
+      min_read_index: None,
+      read_index: None,
       next_index: HashMap::new(),
       match_index: HashMap::new(),
       received_votes: 0,
-      command_buffer: HashMap::new(),
+      write_buffer: HashMap::new(),
+      read_buffer_pending: Vec::new(),
+      read_buffer_running: HashMap::new(),
     }
   }
 
-  pub fn write_async(&mut self, req: WriteReq, output: &mut impl Extend<Output>) -> WriteFuture {
+  pub fn write_async(&mut self, output: &mut impl Extend<Output>, req: WriteReq) -> WriteFuture {
     let future = WriteFuture::new();
     self.step(output, Input::Write((req, future.clone())));
+    future
+  }
+
+  pub fn read_async(&mut self, output: &mut impl Extend<Output>, req: ReadReq) -> ReadFuture {
+    let future = ReadFuture::new();
+    self.step(output, Input::Read((req, future.clone())));
     future
   }
 
@@ -113,16 +133,20 @@ impl Rast {
     self.maybe_apply(output);
     match input {
       Input::Write((req, state)) => self.write(output, req.payload, Some(state)),
+      Input::Read((req, state)) => self.read(output, req, state),
       Input::Tick(now) => self.tick(output, now),
       Input::PersistRes(index, leader_id) => self.persist_res(output, index, leader_id),
+      Input::ReadStateMachine(index, idx, payload) => {
+        self.read_state_machine_res(index, idx, payload)
+      }
       Input::Message(message) => self.message(output, message),
     };
   }
 
-  fn maybe_wake(&mut self) {
+  fn maybe_wake_writes(&mut self) {
     let current_term = self.current_term;
     let commit_index = self.commit_index;
-    self.command_buffer.retain(|(term, index), future| {
+    self.write_buffer.retain(|(term, index), future| {
       debug_assert!(*term == current_term);
       if *index >= commit_index {
         future.fill(Ok(WriteRes { term: *term, index: *index }));
@@ -134,6 +158,37 @@ impl Rast {
   }
 
   fn maybe_apply(&mut self, output: &mut impl Extend<Output>) {
+    println!(
+      "maybe apply read_index={:?} last_applied={:?} read_buffer_pending={:?}",
+      self.read_index,
+      self.last_applied,
+      self.read_buffer_pending.len()
+    );
+    if let Some(read_index) = self.read_index {
+      debug_assert!(read_index + 1 >= self.last_applied);
+      if self.read_buffer_running.len() > 0 {
+        return;
+      }
+      if read_index + 1 == self.last_applied && self.read_buffer_pending.len() > 0 {
+        debug_assert_eq!(self.read_buffer_running.len(), 0);
+        // WIP: better unique key generation
+        self.read_buffer_running.extend(self.read_buffer_pending.drain(..).enumerate());
+        output.extend(
+          self
+            .read_buffer_running
+            .iter()
+            .map(|(idx, (req, _))| Output::ReadStateMachine(read_index, *idx, req.payload.clone())),
+        );
+        // NB: We have to wait for all these to come back before we advance
+        // last_applied and output an ApplyReq so we can guarantee that they
+        // execute before any writes that were submitted after them (which would
+        // be a serializability violation).
+        //
+        // WIP on that note, what happens if a read is submitted when there is
+        // no min_read_index? this story needs some work
+        return;
+      }
+    }
     if self.commit_index > self.last_applied {
       let Index(last_applied) = self.last_applied;
       self.last_applied = Index(last_applied + 1);
@@ -157,10 +212,11 @@ impl Rast {
     let entry = Entry { term: self.current_term, index: prev_log_index + 1, payload: payload };
     // WIP debug assertion that this doesn't exist.
     if let Some(state) = state {
-      self.command_buffer.insert((entry.term, entry.index), state);
+      self.write_buffer.insert((entry.term, entry.index), state);
     }
     // WIP: is this really the right place for this?
     self.log.extend(vec![entry.clone()]);
+    println!("WRITING to leader {:?}", entry.clone());
     // TODO: this is duplicated with the one in `process_append_entries`
     output.extend(vec![Output::PersistReq(self.id, vec![entry.clone()])]);
     self.ack_term_index(output, self.id, entry.term, entry.index);
@@ -173,6 +229,25 @@ impl Rast {
       entries: vec![entry],
     });
     self.message_to_all_other_nodes(output, payload);
+  }
+
+  fn read(&mut self, _output: &mut impl Extend<Output>, req: ReadReq, mut state: ReadFuture) {
+    match self.role {
+      Role::Candidate | Role::Follower => {
+        // TODO: hint
+        state.fill(Err(NotLeaderError::new(NodeID(0))));
+        return;
+      }
+      Role::Leader => {} // Only a leader can serve a read, let's go.
+    };
+    self.read_buffer_pending.push((req, state));
+
+    // TODO: Assert the read_index is only set if min_read_index is and it
+    // should be >=.
+    if self.read_index.is_none() {
+      // NB: min_read_index will be none if this leader is newly elected.
+      self.read_index = self.min_read_index;
+    }
   }
 
   fn tick(&mut self, output: &mut impl Extend<Output>, now: Instant) {
@@ -216,6 +291,19 @@ impl Rast {
     });
     let msg = Output::Message(Message { src: self.id, dest: leader_id, payload: payload });
     output.extend(vec![msg]);
+  }
+
+  fn read_state_machine_res(&mut self, index: Index, idx: usize, payload: Vec<u8>) {
+    if self.read_index != Some(index) {
+      // Read from some previous term as leader
+      return;
+    }
+    if let Some((_, mut res)) = self.read_buffer_running.remove(&idx) {
+      res.fill(Ok(ReadRes { term: self.current_term, index: index, payload: payload }));
+    }
+    if self.read_buffer_running.len() == 0 {
+      self.read_index = None
+    }
   }
 
   fn message(&mut self, output: &mut impl Extend<Output>, message: Message) {
@@ -345,8 +433,10 @@ impl Rast {
       // majority in match_index
       let count = self.match_index.iter().filter(|(_, index)| **index >= entry.index).count();
       if count >= needed {
-        self.commit_index = entry.index;
-        self.maybe_wake();
+        let new_commit_index = entry.index;
+        self.commit_index = new_commit_index;
+        self.min_read_index = Some(self.commit_index);
+        self.maybe_wake_writes();
         self.maybe_apply(output);
         return;
       }
@@ -394,8 +484,20 @@ impl Rast {
     }
   }
 
-  fn send_append_entries(&mut self, _output: &mut impl Extend<Output>, _entries: Vec<Entry>) {
-    todo!()
+  fn send_append_entries(&mut self, output: &mut impl Extend<Output>, entries: Vec<Entry>) {
+    let (prev_log_term, prev_log_index) =
+      self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
+    output.extend(vec![Output::PersistReq(self.id, entries.clone())]);
+    self.ack_term_index(output, self.id, self.current_term, prev_log_index + entries.len() as u64);
+    let payload = Payload::AppendEntriesReq(AppendEntriesReq {
+      term: self.current_term,
+      leader_id: self.id,
+      prev_log_index: prev_log_index,
+      prev_log_term: prev_log_term,
+      leader_commit: self.commit_index,
+      entries: entries,
+    });
+    self.message_to_all_other_nodes(output, payload);
   }
 
   fn start_election(&mut self, output: &mut impl Extend<Output>, now: Instant) {
@@ -449,6 +551,7 @@ impl Rast {
 
   fn convert_to_leader(&mut self, output: &mut impl Extend<Output>) {
     self.role = Role::Leader;
+    self.min_read_index = None;
     self.next_index.clear();
     self.match_index.clear();
     // Leaders: Upon election: send initial empty AppendEntries RPCs
@@ -459,9 +562,15 @@ impl Rast {
 
   fn clear_outstanding_requests(&mut self, leader_hint: Option<NodeID>) {
     debug_assert_eq!(self.role, Role::Leader);
-    self.command_buffer.drain().for_each(|(_, mut future)| {
+    self.write_buffer.drain().for_each(|(_, mut future)| {
       future.fill(Err(NotLeaderError::new(leader_hint.unwrap_or(NodeID(0)))));
-    })
+    });
+    self.read_buffer_pending.drain(..).for_each(|(_, mut future)| {
+      future.fill(Err(NotLeaderError::new(leader_hint.unwrap_or(NodeID(0)))));
+    });
+    self.read_buffer_running.drain().for_each(|(_, (_, mut future))| {
+      future.fill(Err(NotLeaderError::new(leader_hint.unwrap_or(NodeID(0)))));
+    });
   }
 
   fn majority(&self) -> usize {
