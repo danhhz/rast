@@ -1,5 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -8,10 +9,15 @@ use std::task::{Context, Poll, Waker};
 use super::error::*;
 use super::log::*;
 
-#[derive(Debug)]
 struct RastFutureState<T> {
   result: Option<Result<T, NotLeaderError>>,
   waker: Option<Waker>,
+}
+
+impl<T: fmt::Debug> fmt::Debug for RastFutureState<T> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{:?}", self.result)
+  }
 }
 
 #[derive(Debug, Clone)]

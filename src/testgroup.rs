@@ -2,14 +2,14 @@
 
 use std::time::{Duration, Instant};
 
-use super::testlog::*;
+use super::runtime::*;
 use super::*;
 
 pub struct TestNode {
   pub sm: Rast,
   pub input: Vec<Input>,
   pub output: Vec<Output>,
-  pub log: TestLog,
+  pub log: MemLog,
   pub state: Vec<u8>,
 }
 
@@ -19,7 +19,7 @@ impl TestNode {
       sm: Rast::new(id, nodes, cfg, now),
       input: vec![],
       output: vec![],
-      log: TestLog::new(),
+      log: MemLog::new(),
       state: vec![],
     }
   }
@@ -82,7 +82,7 @@ pub struct TestGroup1 {
 impl TestGroup1 {
   pub fn new() -> TestGroup1 {
     let now = Instant::now();
-    let cfg = default_cfg();
+    let cfg: Config = Default::default();
     TestGroup1 { n: TestNode::new(NodeID(0), vec![NodeID(0)], cfg.clone(), now), cfg: cfg }
   }
 }
@@ -109,7 +109,7 @@ pub struct TestGroup3 {
 impl TestGroup3 {
   pub fn new() -> TestGroup3 {
     let now = Instant::now();
-    let cfg = default_cfg();
+    let cfg: Config = Default::default();
     let nodes = vec![NodeID(0), NodeID(1), NodeID(2)];
     TestGroup3 {
       n0: TestNode::new(NodeID(0), nodes.clone(), cfg.clone(), now),
@@ -129,13 +129,6 @@ impl TestGroup for TestGroup3 {
   }
   fn nodes_mut(&mut self) -> Vec<&mut TestNode> {
     vec![&mut self.n0, &mut self.n1, &mut self.n2]
-  }
-}
-
-fn default_cfg() -> Config {
-  Config {
-    election_timeout: Duration::from_millis(100),
-    heartbeat_interval: Duration::from_millis(10),
   }
 }
 

@@ -1,12 +1,17 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use std::sync::mpsc::Sender;
+use super::log::{Message, NodeID};
 
-pub trait RPC {
-  // WIP this is awkward and abstraction breaking
-  fn dial(node: ::crate::log::Node, responses: Sender<Message>) -> Conn;
+pub struct RPC {}
+impl RPC {
+  pub fn dial(&self, _node: NodeID) -> Conn {
+    todo!()
+  }
 }
 
-pub trait Conn {
-  fn send(m: Message);
+pub struct Conn {}
+impl Conn {
+  pub fn send(&self, _m: Message) {
+    todo!()
+  }
 }

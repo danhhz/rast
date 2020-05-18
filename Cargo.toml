@@ -5,3 +5,8 @@ authors = ["Daniel Harrison <daniel.harrison@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+extreme = "666.666.666666"
+
+[dependencies.rand]
+version = "0.7"
+features = ["small_rng"]
