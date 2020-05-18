@@ -1,5 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+use super::nemesis;
 use super::testgroup::*;
 use super::*;
 
@@ -171,4 +172,35 @@ fn overwrite_entries() {
   g.drain();
   let res = assert_ready(&mut res).unwrap();
   assert_eq!(res.payload, String::from("134").into_bytes());
+}
+
+#[test]
+fn regression_request_starts_election() {
+  // Regression test for a bug where a write request didn't start an election
+  // (only a tick would).
+  {
+    let mut g = TestGroup3::new();
+    // Request fails with NotLeaderError, but kicks off an election.
+    let mut res1 = g.n0.write_async(WriteReq { payload: String::from("1").into_bytes() });
+    assert_eq!(assert_ready(&mut res1), Err(NotLeaderError::new(NodeID(0))));
+    g.drain();
+    assert_eq!(g.n0.sm.role, Role::Leader);
+  }
+
+  // Same thing but for a read request.
+  {
+    let mut g = TestGroup3::new();
+    // Request fails with NotLeaderError, but kicks off an election.
+    let mut res1 = g.n0.read_async(ReadReq { payload: String::from("1").into_bytes() });
+    assert_eq!(assert_ready(&mut res1), Err(NotLeaderError::new(NodeID(0))));
+    g.drain();
+    assert_eq!(g.n0.sm.role, Role::Leader);
+  }
+}
+
+#[test]
+fn nemesis_single() {
+  let cfg = nemesis::Config { nodes: 1, workers: 1, ops: 100, read: 50, write: 50 };
+  let failures = nemesis::nemesis_test(cfg);
+  failures.expect("consistency violation");
 }

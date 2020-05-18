@@ -10,18 +10,37 @@ use std::time::{Duration, Instant};
 mod error;
 mod future;
 mod log;
+mod rpc;
+mod runtime;
 
 pub use error::*;
 pub use future::*;
 pub use log::*;
+pub use rpc::*;
+pub use runtime::*;
 
 // TODO: figure out how to call output.extend without creating a vec
 // TODO: more consistent method naming
 // TODO: refactor out a statemachine lib
 // TODO: compress log implementation
-// TODO: randomzized invariant testing
+// TODO: randomized invariant testing
 // TODO: failure testing
 // TODO: ensure that heartbeat (empty append) is no disk write in common case
+// TODO: write internals docs
+// TODO: write externals docs
+// TODO: example runtime
+// TODO: restart node with non-empty log + hard state
+// TODO: fix up crate features
+// TODO: single node special cases
+// - election concludes immediately
+// - read/write req to candidate is successful
+// - committed as soon as it's persisted
+// TODO: benchmarks
+// TODO: test behavior under shutdown
+// TODO: graceful leader handoff
+// TODO: test split vote
+// TODO: retry append rpc, find where follower diverges
+// TODO: test that nothing can be written at an index once that index is read
 
 #[derive(Debug)]
 pub enum Input {
@@ -53,6 +72,15 @@ enum Role {
 pub struct Config {
   pub election_timeout: Duration,
   pub heartbeat_interval: Duration,
+}
+
+impl Default for Config {
+  fn default() -> Config {
+    Config {
+      election_timeout: Duration::from_millis(100),
+      heartbeat_interval: Duration::from_millis(10),
+    }
+  }
 }
 
 // TODO: rename (to state machine?)
@@ -128,6 +156,7 @@ impl Rast {
   }
 
   pub fn step(&mut self, output: &mut impl Extend<Output>, input: Input) {
+    println!("  {:3}: step {:?}", self.id.0, self.role);
     // All Servers: If commitIndex > lastApplied: increment lastApplied, apply
     // log[lastApplied] to state machine (§5.3)
     self.maybe_apply(output);
@@ -146,10 +175,13 @@ impl Rast {
   fn maybe_wake_writes(&mut self) {
     let current_term = self.current_term;
     let commit_index = self.commit_index;
+    let id = self.id;
     self.write_buffer.retain(|(term, index), future| {
       debug_assert!(*term == current_term);
       if *index >= commit_index {
-        future.fill(Ok(WriteRes { term: *term, index: *index }));
+        let res = WriteRes { term: *term, index: *index };
+        println!("  {:3}: write success {:?}", id.0, res);
+        future.fill(Ok(res));
         false
       } else {
         true
@@ -159,7 +191,8 @@ impl Rast {
 
   fn maybe_apply(&mut self, output: &mut impl Extend<Output>) {
     println!(
-      "maybe apply read_index={:?} last_applied={:?} read_buffer_pending={:?}",
+      "  {:3}: maybe apply read_index={:?} last_applied={:?} read_buffer_pending={:?}",
+      self.id.0,
       self.read_index,
       self.last_applied,
       self.read_buffer_pending.len()
@@ -202,11 +235,21 @@ impl Rast {
     payload: Vec<u8>,
     state: Option<WriteFuture>,
   ) {
+    match std::str::from_utf8(&payload) {
+      Ok(payload) => println!("  {:3}: write {:?}", self.id.0, payload),
+      Err(_) => println!("  {:3}: write {:?}", self.id.0, payload),
+    }
     let (prev_log_term, prev_log_index) = match self.role {
       Role::Leader => {
         self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index))
       }
-      Role::Candidate => todo!(),
+      Role::Candidate => {
+        self.start_election(output, self.current_time);
+        if let Some(mut state) = state {
+          state.fill(Err(NotLeaderError::new(NodeID(0))));
+        };
+        return;
+      }
       Role::Follower => todo!(),
     };
     let entry = Entry { term: self.current_term, index: prev_log_index + 1, payload: payload };
@@ -216,7 +259,7 @@ impl Rast {
     }
     // WIP: is this really the right place for this?
     self.log.extend(vec![entry.clone()]);
-    println!("WRITING to leader {:?}", entry.clone());
+    println!("  {:3}: persist {:?}", self.id.0, &entry);
     // TODO: this is duplicated with the one in `process_append_entries`
     output.extend(vec![Output::PersistReq(self.id, vec![entry.clone()])]);
     self.ack_term_index(output, self.id, entry.term, entry.index);
@@ -231,9 +274,16 @@ impl Rast {
     self.message_to_all_other_nodes(output, payload);
   }
 
-  fn read(&mut self, _output: &mut impl Extend<Output>, req: ReadReq, mut state: ReadFuture) {
+  fn read(&mut self, output: &mut impl Extend<Output>, req: ReadReq, mut state: ReadFuture) {
+    println!("  {:3}: read {:?}", self.id.0, req);
     match self.role {
-      Role::Candidate | Role::Follower => {
+      Role::Candidate => {
+        self.start_election(output, self.current_time);
+        // TODO: hint
+        state.fill(Err(NotLeaderError::new(NodeID(0))));
+        return;
+      }
+      Role::Follower => {
         // TODO: hint
         state.fill(Err(NotLeaderError::new(NodeID(0))));
         return;
@@ -245,8 +295,16 @@ impl Rast {
     // TODO: Assert the read_index is only set if min_read_index is and it
     // should be >=.
     if self.read_index.is_none() {
+      println!("  {:3}: self.read_index={:?}", self.id.0, self.min_read_index);
       // NB: min_read_index will be none if this leader is newly elected.
       self.read_index = self.min_read_index;
+    }
+
+    if self.read_buffer_pending.len() == 1 {
+      // We can't serve this read request until the next heartbeat completes, so
+      // proactively start one (but only if this is the first batched read
+      // request).
+      self.write(output, vec![], None);
     }
   }
 
@@ -299,9 +357,14 @@ impl Rast {
       return;
     }
     if let Some((_, mut res)) = self.read_buffer_running.remove(&idx) {
+      match std::str::from_utf8(&payload) {
+        Ok(payload) => println!("  {:3}: read success {:?}", self.id.0, payload),
+        Err(_) => println!("  {:3}: read success {:?}", self.id.0, payload),
+      }
       res.fill(Ok(ReadRes { term: self.current_term, index: index, payload: payload }));
     }
     if self.read_buffer_running.len() == 0 {
+      println!("  {:3}: self.read_index=None", self.id.0);
       self.read_index = None
     }
   }
@@ -435,6 +498,7 @@ impl Rast {
       if count >= needed {
         let new_commit_index = entry.index;
         self.commit_index = new_commit_index;
+        println!("  {:3}: self.min_read_index={:?}", self.id.0, self.commit_index);
         self.min_read_index = Some(self.commit_index);
         self.maybe_wake_writes();
         self.maybe_apply(output);
@@ -501,6 +565,7 @@ impl Rast {
   }
 
   fn start_election(&mut self, output: &mut impl Extend<Output>, now: Instant) {
+    println!("  {:3}: start_election {:?}", self.id.0, now);
     // TODO: this is a little awkward, revisit
     if self.nodes.len() == 1 {
       self.convert_to_leader(output);
@@ -522,6 +587,7 @@ impl Rast {
       last_log_index: last_log_index,
       last_log_term: last_log_term,
     });
+    println!("  {:3}: reqvote {:?}", self.id.0, payload);
     self.message_to_all_other_nodes(output, payload);
   }
 
@@ -550,8 +616,12 @@ impl Rast {
   }
 
   fn convert_to_leader(&mut self, output: &mut impl Extend<Output>) {
+    println!("  {:3}: convert_to_leader", self.id.0);
     self.role = Role::Leader;
+    println!("  {:3}: self.min_read_index=None", self.id.0);
     self.min_read_index = None;
+    println!("  {:3}: self.read_index=None", self.id.0);
+    self.read_index = None;
     self.next_index.clear();
     self.match_index.clear();
     // Leaders: Upon election: send initial empty AppendEntries RPCs
@@ -582,7 +652,7 @@ impl Rast {
 mod testgroup;
 
 #[cfg(test)]
-mod testlog;
+mod tests;
 
 #[cfg(test)]
-mod tests;
+pub mod nemesis;

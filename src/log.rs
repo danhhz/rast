@@ -1,5 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+use std::fmt;
 use std::ops::Add;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -19,7 +20,7 @@ impl Add<u64> for Index {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WriteReq {
   pub payload: Vec<u8>,
 }
@@ -30,9 +31,18 @@ pub struct WriteRes {
   pub index: Index,
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct ReadReq {
   pub payload: Vec<u8>,
+}
+
+impl fmt::Debug for ReadReq {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match std::str::from_utf8(&self.payload) {
+      Ok(payload) => write!(f, "read:{:?}", payload),
+      Err(_) => write!(f, "read:{:?}", self.payload),
+    }
+  }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -49,11 +59,17 @@ pub struct Entry {
   pub payload: Vec<u8>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Message {
   pub src: NodeID,
   pub dest: NodeID,
   pub payload: Payload,
+}
+
+impl fmt::Debug for Message {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "[{:?}->{:?}:{:?}]", self.src.0, self.dest.0, self.payload)
+  }
 }
 
 #[derive(Debug, Clone)]
