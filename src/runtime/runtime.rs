@@ -1,13 +1,14 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
-use super::*;
+use crate::prelude::*;
+use crate::runtime::logimpl::MemLog;
 
 #[derive(Clone)]
 pub struct RastClient {
@@ -40,10 +41,10 @@ pub struct Runtime {
 }
 
 impl Runtime {
-  pub fn new(r: Rast, rpc: MemRPC, log: MemLog) -> Runtime {
+  pub fn new(raft: Raft, rpc: MemRPC, log: MemLog) -> Runtime {
     let (sender, receiver) = mpsc::channel();
     let client = RastClient { sender: sender };
-    let handle = thread::spawn(move || Runtime::run(r, receiver, rpc, log));
+    let handle = thread::spawn(move || Runtime::run(raft, receiver, rpc, log));
     // TODO start up a ticker thread too
     Runtime { handle: Some(handle), client: client }
   }
@@ -70,12 +71,11 @@ impl Runtime {
   }
 
   fn run(
-    sm: Rast,
+    mut raft: Raft,
     reqs: Receiver<Input>,
     rpc: MemRPC,
     _log: MemLog,
   ) -> Result<(), mpsc::RecvError> {
-    let mut sm = sm;
     let mut conns: HashMap<NodeID, MemConn> = HashMap::new();
     let mut cmds = VecDeque::new();
     let mut output = vec![];
@@ -95,8 +95,8 @@ impl Runtime {
         }
         _ => {}
       }
-      println!("{:?}: {:?}", sm.id.0, cmd);
-      sm.step(&mut output, cmd);
+      println!("{:?}: {:?}", raft.id.0, cmd);
+      raft.step(&mut output, cmd);
       output.iter().for_each(|o| println!("  out: {:?}", o));
       output.drain(..).for_each(|output| match output {
         Output::ApplyReq(_) => {
@@ -125,44 +125,6 @@ impl Runtime {
 impl Drop for Runtime {
   fn drop(&mut self) {
     self.stop();
-  }
-}
-
-pub struct MemLog {
-  pub entries: BTreeMap<Index, (Term, Vec<u8>)>,
-  stable: Option<Index>,
-}
-
-impl MemLog {
-  pub fn new() -> MemLog {
-    MemLog { entries: BTreeMap::new(), stable: None }
-  }
-
-  pub fn highest_index(&self) -> Index {
-    self.entries.keys().next_back().map_or(Index(0), |index| *index)
-  }
-
-  pub fn add(&mut self, entry: Entry) {
-    // Invariant: All entries <= the stable one will not change.
-    debug_assert!(self.stable.map_or(true, |stable| entry.index > stable));
-    // Invariant: Indexes are consecutive.
-    debug_assert!({
-      let mut preceding = self.entries.range(..entry.index);
-      preceding.next_back().map_or(true, |prev| *prev.0 + 1 == entry.index)
-    });
-    // Remove all entries >= the index of the new one. This is an awkward way to
-    // do it but we're limited by the BTreeMap interface.
-    let _ = self.entries.split_off(&entry.index);
-    self.entries.insert(entry.index, (entry.term, entry.payload));
-  }
-
-  pub fn get(&self, index: Index) -> Option<&Vec<u8>> {
-    self.entries.get(&index).map(|value| &value.1)
-  }
-
-  pub fn mark_stable(&mut self, index: Index) {
-    // WIP: only forward stable
-    self.stable = Some(index);
   }
 }
 

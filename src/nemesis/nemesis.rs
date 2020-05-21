@@ -7,21 +7,18 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 
 use extreme;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
-use super::*;
+use crate::prelude::*;
+use crate::runtime::{MemLog, MemRPC, RastClient, Runtime};
 
 pub enum OpReq {
   Write(WriteReq),
   Read(ReadReq),
-}
-
-pub enum OpRes {
-  Write(WriteRes),
-  Read(ReadRes),
 }
 
 pub enum Op {
@@ -157,10 +154,10 @@ pub fn nemesis_test(cfg: Config) -> Result<(), ValidateError> {
   if cfg.nodes != 1 {
     todo!()
   }
-  let rast = Rast::new(NodeID(0), vec![NodeID(0)], Default::default(), Instant::now());
+  let raft = Raft::new(NodeID(0), vec![NodeID(0)], Default::default(), Instant::now());
   let mut rpc = MemRPC::new();
   let log = MemLog::new();
-  let runtime = Runtime::new(rast, rpc.clone(), log);
+  let runtime = Runtime::new(raft, rpc.clone(), log);
   rpc.register(NodeID(0), runtime.sender());
   let workers = cfg.workers;
   let ops = Arc::new(AtomicU64::new(0));
@@ -258,6 +255,7 @@ fn validate(mut ops: Vec<Op>) -> Result<(), ValidateError> {
 
 #[cfg(test)]
 mod tests {
+  #![allow(clippy::wildcard_imports)]
   use super::*;
 
   fn read(index: u64, payload: &'static str) -> Op {
@@ -328,5 +326,12 @@ mod tests {
       ];
       assert_eq!(validate(ops), err(r#"read at 2 expected "12" got "21""#));
     }
+  }
+
+  #[test]
+  fn nemesis_single() {
+    let cfg = Config { nodes: 1, workers: 1, ops: 100, read: 50, write: 50 };
+    let failures = nemesis_test(cfg);
+    failures.expect("consistency violation");
   }
 }

@@ -6,8 +6,8 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context, Poll, Waker};
 
-use super::error::*;
-use super::log::*;
+use super::error::NotLeaderError;
+use super::serde::{NodeID, ReadRes, WriteRes};
 
 struct RastFutureState<T> {
   result: Option<Result<T, NotLeaderError>>,

@@ -1,8 +1,9 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use super::log::NodeID;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result};
+
+use super::serde::NodeID;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NotLeaderError {
