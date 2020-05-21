@@ -4,9 +4,9 @@ version = "0.1.0"
 authors = ["Daniel Harrison <daniel.harrison@gmail.com>"]
 edition = "2018"
 
-[dependencies]
-extreme = "666.666.666666"
+[features]
+runtime = []
 
-[dependencies.rand]
-version = "0.7"
-features = ["small_rng"]
+[dev-dependencies]
+rand = { version = "0.7", features = ["small_rng"] }
+extreme = { version = "666.666.666666" }
