@@ -31,29 +31,36 @@ impl DeterministicNode {
 
   pub fn write_async(&mut self, req: WriteReq) -> WriteFuture {
     let mut output = vec![];
+    println!("write  {:?}: {:?}", self.raft.id.0, req);
     let future = self.raft.write_async(&mut output, req);
-    println!("write_async {:?}", output);
     output.iter().for_each(|output| {
-      println!("output {:?}: {:?}", self.raft.id, output);
+      println!("output {:?}: {:?}", self.raft.id.0, output);
     });
+    println!();
     self.output.extend(output);
     future
   }
 
   pub fn read_async(&mut self, req: ReadReq) -> ReadFuture {
     let mut output = vec![];
+    println!("read   {:?}: {:?}", self.raft.id.0, req);
     let future = self.raft.read_async(&mut output, req);
-    println!("read_async {:?}", output);
     output.iter().for_each(|output| {
-      println!("output {:?}: {:?}", self.raft.id, output);
+      println!("output {:?}: {:?}", self.raft.id.0, output);
     });
+    println!();
     self.output.extend(output);
     future
   }
 
   pub fn step(&mut self, input: Input) {
     let mut output = vec![];
+    println!("input  {:?}: {:?}", self.raft.id.0, input);
     self.raft.step(&mut output, input);
+    output.iter().for_each(|output| {
+      println!("output {:?}: {:?}", self.raft.id.0, output);
+    });
+    println!();
     self.output.extend(output);
   }
 
@@ -62,8 +69,9 @@ impl DeterministicNode {
     let id = self.raft.id;
     for input in self.input.drain(..) {
       did_work = true;
-      println!("input  {:?}: {:?}", id.0, input);
+      // WIP: dedup this with step
       let mut output = vec![];
+      println!("input  {:?}: {:?}", id.0, input);
       self.raft.step(&mut output, input);
       output.iter().for_each(|output| {
         println!("output {:?}: {:?}", id.0, output);
@@ -153,7 +161,8 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
         Output::PersistReq(leader_id, entries) => {
           // TODO: test this being delayed
           for entry in entries {
-            println!("adding entry {:?} {:?}", node.raft.id, &entry);
+            println!("APPEND {:?} {:?}", node.raft.id, &entry);
+            println!();
             node.log.add(entry);
           }
           node.input.push(Input::PersistRes(node.log.highest_index(), leader_id));
@@ -163,11 +172,13 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
           node.log.mark_stable(index);
           let payload = node.log.get(index).unwrap();
           node.state.extend(payload);
-          println!("STATE {:?} {:?}", node.raft.id, &node.state);
+          println!("APPLY  {:?} {:?}", node.raft.id, &node.state);
+          println!();
         }
         Output::ReadStateMachine(index, idx, _) => {
           // TODO: test this being delayed
-          println!("READ  {:?} {:?}", node.raft.id, &node.state);
+          println!("READ   {:?} {:?}", node.raft.id, &node.state);
+          println!();
           let payload = node.state.clone();
           node.input.push(Input::ReadStateMachine(index, idx, payload));
         }

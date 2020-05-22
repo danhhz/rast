@@ -24,6 +24,7 @@
 //! crate feature.
 //!
 //! ```
+//! # #[cfg(feature = "runtime")] {
 //! use std::time::Instant;
 //! use rast::prelude::*;
 //! use rast::runtime::{Runtime,MemRPC,MemLog,RastClient};
@@ -49,6 +50,7 @@
 //! let client = runtime.client();
 //! assert_eq!(extreme::run(do_work(client)), "1");
 //! # }
+//! # }
 //! ```
 
 #![warn(clippy::correctness, clippy::perf, clippy::wildcard_imports)]
@@ -58,7 +60,7 @@ mod future;
 mod raft;
 mod serde;
 
-pub use crate::error::NotLeaderError;
+pub use crate::error::{ClientError, NotLeaderError};
 pub use crate::future::{ReadFuture, WriteFuture};
 pub use crate::raft::{Config, Input, Output, Raft};
 pub use crate::serde::{Entry, Index, Message, NodeID, ReadReq, ReadRes, Term, WriteReq, WriteRes};
@@ -90,6 +92,8 @@ mod testutil {
   pub mod noopfuture;
 }
 
+// TODO: better state machine impl
+// TODO: use log facade crate instead of println
 // TODO: figure out how to call output.extend without creating a vec
 // TODO: more consistent method naming
 // TODO: compress log implementation

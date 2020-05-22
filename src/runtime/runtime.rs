@@ -18,18 +18,20 @@ pub struct RastClient {
 impl RastClient {
   pub fn read(&self, req: ReadReq) -> ReadFuture {
     let mut res = ReadFuture::new();
-    // WIP handle error
     self.sender.send(Input::Read((req, res.clone()))).err().iter().for_each(|_| {
-      res.fill(Err(NotLeaderError::new(NodeID(0))));
+      // An error here means the channel is closed, which means the raft loop
+      // has exited. Dunno who the leader is but it's not us.
+      res.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(None))));
     });
     res
   }
 
   pub fn write(&self, req: WriteReq) -> WriteFuture {
     let mut res = WriteFuture::new();
-    // WIP handle error
     self.sender.send(Input::Write((req, res.clone()))).err().iter().for_each(|_| {
-      res.fill(Err(NotLeaderError::new(NodeID(0))));
+      // An error here means the channel is closed, which means the raft loop
+      // has exited. Dunno who the leader is but it's not us.
+      res.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(None))));
     });
     res
   }

@@ -81,11 +81,17 @@ fn leader_timeout() {
   assert_eq!(g.n1.raft.role, Role::Leader);
 
   // The n0 write should have errored.
-  assert_eq!(noopfuture::assert_ready(&mut res), Err(NotLeaderError::new(g.n1.raft.id)));
+  assert_eq!(
+    noopfuture::assert_ready(&mut res),
+    Err(ClientError::NotLeaderError(NotLeaderError::new(Some(g.n1.raft.id))))
+  );
 }
 
 #[test]
 fn overwrite_entries() {
+  // TODO: this test is designed to check that the a follower truncate its log
+  // correctly, but it doesn't.
+
   let mut g = DeterministicGroup3::new();
   g.n0.tick(g.cfg().election_timeout);
   g.drain();
@@ -132,7 +138,10 @@ fn regression_request_starts_election() {
     let mut g = DeterministicGroup3::new();
     // Request fails with NotLeaderError, but kicks off an election.
     let mut res1 = g.n0.write_async(WriteReq { payload: String::from("1").into_bytes() });
-    assert_eq!(noopfuture::assert_ready(&mut res1), Err(NotLeaderError::new(NodeID(0))));
+    assert_eq!(
+      noopfuture::assert_ready(&mut res1),
+      Err(ClientError::NotLeaderError(NotLeaderError::new(Some(g.n0.raft.id))))
+    );
     g.drain();
     assert_eq!(g.n0.raft.role, Role::Leader);
   }
@@ -142,7 +151,10 @@ fn regression_request_starts_election() {
     let mut g = DeterministicGroup3::new();
     // Request fails with NotLeaderError, but kicks off an election.
     let mut res1 = g.n0.read_async(ReadReq { payload: String::from("1").into_bytes() });
-    assert_eq!(noopfuture::assert_ready(&mut res1), Err(NotLeaderError::new(NodeID(0))));
+    assert_eq!(
+      noopfuture::assert_ready(&mut res1),
+      Err(ClientError::NotLeaderError(NotLeaderError::new(Some(g.n0.raft.id))))
+    );
     g.drain();
     assert_eq!(g.n0.raft.role, Role::Leader);
   }

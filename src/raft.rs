@@ -82,6 +82,9 @@ pub struct Raft {
 
   // Candidate volatile state
   received_votes: usize,
+
+  // Follower volatile state
+  leader_hint: Option<NodeID>,
 }
 
 impl Raft {
@@ -109,6 +112,7 @@ impl Raft {
       write_buffer: HashMap::new(),
       read_buffer_pending: Vec::new(),
       read_buffer_running: HashMap::new(),
+      leader_hint: None,
     }
   }
 
@@ -212,13 +216,22 @@ impl Raft {
       Role::Leader => {
         self.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index))
       }
-      Role::Candidate => {
-        self.start_election(output, self.current_time);
-        if let Some(mut state) = state {
-          state.fill(Err(NotLeaderError::new(NodeID(0))));
-        };
-        return;
-      }
+      Role::Candidate => match self.voted_for {
+        Some(voted_for) => {
+          // TODO: if voted_for is this node, we may want to wait and see if we
+          // win the election
+          if let Some(mut state) = state {
+            state.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(Some(voted_for)))));
+          };
+          return;
+        }
+        None => {
+          // We haven't voted yet so start an election, then try the write
+          // again, maybe we'll be able to serve it.
+          self.start_election(output, self.current_time);
+          return self.write(output, payload, state);
+        }
+      },
       Role::Follower => todo!(),
     };
     let entry = Entry { term: self.current_term, index: prev_log_index + 1, payload: payload };
@@ -246,23 +259,31 @@ impl Raft {
   fn read(&mut self, output: &mut impl Extend<Output>, req: ReadReq, mut state: ReadFuture) {
     println!("  {:3}: read {:?}", self.id.0, req);
     match self.role {
-      Role::Candidate => {
-        self.start_election(output, self.current_time);
-        // TODO: hint
-        state.fill(Err(NotLeaderError::new(NodeID(0))));
-        return;
-      }
-      Role::Follower => {
-        // TODO: hint
-        state.fill(Err(NotLeaderError::new(NodeID(0))));
-        return;
-      }
       Role::Leader => {} // Only a leader can serve a read, let's go.
+      // TODO: dedeup these with the ones in write
+      Role::Candidate => match self.voted_for {
+        Some(voted_for) => {
+          // TODO: if voted_for is this node, we may want to wait and see if we
+          // win the election
+          state.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(Some(voted_for)))));
+          return;
+        }
+        None => {
+          // We haven't voted yet so start an election, then try the write
+          // again, maybe we'll be able to serve it.
+          self.start_election(output, self.current_time);
+          return self.read(output, req, state);
+        }
+      },
+      Role::Follower => {
+        state.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(self.leader_hint))));
+        return;
+      }
     };
     self.read_buffer_pending.push((req, state));
 
-    // TODO: Assert the read_index is only set if min_read_index is and it
-    // should be >=.
+    // TODO: assert the read_index is only set if min_read_index is and it
+    // should be >=
     if self.read_index.is_none() {
       println!("  {:3}: self.read_index={:?}", self.id.0, self.min_read_index);
       // NB: min_read_index will be none if this leader is newly elected.
@@ -317,6 +338,7 @@ impl Raft {
       success: true,
     });
     let msg = Output::Message(Message { src: self.id, dest: leader_id, payload: payload });
+    // TODO: special case dest == self.id
     output.extend(vec![msg]);
   }
 
@@ -350,6 +372,10 @@ impl Raft {
       // All Servers: If RPC request or response contains term T > currentTerm:
       // set currentTerm = T, convert to follower (§5.1)
       self.current_term = term;
+      // WIP: probably want a helper for updating the term
+      self.voted_for = None;
+      // WIP: do we really convert to follower on a RequestVoteReq with a higher
+      // term?
       self.convert_to_follower(output, message.src);
     }
     match &mut self.role {
@@ -392,7 +418,9 @@ impl Raft {
   fn step_leader(&mut self, output: &mut impl Extend<Output>, message: Message) {
     match message.payload {
       Payload::AppendEntriesRes(res) => self.process_append_entries_res(output, message.src, res),
-      Payload::RequestVoteRes(res) => self.process_request_vote_res(output, &res),
+      Payload::RequestVoteRes(_) => {
+        // Already the leader, nothing to do here.
+      }
       payload => todo!("{:?}", payload),
     }
   }
@@ -477,6 +505,10 @@ impl Raft {
   }
 
   fn process_request_vote(&mut self, output: &mut impl Extend<Output>, req: &RequestVoteReq) {
+    println!(
+      "  {:3}: self.process_request_vote voted_for={:?} req={:?}",
+      self.id.0, self.voted_for, req
+    );
     // Reply false if term < currentTerm (§5.1)
     if req.term < self.current_term {
       let payload =
@@ -545,6 +577,7 @@ impl Raft {
     self.current_term = Term(current_term + 1);
     // Vote for self
     self.received_votes = 1;
+    self.voted_for = Some(self.id);
     // Reset election timer
     self.last_communication = now;
     // Send RequestVote RPCs to all other servers
@@ -569,19 +602,22 @@ impl Raft {
   }
 
   fn convert_to_candidate(&mut self, output: &mut impl Extend<Output>, now: Instant) {
+    println!("  {:3}: convert_to_candidate {:?}", self.id.0, now);
     if self.role == Role::Leader {
       self.clear_outstanding_requests(None);
     }
     self.role = Role::Candidate;
     // Candidates (§5.2): On conversion to candidate, start election:
-    self.start_election(output, now)
+    self.start_election(output, now);
   }
 
   fn convert_to_follower(&mut self, _output: &mut impl Extend<Output>, leader_hint: NodeID) {
+    println!("  {:3}: convert_to_follower {:?}", self.id.0, leader_hint);
     if self.role == Role::Leader {
       self.clear_outstanding_requests(Some(leader_hint));
     }
     self.role = Role::Follower;
+    self.leader_hint = Some(leader_hint);
   }
 
   fn convert_to_leader(&mut self, output: &mut impl Extend<Output>) {
@@ -602,13 +638,13 @@ impl Raft {
   fn clear_outstanding_requests(&mut self, leader_hint: Option<NodeID>) {
     debug_assert_eq!(self.role, Role::Leader);
     self.write_buffer.drain().for_each(|(_, mut future)| {
-      future.fill(Err(NotLeaderError::new(leader_hint.unwrap_or(NodeID(0)))));
+      future.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(leader_hint))));
     });
     self.read_buffer_pending.drain(..).for_each(|(_, mut future)| {
-      future.fill(Err(NotLeaderError::new(leader_hint.unwrap_or(NodeID(0)))));
+      future.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(leader_hint))));
     });
     self.read_buffer_running.drain().for_each(|(_, (_, mut future))| {
-      future.fill(Err(NotLeaderError::new(leader_hint.unwrap_or(NodeID(0)))));
+      future.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(leader_hint))));
     });
   }
 

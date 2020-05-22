@@ -6,11 +6,11 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context, Poll, Waker};
 
-use super::error::NotLeaderError;
+use super::error::{ClientError, NotLeaderError};
 use super::serde::{NodeID, ReadRes, WriteRes};
 
 struct RastFutureState<T> {
-  result: Option<Result<T, NotLeaderError>>,
+  result: Option<Result<T, ClientError>>,
   waker: Option<Waker>,
 }
 
@@ -21,20 +21,16 @@ impl<T: fmt::Debug> fmt::Debug for RastFutureState<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct RastFuture<T: Clone> {
+struct RastFuture<T> {
   state: Arc<Mutex<RastFutureState<T>>>,
 }
 
-pub type WriteFuture = RastFuture<WriteRes>;
-
-pub type ReadFuture = RastFuture<ReadRes>;
-
-impl<T: Clone> RastFuture<T> {
-  pub fn new() -> RastFuture<T> {
+impl<T> RastFuture<T> {
+  fn new() -> RastFuture<T> {
     RastFuture { state: Arc::new(Mutex::new(RastFutureState { result: None, waker: None })) }
   }
 
-  pub(crate) fn fill(&mut self, result: Result<T, NotLeaderError>) {
+  fn fill(&mut self, result: Result<T, ClientError>) {
     // WIP: what should we do if the lock is poisoned?
     if let Ok(mut state) = self.state.lock() {
       debug_assert!(state.result.is_none());
@@ -42,17 +38,13 @@ impl<T: Clone> RastFuture<T> {
       state.waker.iter_mut().for_each(|waker| waker.wake_by_ref());
     }
   }
-}
 
-impl<T: Clone> Future for RastFuture<T> {
-  type Output = Result<T, NotLeaderError>;
-
-  fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+  fn poll(&self, cx: &mut Context) -> Poll<Result<T, ClientError>> {
     let mut state: MutexGuard<RastFutureState<T>> = match self.state.lock() {
       Ok(guard) => guard,
       Err(_) => {
         // TODO: this isn't the right error but close enough for now
-        return Poll::Ready(Err(NotLeaderError::new(NodeID(0))));
+        return Poll::Ready(Err(ClientError::NotLeaderError(NotLeaderError::new(Some(NodeID(0))))));
       }
     };
     // TODO: this `take()` is technically correct since the Future api requires
@@ -64,5 +56,47 @@ impl<T: Clone> Future for RastFuture<T> {
       state.waker = Some(cx.waker().clone());
       Poll::Pending
     }
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct WriteFuture {
+  f: RastFuture<WriteRes>,
+}
+
+impl WriteFuture {
+  pub fn new() -> WriteFuture {
+    WriteFuture { f: RastFuture::new() }
+  }
+  pub(crate) fn fill(&mut self, result: Result<WriteRes, ClientError>) {
+    self.f.fill(result)
+  }
+}
+
+impl Future for WriteFuture {
+  type Output = Result<WriteRes, ClientError>;
+  fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    self.f.poll(cx)
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadFuture {
+  f: RastFuture<ReadRes>,
+}
+
+impl ReadFuture {
+  pub fn new() -> ReadFuture {
+    ReadFuture { f: RastFuture::new() }
+  }
+  pub(crate) fn fill(&mut self, result: Result<ReadRes, ClientError>) {
+    self.f.fill(result)
+  }
+}
+
+impl Future for ReadFuture {
+  type Output = Result<ReadRes, ClientError>;
+  fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    self.f.poll(cx)
   }
 }
