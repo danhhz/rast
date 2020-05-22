@@ -40,7 +40,7 @@ pub struct ReadOp {
   worker_idx: u64,
   start: Instant,
   req: ReadReq,
-  res: Result<ReadRes, NotLeaderError>,
+  res: Result<ReadRes, ClientError>,
   finish: Instant,
 }
 
@@ -49,7 +49,7 @@ pub struct WriteOp {
   worker_idx: u64,
   start: Instant,
   req: WriteReq,
-  res: Result<WriteRes, NotLeaderError>,
+  res: Result<WriteRes, ClientError>,
   finish: Instant,
 }
 
