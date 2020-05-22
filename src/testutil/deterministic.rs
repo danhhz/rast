@@ -26,47 +26,55 @@ impl DeterministicNode {
   }
 
   pub fn tick(&mut self, inc: Duration) {
-    self.step(Input::Tick(self.raft.current_time + inc));
+    self.step(Input::Tick(self.raft.current_time() + inc));
   }
 
   pub fn write_async(&mut self, req: WriteReq) -> WriteFuture {
     let mut output = vec![];
-    println!("write  {:?}: {:?}", self.raft.id.0, req);
-    let future = self.raft.write_async(&mut output, req);
+    let res = WriteFuture::new();
+
+    println!("write  {:?}: {:?}", self.raft.id().0, req);
+    self.raft.step(&mut output, Input::Write(req, res.clone()));
     output.iter().for_each(|output| {
-      println!("output {:?}: {:?}", self.raft.id.0, output);
+      println!("output {:?}: {:?}", self.raft.id().0, output);
     });
     println!();
+
     self.output.extend(output);
-    future
+    res
   }
 
   pub fn read_async(&mut self, req: ReadReq) -> ReadFuture {
     let mut output = vec![];
-    println!("read   {:?}: {:?}", self.raft.id.0, req);
-    let future = self.raft.read_async(&mut output, req);
+    let res = ReadFuture::new();
+
+    println!("read   {:?}: {:?}", self.raft.id().0, req);
+    self.raft.step(&mut output, Input::Read(req, res.clone()));
     output.iter().for_each(|output| {
-      println!("output {:?}: {:?}", self.raft.id.0, output);
+      println!("output {:?}: {:?}", self.raft.id().0, output);
     });
     println!();
+
     self.output.extend(output);
-    future
+    res
   }
 
   pub fn step(&mut self, input: Input) {
     let mut output = vec![];
-    println!("input  {:?}: {:?}", self.raft.id.0, input);
+
+    println!("input  {:?}: {:?}", self.raft.id().0, input);
     self.raft.step(&mut output, input);
     output.iter().for_each(|output| {
-      println!("output {:?}: {:?}", self.raft.id.0, output);
+      println!("output {:?}: {:?}", self.raft.id().0, output);
     });
     println!();
+
     self.output.extend(output);
   }
 
   fn drain_inputs(&mut self) -> bool {
     let mut did_work = false;
-    let id = self.raft.id;
+    let id = self.raft.id();
     for input in self.input.drain(..) {
       did_work = true;
       // WIP: dedup this with step
@@ -161,7 +169,7 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
         Output::PersistReq(leader_id, entries) => {
           // TODO: test this being delayed
           for entry in entries {
-            println!("APPEND {:?} {:?}", node.raft.id, &entry);
+            println!("APPEND {:?} {:?}", node.raft.id(), &entry);
             println!();
             node.log.add(entry);
           }
@@ -172,12 +180,12 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
           node.log.mark_stable(index);
           let payload = node.log.get(index).unwrap();
           node.state.extend(payload);
-          println!("APPLY  {:?} {:?}", node.raft.id, &node.state);
+          println!("APPLY  {:?} {:?}", node.raft.id(), &node.state);
           println!();
         }
         Output::ReadStateMachine(index, idx, _) => {
           // TODO: test this being delayed
-          println!("READ   {:?} {:?}", node.raft.id, &node.state);
+          println!("READ   {:?} {:?}", node.raft.id(), &node.state);
           println!();
           let payload = node.state.clone();
           node.input.push(Input::ReadStateMachine(index, idx, payload));
@@ -208,7 +216,7 @@ pub trait DeterministicGroup {
 
   fn drain(&mut self) {
     let mut nodes: HashMap<NodeID, &mut DeterministicNode> =
-      self.nodes_mut().drain(..).map(|node| (node.raft.id, node)).collect();
+      self.nodes_mut().drain(..).map(|node| (node.raft.id(), node)).collect();
     drain_outputs(&mut nodes);
     while drain_inputs(&mut nodes) {
       drain_outputs(&mut nodes);

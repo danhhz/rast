@@ -18,7 +18,7 @@ pub struct RastClient {
 impl RastClient {
   pub fn read(&self, req: ReadReq) -> ReadFuture {
     let mut res = ReadFuture::new();
-    self.sender.send(Input::Read((req, res.clone()))).err().iter().for_each(|_| {
+    self.sender.send(Input::Read(req, res.clone())).err().iter().for_each(|_| {
       // An error here means the channel is closed, which means the raft loop
       // has exited. Dunno who the leader is but it's not us.
       res.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(None))));
@@ -28,7 +28,7 @@ impl RastClient {
 
   pub fn write(&self, req: WriteReq) -> WriteFuture {
     let mut res = WriteFuture::new();
-    self.sender.send(Input::Write((req, res.clone()))).err().iter().for_each(|_| {
+    self.sender.send(Input::Write(req, res.clone())).err().iter().for_each(|_| {
       // An error here means the channel is closed, which means the raft loop
       // has exited. Dunno who the leader is but it's not us.
       res.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(None))));
@@ -97,7 +97,7 @@ impl Runtime {
         }
         _ => {}
       }
-      println!("{:?}: {:?}", raft.id.0, cmd);
+      println!("{:?}: {:?}", raft.id().0, cmd);
       raft.step(&mut output, cmd);
       output.iter().for_each(|o| println!("  out: {:?}", o));
       output.drain(..).for_each(|output| match output {
