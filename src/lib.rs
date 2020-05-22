@@ -92,8 +92,8 @@ mod testutil {
   pub mod noopfuture;
 }
 
-// TODO: better state machine impl
 // TODO: use log facade crate instead of println
+// TODO: zero-copy serde
 // TODO: figure out how to call output.extend without creating a vec
 // TODO: more consistent method naming
 // TODO: compress log implementation
