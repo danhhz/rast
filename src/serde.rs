@@ -78,6 +78,7 @@ pub enum Payload {
   AppendEntriesRes(AppendEntriesRes),
   RequestVoteReq(RequestVoteReq),
   RequestVoteRes(RequestVoteRes),
+  StartElectionReq(StartElectionReq),
 }
 
 #[derive(Debug, Clone)]
@@ -111,4 +112,9 @@ pub struct RequestVoteReq {
 pub struct RequestVoteRes {
   pub term: Term,
   pub vote_granted: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct StartElectionReq {
+  pub term: Term,
 }

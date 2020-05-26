@@ -77,6 +77,10 @@ impl Raft {
     return self.state.as_ref().expect("unreachable").shared().current_time;
   }
 
+  pub fn current_term(&self) -> Term {
+    return self.state.as_ref().expect("unreachable").shared().current_term;
+  }
+
   pub fn debug(&self) -> &'static str {
     return self.state.as_ref().expect("unreachable").debug();
   }
@@ -207,8 +211,11 @@ impl State {
   }
 
   fn maybe_apply(shared: &mut SharedState, output: &mut impl Extend<Output>) {
-    println!("  {:3}: maybe_apply last_applied={:?}", shared.id.0, shared.last_applied,);
     if shared.commit_index > shared.last_applied {
+      println!(
+        "  {:3}: maybe_apply commit_index={:?} last_applied={:?}",
+        shared.id.0, shared.commit_index, shared.last_applied
+      );
       let Index(last_applied) = shared.last_applied;
       shared.last_applied = Index(last_applied + 1);
       output.extend(vec![Output::ApplyReq(shared.last_applied)]);
@@ -286,6 +293,13 @@ impl State {
       },
       State::Follower(_) => todo!(),
     }
+  }
+
+  fn leader_heartbeat(leader: Leader, output: &mut impl Extend<Output>) -> Leader {
+    // Leaders: Upon election: send initial empty AppendEntries RPCs
+    // (heartbeat) to each server; repeat during idle periods to prevent
+    // election timeouts (§5.2)
+    State::leader_write(leader, output, vec![], None)
   }
 
   fn leader_write(
@@ -371,38 +385,43 @@ impl State {
       // We can't serve this read request until the next heartbeat completes, so
       // proactively start one (but only if this is the first batched read
       // request).
-      leader = State::leader_write(leader, output, vec![], None);
+      leader = State::leader_heartbeat(leader, output);
     }
     leader
   }
 
-  fn tick(mut self, output: &mut impl Extend<Output>, now: Instant) -> State {
+  fn tick(self, output: &mut impl Extend<Output>, now: Instant) -> State {
+    println!(
+      "  {:3}: self.tick={:?} current_time={:?}",
+      self.shared().id.0,
+      now,
+      self.shared().current_time
+    );
     if now <= self.shared().current_time {
       // Ignore a repeat tick (as well as one in the past, which shouldn't
       // happen).
       return self;
     }
-    {
-      self.shared_mut().current_time = now;
-    }
     match self {
       State::Candidate(mut candidate) => {
         // Candidates (§5.2): If election timeout elapses: start new election
         let timed_out = candidate.shared.last_communication.map_or(true, |last_communication| {
-          now.duration_since(last_communication) > candidate.shared.cfg.election_timeout
+          now.duration_since(last_communication) >= candidate.shared.cfg.election_timeout
         });
+        candidate.shared.current_time = now;
         if timed_out {
           candidate = State::start_election(candidate, output, now);
         }
         State::Candidate(candidate)
       }
-      State::Follower(follower) => {
+      State::Follower(mut follower) => {
         // Followers (§5.2): If election timeout elapses without receiving
         // AppendEntries RPC from current leader or granting vote to candidate:
         // convert to candidate
         let timed_out = follower.shared.last_communication.map_or(true, |last_communication| {
-          now.duration_since(last_communication) > follower.shared.cfg.election_timeout
+          now.duration_since(last_communication) >= follower.shared.cfg.election_timeout
         });
+        follower.shared.current_time = now;
         if timed_out {
           return State::Candidate(State::follower_convert_to_candidate(follower, output, now));
         }
@@ -410,8 +429,9 @@ impl State {
       }
       State::Leader(mut leader) => {
         let need_heartbeat = leader.shared.last_communication.map_or(true, |last_communication| {
-          now.duration_since(last_communication) > leader.shared.cfg.heartbeat_interval
+          now.duration_since(last_communication) >= leader.shared.cfg.heartbeat_interval
         });
+        leader.shared.current_time = now;
         if need_heartbeat {
           // Leaders: Upon election: send initial empty AppendEntries RPCs
           // (heartbeat) to each server; repeat during idle periods to prevent
@@ -468,9 +488,10 @@ impl State {
       // TODO: avoid calling payload multiple times
       let term = match &message.payload {
         Payload::AppendEntriesReq(req) => req.term,
-        Payload::RequestVoteReq(req) => req.term,
         Payload::AppendEntriesRes(res) => res.term,
+        Payload::RequestVoteReq(req) => req.term,
         Payload::RequestVoteRes(res) => res.term,
+        Payload::StartElectionReq(req) => req.term,
       };
       if term > shared.current_term {
         // All Servers: If RPC request or response contains term T > currentTerm:
@@ -509,6 +530,14 @@ impl State {
         State::Candidate(candidate)
       }
       Payload::RequestVoteReq(req) => State::Candidate(candidate).process_request_vote(output, req),
+      Payload::StartElectionReq(req) => {
+        if req.term < candidate.shared.current_term {
+          // Stale request, ignore.
+          return State::Candidate(candidate);
+        }
+        let now = candidate.shared.current_time;
+        State::Candidate(State::start_election(candidate, output, now))
+      }
       payload => todo!("{:?}", payload),
     }
   }
@@ -529,6 +558,16 @@ impl State {
         // No-op, stale response to a request sent out by this node when it was a leader.
         State::Follower(follower)
       }
+      Payload::StartElectionReq(req) => {
+        if req.term < follower.shared.current_term {
+          // Stale request, ignore.
+          return State::Follower(follower);
+        }
+        let now = follower.shared.current_time;
+        let candidate = State::follower_convert_to_candidate(follower, output, now);
+        let now = candidate.shared.current_time;
+        State::Candidate(State::start_election(candidate, output, now))
+      }
       payload => todo!("{:?}", payload),
     }
   }
@@ -539,6 +578,10 @@ impl State {
         State::Leader(State::leader_process_append_entries_res(leader, output, message.src, res))
       }
       Payload::RequestVoteRes(_) => {
+        // Already the leader, nothing to do here.
+        State::Leader(leader)
+      }
+      Payload::StartElectionReq(_) => {
         // Already the leader, nothing to do here.
         State::Leader(leader)
       }
@@ -563,6 +606,12 @@ impl State {
       output.extend(vec![msg]);
       return follower;
     }
+
+    println!(
+      "  {:3}: self.last_communication={:?}",
+      follower.shared.id.0, follower.shared.current_time
+    );
+    follower.shared.last_communication = Some(follower.shared.current_time);
 
     // WIP: Reply false if log doesn’t contain an entry at prevLogIndex whose
     // term matches prevLogTerm (§5.3)
@@ -831,7 +880,7 @@ impl State {
     // Leaders: Upon election: send initial empty AppendEntries RPCs
     // (heartbeat) to each server; repeat during idle periods to prevent
     // election timeouts (§5.2)
-    State::leader_write(leader, output, vec![], None)
+    State::leader_heartbeat(leader, output)
   }
 
   fn clear_outstanding_requests(mut leader: Leader, new_leader_hint: Option<NodeID>) -> Leader {

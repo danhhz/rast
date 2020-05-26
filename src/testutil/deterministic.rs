@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use crate::prelude::*;
 use crate::runtime::MemLog;
+use crate::serde::{Payload, StartElectionReq};
 
 pub struct DeterministicNode {
   pub raft: Raft,
@@ -23,6 +24,15 @@ impl DeterministicNode {
       log: MemLog::new(),
       state: vec![],
     }
+  }
+
+  pub fn start_election(&mut self) {
+    let payload = Payload::StartElectionReq(StartElectionReq { term: self.raft.current_term() });
+    self.step(Input::Message(Message {
+      src: self.raft.id(),
+      dest: self.raft.id(),
+      payload: payload,
+    }));
   }
 
   pub fn tick(&mut self, inc: Duration) {

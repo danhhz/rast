@@ -9,8 +9,8 @@ fn election_one() {
   let mut g = DeterministicGroup1::new();
   assert_eq!(g.n.raft.debug(), "candidate");
 
-  g.n.tick(g.cfg().election_timeout);
-  // TODO: this isn't accurace once we persist hard state
+  g.n.start_election();
+  // TODO: this isn't accurate once we persist hard state
   // assert_eq!(g.n.raft.debug(), "leader");
 }
 
@@ -19,7 +19,7 @@ fn election_multi() {
   let mut g = DeterministicGroup3::new();
   assert_eq!(g.n0.raft.debug(), "candidate");
 
-  g.n0.tick(g.cfg().election_timeout);
+  g.n0.start_election();
   assert_eq!(g.n0.raft.debug(), "candidate");
   assert_eq!(g.n1.raft.debug(), "candidate");
   assert_eq!(g.n2.raft.debug(), "candidate");
@@ -31,9 +31,47 @@ fn election_multi() {
 }
 
 #[test]
+fn tick() {
+  let mut g = DeterministicGroup3::new();
+
+  // n0 calls an election
+  g.n0.start_election();
+  assert_eq!(g.n0.raft.current_term(), Term(1));
+
+  // Nothing happens for election_timeout, so it calls a fresh election with a
+  // new term.
+  g.n0.tick(g.cfg().election_timeout);
+  assert_eq!(g.n0.raft.current_term(), Term(2));
+
+  // This time it works.
+  g.drain();
+  assert_eq!(g.n0.raft.debug(), "leader");
+  assert_eq!(g.n1.raft.debug(), "follower");
+  assert_eq!(g.n2.raft.debug(), "follower");
+
+  // Once the heartbeat interval has elapsed, the leader sends out a heartbeat.
+  // The followers do nothing.
+  g.n0.tick(g.cfg().heartbeat_interval);
+  g.n1.tick(g.cfg().heartbeat_interval);
+  g.n2.tick(g.cfg().heartbeat_interval);
+  g.drain();
+  assert_eq!(g.n0.raft.debug(), "leader");
+  assert_eq!(g.n1.raft.debug(), "follower");
+  assert_eq!(g.n2.raft.debug(), "follower");
+
+  // If the leader doesn't heartbeat for the timeout interval, an election is
+  // called.
+  g.n1.tick(g.cfg().election_timeout);
+  g.drain();
+  assert_eq!(g.n0.raft.debug(), "follower");
+  assert_eq!(g.n1.raft.debug(), "leader");
+  assert_eq!(g.n2.raft.debug(), "follower");
+}
+
+#[test]
 fn write_future() {
   let mut g = DeterministicGroup3::new();
-  g.n0.tick(g.cfg().election_timeout);
+  g.n0.start_election();
   g.drain();
 
   let payload = String::from("write_future").into_bytes();
@@ -50,7 +88,7 @@ fn write_future() {
 #[test]
 fn read_future() {
   let mut g = DeterministicGroup3::new();
-  g.n0.tick(g.cfg().election_timeout);
+  g.n0.start_election();
   g.drain();
 
   let payload = String::from("read_future").into_bytes();
@@ -66,7 +104,7 @@ fn read_future() {
 #[test]
 fn leader_timeout() {
   let mut g = DeterministicGroup3::new();
-  g.n0.tick(g.cfg().election_timeout);
+  g.n0.start_election();
   g.drain();
   assert_eq!(g.n0.raft.debug(), "leader");
 
@@ -93,7 +131,7 @@ fn overwrite_entries() {
   // correctly, but it doesn't.
 
   let mut g = DeterministicGroup3::new();
-  g.n0.tick(g.cfg().election_timeout);
+  g.n0.start_election();
   g.drain();
   assert_eq!(g.n0.raft.debug(), "leader");
 
@@ -105,8 +143,8 @@ fn overwrite_entries() {
   // Another write is started, but this one will not finish.
   g.n0.write_async(WriteReq { payload: String::from("2").into_bytes() });
 
-  // n1 doesn't see a heartbeat from n0 for too long and calls an election.
-  g.n1.tick(g.cfg().election_timeout * 2);
+  // n1 is elected as the new leader.
+  g.n1.start_election();
   g.drain();
   assert_eq!(g.n1.raft.debug(), "leader");
 
@@ -115,8 +153,8 @@ fn overwrite_entries() {
   g.drain();
   let _ = noopfuture::assert_ready(&mut res);
 
-  // n0 doesn't see a heartbeat from n1 for too long and calls an election.
-  g.n0.tick(g.cfg().election_timeout * 2);
+  // Leadership is transferred back to n0.
+  g.n0.start_election();
   g.drain();
   assert_eq!(g.n0.raft.debug(), "leader");
 
@@ -124,7 +162,7 @@ fn overwrite_entries() {
   // TODO: make this work without the write
   let _ = g.n0.write_async(WriteReq { payload: String::from("4").into_bytes() });
   let mut res = g.n0.read_async(ReadReq { payload: vec![] });
-  g.n0.tick(g.cfg().election_timeout);
+  // g.n0.tick(g.cfg().election_timeout);
   g.drain();
   let res = noopfuture::assert_ready(&mut res).unwrap();
   assert_eq!(res.payload, String::from("134").into_bytes());
