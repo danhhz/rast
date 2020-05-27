@@ -1,8 +1,19 @@
 [package]
 name = "rast"
-version = "0.1.0"
-authors = ["Daniel Harrison <daniel.harrison@gmail.com>"]
+version = "0.1.0-alpha.1"
+authors = ["Daniel Harrison"]
 edition = "2018"
+license = "Apache-2.0"
+keywords = ["distributed", "consensus", "raft"]
+categories = ["algorithms"]
+description = "A toy implementation of the raft consistency protocol focused on speed"
+documentation = "https://docs.rs/rast"
+repository = "https://github.com/danhhz/rast"
+readme = "README.md"
+
+[badges]
+circle-ci = { repository = "danhhz/rast", branch = "dev" }
+maintenance = { status = "experimental" }
 
 [features]
 runtime = []
