@@ -63,7 +63,9 @@ mod serde;
 pub use crate::error::{ClientError, NotLeaderError};
 pub use crate::future::{ReadFuture, WriteFuture};
 pub use crate::raft::{Config, Input, Output, Raft};
-pub use crate::serde::{Entry, Index, Message, NodeID, ReadReq, ReadRes, Term, WriteReq, WriteRes};
+pub use crate::serde::{
+  Entry, Index, Message, NodeID, ReadID, ReadReq, ReadRes, Term, WriteReq, WriteRes,
+};
 
 pub mod prelude {
   pub use crate::*;
@@ -71,11 +73,14 @@ pub mod prelude {
 
 #[cfg(any(feature = "runtime", test))]
 pub mod runtime {
+  mod memlog;
+  pub use memlog::*;
+
+  mod memrpc;
+  pub use memrpc::*;
+
   mod runtime;
   pub use runtime::*;
-
-  mod logimpl;
-  pub use logimpl::*;
 }
 
 #[cfg(test)]
@@ -88,6 +93,9 @@ mod nemesis {
 mod testutil {
   mod deterministic;
   pub use deterministic::*;
+
+  mod concurrent;
+  pub use concurrent::*;
 
   pub mod noopfuture;
 }
@@ -110,6 +118,10 @@ mod testutil {
 // TODO: benchmarks
 // TODO: graceful leader handoff
 // TODO: retry append rpc, find where follower diverges
+// TODO: idempotent messages
+// TODO: read+write requests (cput)
+// TODO: nemesis test shouldn't hang when something panics
+// TODO: follower reads
 // TODO: tests
 // - election timeout, node isn't elected in a short enough time
 // - stuck election/split vote, all nodes vote for themselves

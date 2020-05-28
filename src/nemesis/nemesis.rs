@@ -14,7 +14,8 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
 use crate::prelude::*;
-use crate::runtime::{MemLog, MemRPC, RastClient, Runtime};
+use crate::runtime::RastClient;
+use crate::testutil::ConcurrentGroup;
 
 pub enum OpReq {
   Write(WriteReq),
@@ -151,23 +152,17 @@ impl<'a> Applier<'a> {
 }
 
 pub fn nemesis_test(cfg: Config) -> Result<(), ValidateError> {
-  if cfg.nodes != 1 {
-    todo!()
-  }
-  let raft = Raft::new(NodeID(0), vec![NodeID(0)], Default::default(), Instant::now());
-  let mut rpc = MemRPC::new();
-  let log = MemLog::new();
-  let runtime = Runtime::new(raft, rpc.clone(), log);
-  rpc.register(NodeID(0), runtime.sender());
+  let group = ConcurrentGroup::new(cfg.nodes);
   let workers = cfg.workers;
   let ops = Arc::new(AtomicU64::new(0));
   let threads = (0..workers).map(|worker_idx| {
     let cfg = cfg.clone();
     let ops = ops.clone();
-    let g = Generator::new(cfg.clone());
-    let c = runtime.client();
+    let generator = Generator::new(cfg.clone());
+    // WIP
+    let c = group.nodes.iter().next().unwrap().1.client();
     thread::spawn(move || {
-      let a = Applier::new(cfg, ops, &g, &c);
+      let a = Applier::new(cfg, ops, &generator, &c);
       let mut rng = SmallRng::seed_from_u64(worker_idx);
       extreme::run(a.worker(worker_idx, &mut rng))
     })
@@ -330,7 +325,14 @@ mod tests {
 
   #[test]
   fn nemesis_single() {
-    let cfg = Config { nodes: 1, workers: 1, ops: 100, read: 50, write: 50 };
+    let cfg = Config { nodes: 1, workers: 4, ops: 100, read: 50, write: 50 };
+    let failures = nemesis_test(cfg);
+    failures.expect("consistency violation");
+  }
+
+  #[test]
+  fn nemesis_multi() {
+    let cfg = Config { nodes: 3, workers: 4, ops: 100, read: 50, write: 50 };
     let failures = nemesis_test(cfg);
     failures.expect("consistency violation");
   }

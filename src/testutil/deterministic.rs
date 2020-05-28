@@ -39,7 +39,7 @@ impl DeterministicNode {
     self.step(Input::Tick(self.raft.current_time() + inc));
   }
 
-  pub fn write_async(&mut self, req: WriteReq) -> WriteFuture {
+  pub fn write(&mut self, req: WriteReq) -> WriteFuture {
     let mut output = vec![];
     let res = WriteFuture::new();
 
@@ -54,7 +54,7 @@ impl DeterministicNode {
     res
   }
 
-  pub fn read_async(&mut self, req: ReadReq) -> ReadFuture {
+  pub fn read(&mut self, req: ReadReq) -> ReadFuture {
     let mut output = vec![];
     let res = ReadFuture::new();
 
@@ -176,14 +176,14 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
   for (_, node) in nodes.iter_mut() {
     for output in node.output.drain(..) {
       match output {
-        Output::PersistReq(leader_id, entries) => {
+        Output::PersistReq(leader_id, entries, read_id) => {
           // TODO: test this being delayed
           for entry in entries {
             println!("APPEND {:?} {:?}", node.raft.id(), &entry);
             println!();
             node.log.add(entry);
           }
-          node.input.push(Input::PersistRes(node.log.highest_index(), leader_id));
+          node.input.push(Input::PersistRes(node.log.highest_index(), leader_id, read_id));
         }
         Output::ApplyReq(index) => {
           // TODO: test this being delayed
@@ -193,12 +193,12 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
           println!("APPLY  {:?} {:?}", node.raft.id(), &node.state);
           println!();
         }
-        Output::ReadStateMachine(index, idx, _) => {
+        Output::ReadStateMachineReq(index, read_id, _) => {
           // TODO: test this being delayed
           println!("READ   {:?} {:?}", node.raft.id(), &node.state);
           println!();
           let payload = node.state.clone();
-          node.input.push(Input::ReadStateMachine(index, idx, payload));
+          node.input.push(Input::ReadStateMachineRes(index, read_id, payload));
         }
         Output::Message(msg) => rpcs.push(msg),
       }

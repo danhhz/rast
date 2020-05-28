@@ -1,7 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::iter::Extend;
 use std::time::{Duration, Instant};
 
@@ -30,16 +30,16 @@ pub enum Input {
   Read(ReadReq, ReadFuture),
   Tick(Instant),
   Message(Message),
-  PersistRes(Index, NodeID),
-  ReadStateMachine(Index, usize, Vec<u8>),
+  PersistRes(Index, NodeID, ReadID),
+  ReadStateMachineRes(Index, ReadID, Vec<u8>),
 }
 
 #[derive(Debug)]
 pub enum Output {
   Message(Message),
-  PersistReq(NodeID, Vec<Entry>), // WIP NodeID is the leader
+  PersistReq(NodeID, Vec<Entry>, ReadID), // WIP NodeID is the leader
   ApplyReq(Index),
-  ReadStateMachine(Index, usize, Vec<u8>),
+  ReadStateMachineReq(Index, ReadID, Vec<u8>),
 }
 
 /// An implementation of the [raft consensus protocol].
@@ -88,6 +88,10 @@ impl Raft {
   pub fn step(&mut self, output: &mut impl Extend<Output>, input: Input) {
     self.state = Some(self.state.take().expect("unreachable").step(output, input));
   }
+
+  fn shutdown(&mut self) {
+    self.state.take().expect("unreachable").shutdown()
+  }
 }
 
 // WIP: split into persistent/volatile
@@ -119,12 +123,19 @@ struct Leader {
   shared: SharedState,
 
   _next_index: HashMap<NodeID, Index>,
-  match_index: HashMap<NodeID, Index>,
+  match_index: HashMap<NodeID, (Index, ReadID)>,
   write_buffer: HashMap<(Term, Index), WriteFuture>,
-  min_read_index: Option<Index>,
-  read_index: Option<Index>,
-  read_buffer_pending: Vec<(ReadReq, ReadFuture)>,
-  read_buffer_running: HashMap<usize, (ReadReq, ReadFuture)>,
+
+  // invariant: every outgoing AppendEntries round gets a (Term, ReadID) that's
+  // unique all time.
+  next_read_id: ReadID,
+
+  max_outstanding_read_id: Option<ReadID>,
+  max_confirmed_read_id: Option<ReadID>,
+
+  // invariant: all ReadIDs < next_read_id
+  // invariant: shared.last_applied <= all Indexes <= shared.commit_index
+  read_buffer: BTreeMap<(Index, ReadID), (Option<ReadReq>, ReadFuture)>,
 }
 
 struct Follower {
@@ -172,22 +183,18 @@ impl State {
     }
   }
 
-  fn step(mut self, output: &mut impl Extend<Output>, input: Input) -> State {
+  fn step(self, output: &mut impl Extend<Output>, input: Input) -> State {
     println!("  {:3}: step {:?}", self.id().0, self.debug());
-    // All Servers: If commitIndex > lastApplied: increment lastApplied, apply
-    // log[lastApplied] to state machine (§5.3)
-    State::maybe_apply(self.shared_mut(), output);
     match input {
       Input::Write(req, state) => self.write(output, req.payload, Some(state)),
       Input::Read(req, state) => self.read(output, req, state),
       Input::Tick(now) => self.tick(output, now),
-      Input::PersistRes(index, leader_id) => self.persist_res(output, index, leader_id),
-      Input::ReadStateMachine(index, idx, payload) => match self {
-        State::Leader(leader) => {
-          State::Leader(State::read_state_machine_res(leader, index, idx, payload))
-        }
-        _ => todo!(),
-      },
+      Input::PersistRes(index, leader_id, read_id) => {
+        self.persist_res(output, leader_id, index, read_id)
+      }
+      Input::ReadStateMachineRes(index, read_id, payload) => {
+        self.read_state_machine_res(output, index, read_id, payload)
+      }
       Input::Message(message) => self.message(output, message),
     }
   }
@@ -210,50 +217,55 @@ impl State {
     leader
   }
 
-  fn maybe_apply(shared: &mut SharedState, output: &mut impl Extend<Output>) {
-    if shared.commit_index > shared.last_applied {
-      println!(
-        "  {:3}: maybe_apply commit_index={:?} last_applied={:?}",
-        shared.id.0, shared.commit_index, shared.last_applied
-      );
-      let Index(last_applied) = shared.last_applied;
-      shared.last_applied = Index(last_applied + 1);
+  // NB: this needs to be called any time commit_index or min_outstanding_read
+  // are updated.
+  //
+  // NB: don't call this directly, use leader_maybe_apply or
+  // follower_maybe_apply.
+  fn maybe_apply(
+    shared: &mut SharedState,
+    output: &mut impl Extend<Output>,
+    upper_bound: Option<Index>,
+  ) {
+    println!(
+      "  {:3}: maybe_apply commit_index={:?} last_applied={:?} upper_bound={:?}",
+      shared.id.0, shared.commit_index, shared.last_applied, upper_bound,
+    );
+    // We can't advance this past any outstanding reads, else we'd make it
+    // impossible to serve them later.
+    let new_applied = upper_bound
+      .map_or(shared.commit_index, |upper_bound| cmp::min(upper_bound, shared.commit_index));
+    if new_applied > shared.last_applied {
+      shared.last_applied = new_applied;
       output.extend(vec![Output::ApplyReq(shared.last_applied)]);
     }
   }
 
-  fn leader_maybe_fill_buffered_reads(
-    mut leader: Leader,
-    output: &mut impl Extend<Output>,
-  ) -> Leader {
+  fn leader_maybe_advance_reads(mut leader: Leader, output: &mut impl Extend<Output>) -> Leader {
     println!(
-      "  {:3}: leader_maybe_fill_buffered_reads read_index={:?} read_buffer_pending={:?}",
+      "  {:3}: leader_maybe_advance_reads max_applied={:?} outstanding={:?} confirmed={:?} read_buffer={:?}",
       leader.shared.id.0,
-      leader.read_index,
-      leader.read_buffer_pending.len()
+      leader.shared.last_applied,
+      leader.max_outstanding_read_id,
+      leader.max_confirmed_read_id,
+      leader.read_buffer.keys()
     );
-    if let Some(read_index) = leader.read_index {
-      debug_assert!(read_index + 1 >= leader.shared.last_applied);
-      if leader.read_buffer_running.len() > 0 {
-        return leader;
+    if let Some(((_, max_read_id), _)) = leader.read_buffer.iter().next_back() {
+      let need_heartbeat =
+        leader.max_outstanding_read_id.map_or(true, |outstanding| *max_read_id > outstanding);
+      println!("  {:3}: need_heartbeat={:?}", leader.shared.id.0, need_heartbeat);
+      if need_heartbeat {
+        leader = State::leader_heartbeat(leader, output);
       }
-      if read_index + 1 == leader.shared.last_applied && leader.read_buffer_pending.len() > 0 {
-        debug_assert_eq!(leader.read_buffer_running.len(), 0);
-        // WIP: better unique key generation
-        leader.read_buffer_running.extend(leader.read_buffer_pending.drain(..).enumerate());
-        output.extend(
-          leader
-            .read_buffer_running
-            .iter()
-            .map(|(idx, (req, _))| Output::ReadStateMachine(read_index, *idx, req.payload.clone())),
-        );
-        // NB: We have to wait for all these to come back before we advance
-        // last_applied and output an ApplyReq so we can guarantee that they
-        // execute before any writes that were submitted after them (which would
-        // be a serializability violation).
-        //
-        // WIP on that note, what happens if a read is submitted when there is
-        // no min_read_index? this story needs some work
+    }
+
+    let can_serve = leader
+      .read_buffer
+      .range_mut(..(leader.shared.last_applied, leader.max_confirmed_read_id.unwrap_or(ReadID(0))));
+    for ((index, read_id), (req, _)) in can_serve {
+      // only don't this once for each read
+      if let Some(req) = req.take() {
+        output.extend(vec![Output::ReadStateMachineReq(*index, *read_id, req.payload)]);
       }
     }
     leader
@@ -263,19 +275,21 @@ impl State {
     self,
     output: &mut impl Extend<Output>,
     payload: Vec<u8>,
-    res: Option<WriteFuture>,
+    mut res: Option<WriteFuture>,
   ) -> State {
     match std::str::from_utf8(&payload) {
       Ok(payload) => println!("  {:3}: write {:?}", self.id().0, payload),
       Err(_) => println!("  {:3}: write {:?}", self.id().0, payload),
     }
     match self {
-      State::Leader(leader) => State::Leader(State::leader_write(leader, output, payload, res)),
+      State::Leader(leader) => {
+        State::Leader(State::leader_write(leader, output, vec![(payload, res)]))
+      }
       State::Candidate(candidate) => match candidate.shared.voted_for {
         Some(voted_for) => {
           // TODO: if voted_for is this node, we may want to wait and see if we
           // win the election
-          if let Some(mut res) = res {
+          if let Some(mut res) = res.take() {
             res.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(Some(voted_for)))));
           };
           return State::Candidate(candidate);
@@ -283,12 +297,13 @@ impl State {
         None => {
           // We haven't voted yet so start an election, then try the write
           // again, maybe we'll be able to serve it.
+
           let now = candidate.shared.current_time;
-          let candidate = State::start_election(candidate, output, now);
           // WIP: hard state means this is currently impossible but maybe we can
-          // stash things somewhere on candidates and only time them out if it
-          // becomes a follower instead of a leader
-          return State::Candidate(candidate).write(output, payload, res);
+          // stash the write somewhere on candidates and only time them out if
+          // it becomes a follower instead of a leader
+          let state = State::start_election(candidate, output, now);
+          state.write(output, payload, res)
         }
       },
       State::Follower(_) => todo!(),
@@ -299,42 +314,67 @@ impl State {
     // Leaders: Upon election: send initial empty AppendEntries RPCs
     // (heartbeat) to each server; repeat during idle periods to prevent
     // election timeouts (§5.2)
-    State::leader_write(leader, output, vec![], None)
+    State::leader_write(leader, output, vec![])
   }
 
   fn leader_write(
     mut leader: Leader,
     output: &mut impl Extend<Output>,
-    payload: Vec<u8>,
-    res: Option<WriteFuture>,
+    payloads: Vec<(Vec<u8>, Option<WriteFuture>)>,
   ) -> Leader {
     let (prev_log_term, prev_log_index) =
       leader.shared.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
-    let entry =
-      Entry { term: leader.shared.current_term, index: prev_log_index + 1, payload: payload };
-    // WIP debug assertion that this doesn't exist.
-    if let Some(res) = res {
-      leader.write_buffer.insert((entry.term, entry.index), res);
+    let read_id = leader.next_read_id;
+    leader.next_read_id = ReadID(leader.next_read_id.0 + 1);
+    // WIP we need to clear this at some point but don't do that right now
+    leader.max_outstanding_read_id = Some(read_id);
+    let entries: Vec<_> = payloads
+      .into_iter()
+      .enumerate()
+      .map(|(offset, (payload, res))| {
+        let entry = Entry {
+          term: leader.shared.current_term,
+          index: prev_log_index + offset as u64 + 1,
+          payload: payload,
+        };
+        // WIP debug assertion that this doesn't exist.
+        if let Some(res) = res {
+          leader.write_buffer.insert((entry.term, entry.index), res);
+        }
+        entry
+      })
+      .collect();
+    println!("  {:3}: entries={:?}", leader.shared.id.0, entries);
+
+    leader.shared.log.extend(entries.clone());
+    // TODO: this is duplicated with the one in `follower_append_entries`
+    println!("  {:3}: persist {:?}", leader.shared.id.0, &entries);
+    if entries.len() > 0 {
+      output.extend(vec![Output::PersistReq(leader.shared.id, entries.clone(), read_id)]);
+    } else {
+      let id = leader.shared.id;
+      let current_term = leader.shared.current_term;
+      leader = State::ack_term_index(leader, output, id, current_term, prev_log_index, read_id);
     }
-    // WIP: is this really the right place for this?
-    leader.shared.log.extend(vec![entry.clone()]);
-    println!("  {:3}: persist {:?}", leader.shared.id.0, &entry);
-    // TODO: this is duplicated with the one in `process_append_entries`
-    output.extend(vec![Output::PersistReq(leader.shared.id, vec![entry.clone()])]);
-    let id = leader.shared.id;
-    leader = State::ack_term_index(leader, output, id, entry.term, entry.index);
     let payload = Payload::AppendEntriesReq(AppendEntriesReq {
       term: leader.shared.current_term,
       leader_id: leader.shared.id,
       prev_log_index: prev_log_index,
       prev_log_term: prev_log_term,
       leader_commit: leader.shared.commit_index,
-      entries: vec![entry],
+      entries: entries,
+      read_id: read_id,
     });
     State::message_to_all_other_nodes(&leader.shared, output, payload);
     leader
   }
 
+  // start: save read_index
+  // if no read_index, have to start everything when first heartbeat comes back
+  // send heartbeat with read_id, save read with read_index and read_id
+  // get heartbeat with read_id, mark every read with read_id <= that one as ready
+  // when apply = read_index serve read. don't let apply get ahead of read_index
+  // what if heartbeat doesn't come back? next heartbeat or write retries it
   fn read(self, output: &mut impl Extend<Output>, req: ReadReq, mut res: ReadFuture) -> State {
     println!("  {:3}: read {:?}", self.id().0, req);
     match self {
@@ -351,11 +391,11 @@ impl State {
           return State::Candidate(candidate);
         }
         None => {
-          // We haven't voted yet so start an election, then try the write
+          // We haven't voted yet so start an election, then try the read
           // again, maybe we'll be able to serve it.
           let now = candidate.shared.current_time;
-          let candidate = State::start_election(candidate, output, now);
-          return State::Candidate(candidate).read(output, req, res);
+          let state = State::start_election(candidate, output, now);
+          state.read(output, req, res)
         }
       },
       State::Follower(follower) => {
@@ -371,23 +411,11 @@ impl State {
     req: ReadReq,
     res: ReadFuture,
   ) -> Leader {
-    leader.read_buffer_pending.push((req, res));
-
-    // TODO: assert the read_index is only set if min_read_index is and it
-    // should be >=
-    if leader.read_index.is_none() {
-      println!("  {:3}: self.read_index={:?}", leader.shared.id.0, leader.min_read_index);
-      // NB: min_read_index will be none if this leader is newly elected.
-      leader.read_index = leader.min_read_index;
-    }
-
-    if leader.read_buffer_pending.len() == 1 {
-      // We can't serve this read request until the next heartbeat completes, so
-      // proactively start one (but only if this is the first batched read
-      // request).
-      leader = State::leader_heartbeat(leader, output);
-    }
-    leader
+    let read_id = leader.next_read_id;
+    leader.next_read_id = ReadID(leader.next_read_id.0 + 1);
+    let index = leader.shared.log.last().map_or(Index(0), |entry| entry.index);
+    leader.read_buffer.insert((index, read_id), (Some(req), res));
+    State::leader_maybe_advance_reads(leader, output)
   }
 
   fn tick(self, output: &mut impl Extend<Output>, now: Instant) -> State {
@@ -410,7 +438,7 @@ impl State {
         });
         candidate.shared.current_time = now;
         if timed_out {
-          candidate = State::start_election(candidate, output, now);
+          return State::start_election(candidate, output, now);
         }
         State::Candidate(candidate)
       }
@@ -423,7 +451,7 @@ impl State {
         });
         follower.shared.current_time = now;
         if timed_out {
-          return State::Candidate(State::follower_convert_to_candidate(follower, output, now));
+          return State::follower_convert_to_candidate(follower, output, now);
         }
         State::Follower(follower)
       }
@@ -436,56 +464,80 @@ impl State {
           // Leaders: Upon election: send initial empty AppendEntries RPCs
           // (heartbeat) to each server; repeat during idle periods to prevent
           // election timeouts (§5.2)
-          leader = State::send_append_entries(leader, output, vec![]);
+          leader = State::leader_heartbeat(leader, output)
         }
         State::Leader(leader)
       }
     }
   }
 
-  fn persist_res(self, output: &mut impl Extend<Output>, index: Index, leader_id: NodeID) -> State {
+  fn persist_res(
+    self,
+    output: &mut impl Extend<Output>,
+    leader_id: NodeID,
+    index: Index,
+    read_id: ReadID,
+  ) -> State {
     let payload = Payload::AppendEntriesRes(AppendEntriesRes {
       term: self.shared().current_term,
-      index: index,
       success: true,
+      index: index,
+      read_id: read_id,
     });
-    let msg = Output::Message(Message { src: self.id(), dest: leader_id, payload: payload });
-    // TODO: special case dest == self.id()
-    output.extend(vec![msg]);
+    let msg = Message { src: self.id(), dest: leader_id, payload: payload };
+    if msg.src == msg.dest {
+      return State::step(self, output, Input::Message(msg));
+    }
+    output.extend(vec![Output::Message(msg)]);
     self
   }
 
   fn read_state_machine_res(
-    mut leader: Leader,
+    self,
+    output: &mut impl Extend<Output>,
     index: Index,
-    idx: usize,
+    read_id: ReadID,
     payload: Vec<u8>,
-  ) -> Leader {
-    // TODO: can we ever respond to reads after converting to a non-leader?
-    // seems like yes but doing it is subtle and it's hard to avoid leaking the
-    // res future
-    if leader.read_index != Some(index) {
-      // Read from some previous term as leader
-      return leader;
-    }
-    if let Some((_, mut res)) = leader.read_buffer_running.remove(&idx) {
+  ) -> State {
+    let mut leader = match self {
+      State::Leader(leader) => leader,
+      // NB: It should be possible to serve reads even after losing leadership
+      // but it's subtle and also hard to avoid leaking the result future. Seems
+      // not worth it.
+      State::Candidate(candidate) => return State::Candidate(candidate),
+      State::Follower(follower) => return State::Follower(follower),
+    };
+
+    // Remove the entry so ReadStateMachineRes is idempotent.
+    if let Some((_, mut res)) = leader.read_buffer.remove(&(index, read_id)) {
       match std::str::from_utf8(&payload) {
         Ok(payload) => println!("  {:3}: read success {:?}", leader.shared.id.0, payload),
         Err(_) => println!("  {:3}: read success {:?}", leader.shared.id.0, payload),
       }
       res.fill(Ok(ReadRes { term: leader.shared.current_term, index: index, payload: payload }));
     }
-    if leader.read_buffer_running.len() == 0 {
-      println!("  {:3}: self.read_index=None", leader.shared.id.0);
-      leader.read_index = None
-    }
+    // If that was the last outstanding read, it may have unblocked applying new
+    // entries.
+    leader = State::leader_maybe_apply(leader, output);
+    State::Leader(leader)
+  }
+
+  // WIP: confusing that you have to call this one instead for leaders
+  fn leader_maybe_apply(mut leader: Leader, output: &mut impl Extend<Output>) -> Leader {
+    let min_outstanding_read: Option<Index> =
+      leader.read_buffer.iter().next().map(|((index, _), _)| *index);
+    State::maybe_apply(&mut leader.shared, output, min_outstanding_read);
     leader
+  }
+
+  fn follower_maybe_apply(mut follower: Follower, output: &mut impl Extend<Output>) -> Follower {
+    State::maybe_apply(&mut follower.shared, output, None);
+    follower
   }
 
   fn message(mut self, output: &mut impl Extend<Output>, message: Message) -> State {
     {
       let mut shared = self.shared_mut();
-      // TODO: avoid calling payload multiple times
       let term = match &message.payload {
         Payload::AppendEntriesReq(req) => req.term,
         Payload::AppendEntriesRes(res) => res.term,
@@ -536,7 +588,7 @@ impl State {
           return State::Candidate(candidate);
         }
         let now = candidate.shared.current_time;
-        State::Candidate(State::start_election(candidate, output, now))
+        State::start_election(candidate, output, now)
       }
       payload => todo!("{:?}", payload),
     }
@@ -550,7 +602,7 @@ impl State {
     match message.payload {
       // Followers (§5.2): Respond to RPCs from candidates and leaders
       Payload::AppendEntriesReq(req) => {
-        State::Follower(State::process_append_entries(follower, output, req))
+        State::Follower(State::follower_append_entries(follower, output, req))
       }
       Payload::RequestVoteReq(req) => State::Follower(follower).process_request_vote(output, &req),
       Payload::AppendEntriesRes(_) => {
@@ -564,9 +616,7 @@ impl State {
           return State::Follower(follower);
         }
         let now = follower.shared.current_time;
-        let candidate = State::follower_convert_to_candidate(follower, output, now);
-        let now = candidate.shared.current_time;
-        State::Candidate(State::start_election(candidate, output, now))
+        State::follower_convert_to_candidate(follower, output, now)
       }
       payload => todo!("{:?}", payload),
     }
@@ -575,7 +625,7 @@ impl State {
   fn leader_step(leader: Leader, output: &mut impl Extend<Output>, message: Message) -> State {
     match message.payload {
       Payload::AppendEntriesRes(res) => {
-        State::Leader(State::leader_process_append_entries_res(leader, output, message.src, res))
+        State::Leader(State::leader_append_entries_res(leader, output, message.src, res))
       }
       Payload::RequestVoteRes(_) => {
         // Already the leader, nothing to do here.
@@ -589,7 +639,7 @@ impl State {
     }
   }
 
-  fn process_append_entries(
+  fn follower_append_entries(
     mut follower: Follower,
     output: &mut impl Extend<Output>,
     req: AppendEntriesReq,
@@ -600,6 +650,7 @@ impl State {
         term: follower.shared.current_term,
         index: Index(0),
         success: false,
+        read_id: req.read_id,
       });
       let msg =
         Output::Message(Message { src: follower.shared.id, dest: req.leader_id, payload: payload });
@@ -620,21 +671,34 @@ impl State {
     // different terms), delete the existing entry and all that follow it (§5.3)
 
     // WIP: Append any new entries not already in the log
-    follower.shared.log.extend(req.entries.clone());
-    let msg = Output::PersistReq(req.leader_id, req.entries);
-    output.extend(vec![msg]);
+    // WIP: hacks? is this len check a valid optimization?
+    if req.entries.len() > 0 {
+      follower.shared.log.extend(req.entries.clone());
+      let msg = Output::PersistReq(req.leader_id, req.entries, req.read_id);
+      output.extend(vec![msg]);
+    } else {
+      // WIP: duplicated with persist_res
+      let payload = Payload::AppendEntriesRes(AppendEntriesRes {
+        term: follower.shared.current_term,
+        success: true,
+        index: req.prev_log_index, // WIP is this right?
+        read_id: req.read_id,
+      });
+      let msg = Message { src: follower.shared.id, dest: req.leader_id, payload: payload };
+      output.extend(vec![Output::Message(msg)]);
+    }
 
     // If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index
     // of last new entry)
     if req.leader_commit > follower.shared.commit_index {
       let last_entry_index = follower.shared.log.last().map_or(Index(0), |entry| entry.index);
       follower.shared.commit_index = cmp::min(req.leader_commit, last_entry_index);
-      State::maybe_apply(&mut follower.shared, output);
+      follower = State::follower_maybe_apply(follower, output);
     }
     follower
   }
 
-  fn leader_process_append_entries_res(
+  fn leader_append_entries_res(
     leader: Leader,
     output: &mut impl Extend<Output>,
     src: NodeID,
@@ -642,7 +706,7 @@ impl State {
   ) -> Leader {
     // If successful: update nextIndex and matchIndex for follower (§5.3)
     if res.success {
-      return State::ack_term_index(leader, output, src, res.term, res.index);
+      return State::ack_term_index(leader, output, src, res.term, res.index, res.read_id);
     }
     // If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
     todo!()
@@ -652,36 +716,77 @@ impl State {
     mut leader: Leader,
     output: &mut impl Extend<Output>,
     src: NodeID,
-    _term: Term,
+    term: Term,
     index: Index,
+    read_id: ReadID,
   ) -> Leader {
-    leader.match_index.insert(src, index);
+    println!(
+      "  {:3}: self.ack_term_index src={:?} {:}.{:}",
+      leader.shared.id.0, src, term.0, index.0
+    );
+    leader
+      .match_index
+      .entry(src)
+      .and_modify(|index_read_id| *index_read_id = cmp::max(*index_read_id, (index, read_id)))
+      .or_insert((index, read_id));
+
+    // See if max_confirmed_read_id has advanced.
+    let mut read_ids: Vec<ReadID> =
+      leader.match_index.iter().map(|(_, (_, read_id))| *read_id).collect();
+    read_ids.sort_unstable();
+    println!("  {:3}: read_ids={:?}", leader.shared.id.0, &read_ids);
+    if read_ids.len() >= State::majority(&leader.shared) {
+      let new_max_confirmed_read_id =
+        read_ids.get(read_ids.len() - State::majority(&leader.shared)).copied();
+      println!(
+        "  {:3}: read_ids={:?} new_confirmed={:?}",
+        leader.shared.id.0, &read_ids, new_max_confirmed_read_id
+      );
+      debug_assert!(
+        new_max_confirmed_read_id >= leader.max_confirmed_read_id,
+        "{:?} vs {:?}",
+        new_max_confirmed_read_id,
+        leader.max_confirmed_read_id
+      );
+      // TODO: debug_assert that new_max_confirmed_read_id has a majority and that
+      // it's the highest read_id with a majority.
+      leader.max_confirmed_read_id = new_max_confirmed_read_id;
+      println!(
+        "  {:3}: outstanding={:?} confirmed={:?}",
+        leader.shared.id.0, leader.max_outstanding_read_id, leader.max_confirmed_read_id
+      );
+      leader = State::leader_maybe_advance_reads(leader, output);
+    }
+
+    println!(
+      "  {:3}: match_indexes={:?}",
+      leader.shared.id.0,
+      leader.match_index.iter().map(|(_, (index, _))| *index).collect::<Vec<_>>(),
+    );
     // If there exists an N such that N > commitIndex, a majority of
     // matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N
     // (§5.3, §5.4).
     let needed = State::majority(&leader.shared);
     for entry in leader.shared.log.iter().rev() {
+      println!("  {:3}: is committed? {:?}", leader.shared.id.0, entry);
       if entry.index <= leader.shared.commit_index || entry.term < leader.shared.current_term {
         break;
       }
       // TODO: inefficient; instead, compute once the min index that has a
       // majority in match_index
-      let count = leader.match_index.iter().filter(|(_, index)| **index >= entry.index).count();
+      let count = leader.match_index.iter().filter(|(_, (index, _))| *index >= entry.index).count();
       if count >= needed {
         let new_commit_index = entry.index;
+        println!("  {:3}: commit_index={:?}", leader.shared.id.0, new_commit_index);
         leader.shared.commit_index = new_commit_index;
-        println!(
-          "  {:3}: self.min_read_index={:?}",
-          leader.shared.id.0, leader.shared.commit_index
-        );
-        leader.min_read_index = Some(leader.shared.commit_index);
+        leader = State::leader_maybe_apply(leader, output);
+        // WIP: think about the order of these
         leader = State::maybe_wake_writes(leader);
-        leader = State::leader_maybe_fill_buffered_reads(leader, output);
-        State::maybe_apply(&mut leader.shared, output);
+        leader = State::leader_maybe_advance_reads(leader, output);
         break;
       }
     }
-    return leader;
+    leader
   }
 
   fn process_request_vote(
@@ -741,51 +846,18 @@ impl State {
     return State::Candidate(candidate);
   }
 
-  fn send_append_entries(
-    mut leader: Leader,
-    output: &mut impl Extend<Output>,
-    entries: Vec<Entry>,
-  ) -> Leader {
-    let (prev_log_term, prev_log_index) =
-      leader.shared.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
-    output.extend(vec![Output::PersistReq(leader.shared.id, entries.clone())]);
-    let id = leader.shared.id;
-    let current_term = leader.shared.current_term;
-    leader = State::ack_term_index(
-      leader,
-      output,
-      id,
-      current_term,
-      prev_log_index + entries.len() as u64,
-    );
-    let payload = Payload::AppendEntriesReq(AppendEntriesReq {
-      term: leader.shared.current_term,
-      leader_id: leader.shared.id,
-      prev_log_index: prev_log_index,
-      prev_log_term: prev_log_term,
-      leader_commit: leader.shared.commit_index,
-      entries: entries,
-    });
-    State::message_to_all_other_nodes(&leader.shared, output, payload);
-    leader
-  }
-
   fn start_election(
     mut candidate: Candidate,
     output: &mut impl Extend<Output>,
     now: Instant,
-  ) -> Candidate {
+  ) -> State {
     println!("  {:3}: start_election {:?}", candidate.shared.id.0, now);
-    // WIP: this is a little awkward (and also probably wrong), revisit
-    // if candidate.shared.nodes.len() == 1 {
-    //         return State::Leader(self.candidate_convert_to_leader(candidate, output);
-    // }
+    candidate.received_votes = 0;
+    // WIP this is awkward
+    candidate.shared.voted_for = Some(candidate.shared.id);
     // Increment currentTerm
     let Term(current_term) = candidate.shared.current_term;
     candidate.shared.current_term = Term(current_term + 1);
-    // Vote for self
-    candidate.received_votes = 1;
-    candidate.shared.voted_for = Some(candidate.shared.id);
     // Reset election timer
     candidate.shared.last_communication = Some(now);
     // Send RequestVote RPCs to all other servers
@@ -799,7 +871,9 @@ impl State {
     });
     println!("  {:3}: reqvote {:?}", candidate.shared.id.0, payload);
     State::message_to_all_other_nodes(&candidate.shared, output, payload);
-    candidate
+    // Vote for self
+    let res = RequestVoteRes { term: candidate.shared.current_term, vote_granted: true };
+    return State::candidate_process_request_vote_res(candidate, output, &res);
   }
 
   fn message_to_all_other_nodes(
@@ -816,7 +890,7 @@ impl State {
     follower: Follower,
     output: &mut impl Extend<Output>,
     now: Instant,
-  ) -> Candidate {
+  ) -> State {
     println!("  {:3}: convert_to_candidate {:?}", follower.shared.id.0, now);
     let candidate = Candidate { shared: follower.shared, received_votes: 0 };
     // Candidates (§5.2): On conversion to candidate, start election:
@@ -845,7 +919,7 @@ impl State {
     _output: &mut impl Extend<Output>,
     new_leader_hint: NodeID,
   ) -> Follower {
-    println!("  {:3}: convert_to_follower {:?}", candidate.shared.id.0, new_leader_hint);
+    println!("  {:3}: convert_to_follower leader={:?}", candidate.shared.id.0, new_leader_hint.0);
     Follower { shared: candidate.shared, leader_hint: Some(new_leader_hint) }
   }
 
@@ -854,28 +928,29 @@ impl State {
     _output: &mut impl Extend<Output>,
     new_leader_hint: NodeID,
   ) -> Follower {
-    println!("  {:3}: convert_to_follower {:?}", leader.shared.id.0, new_leader_hint);
+    println!("  {:3}: convert_to_follower leader={:?}", leader.shared.id.0, new_leader_hint.0);
     leader = State::clear_outstanding_requests(leader, Some(new_leader_hint));
     Follower { shared: leader.shared, leader_hint: Some(new_leader_hint) }
   }
 
   fn candidate_convert_to_leader(candidate: Candidate, output: &mut impl Extend<Output>) -> Leader {
     println!("  {:3}: convert_to_leader", candidate.shared.id.0);
-    println!("  {:3}: self.min_read_index=None", candidate.shared.id.0);
-    println!("  {:3}: self.read_index=None", candidate.shared.id.0);
 
     let leader = Leader {
       shared: candidate.shared,
+
+      // next_read_id resets to 0 for each new term
+      next_read_id: ReadID(0),
 
       // TODO: roundtrip these through the other states and truncate them here
       // to save allocs
       _next_index: HashMap::new(),
       match_index: HashMap::new(),
       write_buffer: HashMap::new(),
-      min_read_index: None,
-      read_index: None,
-      read_buffer_pending: Vec::new(),
-      read_buffer_running: HashMap::new(),
+
+      max_outstanding_read_id: None,
+      max_confirmed_read_id: None,
+      read_buffer: BTreeMap::new(),
     };
     // Leaders: Upon election: send initial empty AppendEntries RPCs
     // (heartbeat) to each server; repeat during idle periods to prevent
@@ -887,17 +962,30 @@ impl State {
     leader.write_buffer.drain().for_each(|(_, mut future)| {
       future.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(new_leader_hint))));
     });
-    leader.read_buffer_pending.drain(..).for_each(|(_, mut future)| {
+    leader.read_buffer.iter_mut().for_each(|(_, (_, future))| {
       future.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(new_leader_hint))));
     });
-    leader.read_buffer_running.drain().for_each(|(_, (_, mut future))| {
-      future.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(new_leader_hint))));
-    });
+    leader.read_buffer.clear();
     leader
+  }
+
+  fn shutdown(self) {
+    match self {
+      State::Follower(_) | State::Candidate(_) => {} // No-op.
+      State::Leader(leader) => {
+        let _ = State::clear_outstanding_requests(leader, None);
+      }
+    }
   }
 
   fn majority(shared: &SharedState) -> usize {
     (shared.nodes.len() + 1) / 2
+  }
+}
+
+impl Drop for Raft {
+  fn drop(&mut self) {
+    self.shutdown()
   }
 }
 
