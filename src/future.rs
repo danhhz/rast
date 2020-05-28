@@ -10,6 +10,7 @@ use super::error::{ClientError, NotLeaderError};
 use super::serde::{NodeID, ReadRes, WriteRes};
 
 struct RastFutureState<T> {
+  finished: bool,
   result: Option<Result<T, ClientError>>,
   waker: Option<Waker>,
 }
@@ -27,13 +28,16 @@ struct RastFuture<T> {
 
 impl<T> RastFuture<T> {
   fn new() -> RastFuture<T> {
-    RastFuture { state: Arc::new(Mutex::new(RastFutureState { result: None, waker: None })) }
+    RastFuture {
+      state: Arc::new(Mutex::new(RastFutureState { finished: false, result: None, waker: None })),
+    }
   }
 
   fn fill(&mut self, result: Result<T, ClientError>) {
     // WIP: what should we do if the lock is poisoned?
     if let Ok(mut state) = self.state.lock() {
-      debug_assert!(state.result.is_none());
+      debug_assert_eq!(state.finished, false);
+      state.finished = true;
       state.result = Some(result);
       state.waker.iter_mut().for_each(|waker| waker.wake_by_ref());
     }

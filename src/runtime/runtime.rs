@@ -3,12 +3,11 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
 use crate::prelude::*;
-use crate::runtime::logimpl::MemLog;
+use crate::runtime::{MemConn, MemLog, MemRPC};
 
 #[derive(Clone)]
 pub struct RastClient {
@@ -38,22 +37,24 @@ impl RastClient {
 }
 
 pub struct Runtime {
+  pub id: NodeID,
   handle: Option<JoinHandle<Result<(), mpsc::RecvError>>>,
   client: RastClient,
 }
 
 impl Runtime {
   pub fn new(raft: Raft, rpc: MemRPC, log: MemLog) -> Runtime {
+    let id = raft.id();
     let (sender, receiver) = mpsc::channel();
     let client = RastClient { sender: sender };
     let handle = thread::spawn(move || Runtime::run(raft, receiver, rpc, log));
     // TODO start up a ticker thread too
-    Runtime { handle: Some(handle), client: client }
+    Runtime { id: id, handle: Some(handle), client: client }
   }
 
   pub fn stop(&mut self) {
     // Send the shutdown sentinel.
-    match self.client.sender.send(Input::PersistRes(Index(0), NodeID(0))).err() {
+    match self.client.sender.send(Input::PersistRes(Index(0), NodeID(0), ReadID(0))).err() {
       Some(_) => println!("runtime crashed before stop"),
       None => {
         println!("runtime stopping");
@@ -90,29 +91,28 @@ impl Runtime {
       // If we got the shutdown sentinel, exit.
       match cmd {
         // WIP make this a first class message type
-        Input::PersistRes(index, _) => {
+        Input::PersistRes(index, _, _) => {
           if index == Index(0) {
             return Ok(());
           }
         }
         _ => {}
       }
-      println!("{:?}: {:?}", raft.id().0, cmd);
       raft.step(&mut output, cmd);
       output.iter().for_each(|o| println!("  out: {:?}", o));
       output.drain(..).for_each(|output| match output {
         Output::ApplyReq(_) => {
           // WIP implement
         }
-        Output::PersistReq(node, entries) => {
+        Output::PersistReq(leader_id, entries, read_id) => {
           // WIP implement
           entries.iter().for_each(|entry| state.extend(entry.payload.iter()));
-          cmds.push_back(Input::PersistRes(entries.last().unwrap().index, node));
+          cmds.push_back(Input::PersistRes(entries.last().unwrap().index, leader_id, read_id));
         }
-        Output::ReadStateMachine(index, idx, _) => {
+        Output::ReadStateMachineReq(index, read_id, _) => {
           // WIP implement
           let payload = state.clone();
-          cmds.push_back(Input::ReadStateMachine(index, idx, payload));
+          cmds.push_back(Input::ReadStateMachineRes(index, read_id, payload));
         }
         Output::Message(message) => {
           let dest = message.dest;
@@ -127,36 +127,5 @@ impl Runtime {
 impl Drop for Runtime {
   fn drop(&mut self) {
     self.stop();
-  }
-}
-
-#[derive(Clone)]
-pub struct MemRPC {
-  conns: Arc<Mutex<HashMap<NodeID, Sender<Input>>>>,
-}
-impl MemRPC {
-  pub fn new() -> MemRPC {
-    MemRPC { conns: Default::default() }
-  }
-
-  pub fn register(&mut self, dest: NodeID, sender: Sender<Input>) {
-    // WIP handle error
-    self.conns.lock().unwrap().insert(dest, sender);
-  }
-
-  pub fn dial(&self, node: NodeID) -> MemConn {
-    // WIP handle error
-    let sender = self.conns.lock().unwrap().get(&node).unwrap().clone();
-    MemConn { sender: sender }
-  }
-}
-
-pub struct MemConn {
-  sender: Sender<Input>,
-}
-impl MemConn {
-  pub fn send(&self, m: Message) {
-    // WIP handle error
-    self.sender.send(Input::Message(m)).unwrap();
   }
 }

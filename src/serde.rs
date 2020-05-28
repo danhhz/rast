@@ -12,6 +12,9 @@ pub struct Index(pub u64);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NodeID(pub u64);
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ReadID(pub u64);
+
 impl Add<u64> for Index {
   type Output = Index;
 
@@ -20,9 +23,24 @@ impl Add<u64> for Index {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct WriteReq {
   pub payload: Vec<u8>,
+}
+
+impl fmt::Debug for WriteReq {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match std::str::from_utf8(&self.payload) {
+      Ok(payload) => write!(f, "w{:?}", payload),
+      Err(_) => write!(f, "w{:?}", self.payload),
+    }
+  }
+}
+
+impl From<String> for WriteReq {
+  fn from(payload: String) -> Self {
+    WriteReq { payload: payload.into_bytes() }
+  }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,11 +54,17 @@ pub struct ReadReq {
   pub payload: Vec<u8>,
 }
 
+impl From<String> for ReadReq {
+  fn from(payload: String) -> Self {
+    ReadReq { payload: payload.into_bytes() }
+  }
+}
+
 impl fmt::Debug for ReadReq {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match std::str::from_utf8(&self.payload) {
-      Ok(payload) => write!(f, "read:{:?}", payload),
-      Err(_) => write!(f, "read:{:?}", self.payload),
+      Ok(payload) => write!(f, "r{:?}", payload),
+      Err(_) => write!(f, "r{:?}", self.payload),
     }
   }
 }
@@ -52,11 +76,20 @@ pub struct ReadRes {
   pub payload: Vec<u8>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Entry {
   pub term: Term,
   pub index: Index,
   pub payload: Vec<u8>,
+}
+
+impl fmt::Debug for Entry {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match std::str::from_utf8(&self.payload) {
+      Ok(payload) => write!(f, "({:}.{:} {:?})", self.term.0, self.index.0, payload),
+      Err(_) => write!(f, "({:}.{:} {:?})", self.term.0, self.index.0, self.payload),
+    }
+  }
 }
 
 #[derive(Clone)]
@@ -72,7 +105,7 @@ impl fmt::Debug for Message {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Payload {
   AppendEntriesReq(AppendEntriesReq),
   AppendEntriesRes(AppendEntriesRes),
@@ -81,7 +114,19 @@ pub enum Payload {
   StartElectionReq(StartElectionReq),
 }
 
-#[derive(Debug, Clone)]
+impl fmt::Debug for Payload {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Payload::AppendEntriesReq(r) => r.fmt(f),
+      Payload::AppendEntriesRes(r) => r.fmt(f),
+      Payload::RequestVoteReq(r) => r.fmt(f),
+      Payload::RequestVoteRes(r) => r.fmt(f),
+      Payload::StartElectionReq(r) => r.fmt(f),
+    }
+  }
+}
+
+#[derive(Clone)]
 pub struct AppendEntriesReq {
   pub term: Term,
   pub leader_id: NodeID,
@@ -89,18 +134,44 @@ pub struct AppendEntriesReq {
   pub prev_log_term: Term,
   pub leader_commit: Index,
   pub entries: Vec<Entry>,
+
+  // NB: This is our own little extention.
+  pub read_id: ReadID,
 }
 
-#[derive(Debug, Clone)]
+impl fmt::Debug for AppendEntriesReq {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "app({:}.{:} p{:}.{:} lc{:} r{:} {:?})",
+      self.term.0,
+      self.leader_id.0,
+      self.prev_log_index.0,
+      self.prev_log_term.0,
+      self.leader_commit.0,
+      self.read_id.0,
+      self.entries
+    )
+  }
+}
+
+#[derive(Clone)]
 pub struct AppendEntriesRes {
   pub term: Term,
   pub success: bool,
 
-  // NB: This is our own little extention.
+  // NB: These are our own little extentions.
   pub index: Index,
+  pub read_id: ReadID,
 }
 
-#[derive(Debug, Clone)]
+impl fmt::Debug for AppendEntriesRes {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "appRes({:} r{:} success={:?})", self.term.0, self.read_id.0, self.success)
+  }
+}
+
+#[derive(Clone)]
 pub struct RequestVoteReq {
   pub term: Term,
   pub candidate_id: NodeID,
@@ -108,10 +179,26 @@ pub struct RequestVoteReq {
   pub last_log_term: Term,
 }
 
-#[derive(Debug, Clone)]
+impl fmt::Debug for RequestVoteReq {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "vote({:} p{:}.{:} candidate={:})",
+      self.term.0, self.last_log_index.0, self.last_log_term.0, self.candidate_id.0,
+    )
+  }
+}
+
+#[derive(Clone)]
 pub struct RequestVoteRes {
   pub term: Term,
   pub vote_granted: bool,
+}
+
+impl fmt::Debug for RequestVoteRes {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "voteRes({:} granted={:?})", self.term.0, self.vote_granted)
+  }
 }
 
 #[derive(Debug, Clone)]

@@ -75,7 +75,7 @@ fn write_future() {
   g.drain();
 
   let payload = String::from("write_future").into_bytes();
-  let mut res = g.n0.write_async(WriteReq { payload: payload.clone() });
+  let mut res = g.n0.write(WriteReq { payload: payload.clone() });
   noopfuture::assert_pending(&mut res);
 
   g.drain();
@@ -87,13 +87,18 @@ fn write_future() {
 
 #[test]
 fn read_future() {
+  // TODO:
+  // - read kicks off append entries so it can be resolved immediately
+  // - two reads while there are no outstanding append entries will batch
+  // - read during each state transition pair, confirmed and non-confirmed
+
   let mut g = DeterministicGroup3::new();
   g.n0.start_election();
   g.drain();
 
   let payload = String::from("read_future").into_bytes();
-  g.n0.write_async(WriteReq { payload: payload.clone() });
-  let mut read = g.n0.read_async(ReadReq { payload: vec![] });
+  g.n0.write(WriteReq { payload: payload.clone() });
+  let mut read = g.n0.read(ReadReq { payload: vec![] });
   noopfuture::assert_pending(&mut read);
 
   g.drain();
@@ -111,7 +116,7 @@ fn leader_timeout() {
   // A write is sent to n0 while it's the leader.
   let payload = String::from("leader_timeout").into_bytes();
   let req = WriteReq { payload: payload };
-  let mut res = g.n0.write_async(req);
+  let mut res = g.n0.write(req);
 
   // n1 doesn't see a heartbeat from n0 for too long and calls an election.
   g.n1.tick(g.cfg().election_timeout * 2);
@@ -126,22 +131,20 @@ fn leader_timeout() {
 }
 
 #[test]
+#[ignore]
 fn overwrite_entries() {
-  // TODO: this test is designed to check that the a follower truncate its log
-  // correctly, but it doesn't.
-
   let mut g = DeterministicGroup3::new();
   g.n0.start_election();
   g.drain();
   assert_eq!(g.n0.raft.debug(), "leader");
 
   // A write is committed with n0 as leader.
-  let mut res = g.n0.write_async(WriteReq { payload: String::from("1").into_bytes() });
+  let mut res = g.n0.write(WriteReq { payload: String::from("1").into_bytes() });
   g.drain();
   let _ = noopfuture::assert_ready(&mut res);
 
   // Another write is started, but this one will not finish.
-  g.n0.write_async(WriteReq { payload: String::from("2").into_bytes() });
+  g.n0.write(WriteReq { payload: String::from("2").into_bytes() });
 
   // n1 is elected as the new leader.
   g.n1.start_election();
@@ -149,7 +152,7 @@ fn overwrite_entries() {
   assert_eq!(g.n1.raft.debug(), "leader");
 
   // A write is committed with n1 as leader.
-  let mut res = g.n1.write_async(WriteReq { payload: String::from("3").into_bytes() });
+  let mut res = g.n1.write(WriteReq { payload: String::from("3").into_bytes() });
   g.drain();
   let _ = noopfuture::assert_ready(&mut res);
 
@@ -160,8 +163,8 @@ fn overwrite_entries() {
 
   // A read on n1 shouldn't have the unfinished write.
   // TODO: make this work without the write
-  let _ = g.n0.write_async(WriteReq { payload: String::from("4").into_bytes() });
-  let mut res = g.n0.read_async(ReadReq { payload: vec![] });
+  let _ = g.n0.write(WriteReq { payload: String::from("4").into_bytes() });
+  let mut res = g.n0.read(ReadReq { payload: vec![] });
   // g.n0.tick(g.cfg().election_timeout);
   g.drain();
   let res = noopfuture::assert_ready(&mut res).unwrap();
@@ -175,7 +178,7 @@ fn regression_request_starts_election() {
   {
     let mut g = DeterministicGroup3::new();
     // Request fails with NotLeaderError, but kicks off an election.
-    let mut res1 = g.n0.write_async(WriteReq { payload: String::from("1").into_bytes() });
+    let mut res1 = g.n0.write(WriteReq { payload: String::from("1").into_bytes() });
     assert_eq!(
       noopfuture::assert_ready(&mut res1),
       Err(ClientError::NotLeaderError(NotLeaderError::new(Some(g.n0.raft.id()))))
@@ -184,16 +187,44 @@ fn regression_request_starts_election() {
     assert_eq!(g.n0.raft.debug(), "leader");
   }
 
+  // Same thing but for a 1 node cluster.
+  {
+    let mut g = DeterministicGroup1::new();
+    // Request fails with NotLeaderError, but kicks off an election.
+    let mut res1 = g.n.write(WriteReq { payload: String::from("1").into_bytes() });
+    noopfuture::assert_pending(&mut res1);
+    g.drain();
+    assert_eq!(g.n.raft.debug(), "leader");
+    assert_eq!(
+      noopfuture::assert_ready(&mut res1),
+      Ok(WriteRes { term: Term(1), index: Index(1) }),
+    );
+  }
+
   // Same thing but for a read request.
   {
     let mut g = DeterministicGroup3::new();
     // Request fails with NotLeaderError, but kicks off an election.
-    let mut res1 = g.n0.read_async(ReadReq { payload: String::from("1").into_bytes() });
+    let mut res1 = g.n0.read(ReadReq { payload: String::from("1").into_bytes() });
     assert_eq!(
       noopfuture::assert_ready(&mut res1),
       Err(ClientError::NotLeaderError(NotLeaderError::new(Some(g.n0.raft.id()))))
     );
     g.drain();
     assert_eq!(g.n0.raft.debug(), "leader");
+  }
+
+  // Same thing but for a 1 node cluster.
+  {
+    let mut g = DeterministicGroup1::new();
+    // Request fails with NotLeaderError, but kicks off an election.
+    let mut res1 = g.n.read(ReadReq { payload: String::from("1").into_bytes() });
+    noopfuture::assert_pending(&mut res1);
+    g.drain();
+    assert_eq!(g.n.raft.debug(), "leader");
+    assert_eq!(
+      noopfuture::assert_ready(&mut res1),
+      Ok(ReadRes { term: Term(1), index: Index(0), payload: vec![] })
+    );
   }
 }
