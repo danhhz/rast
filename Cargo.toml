@@ -1,6 +1,6 @@
 [package]
 name = "rast"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.0"
 authors = ["Daniel Harrison"]
 edition = "2018"
 license = "Apache-2.0"

@@ -30,16 +30,44 @@ pub enum Input {
   Read(ReadReq, ReadFuture),
   Tick(Instant),
   Message(Message),
-  PersistRes(Index, NodeID, ReadID),
-  ReadStateMachineRes(Index, ReadID, Vec<u8>),
+  PersistRes(PersistRes),
+  ReadStateMachineRes(ReadStateMachineRes),
 }
 
 #[derive(Debug)]
 pub enum Output {
   Message(Message),
-  PersistReq(NodeID, Vec<Entry>, ReadID), // WIP NodeID is the leader
+  PersistReq(PersistReq),
   ApplyReq(Index),
-  ReadStateMachineReq(Index, ReadID, Vec<u8>),
+  ReadStateMachineReq(ReadStateMachineReq),
+}
+
+#[derive(Debug)]
+pub struct PersistReq {
+  pub leader_id: NodeID,
+  pub read_id: ReadID,
+  pub entries: Vec<Entry>,
+}
+
+#[derive(Debug)]
+pub struct PersistRes {
+  pub leader_id: NodeID,
+  pub read_id: ReadID,
+  pub log_index: Index, // TODO: remove this
+}
+
+#[derive(Debug)]
+pub struct ReadStateMachineReq {
+  pub index: Index,
+  pub read_id: ReadID,
+  pub payload: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct ReadStateMachineRes {
+  pub index: Index, // TODO: remove this
+  pub read_id: ReadID,
+  pub payload: Vec<u8>,
 }
 
 /// An implementation of the [raft consensus protocol].
@@ -86,6 +114,8 @@ impl Raft {
   }
 
   pub fn step(&mut self, output: &mut impl Extend<Output>, input: Input) {
+    // TODO: this is not actually "unreachable" if step panics, handle this
+    // somehow
     self.state = Some(self.state.take().expect("unreachable").step(output, input));
   }
 
@@ -94,9 +124,9 @@ impl Raft {
   }
 }
 
-// WIP: split into persistent/volatile
+// TODO: split into persistent/volatile
 struct SharedState {
-  pub id: NodeID,
+  id: NodeID,
   cfg: Config,
 
   // Persistent state
@@ -107,9 +137,10 @@ struct SharedState {
   // Volatile state
   commit_index: Index,
   last_applied: Index,
-  nodes: Vec<NodeID>, // WIP: double check this doesn't need to be persisted
-  pub current_time: Instant,
-  // WIP this is overloaded fixme
+  // TODO: double check this doesn't need to be persisted
+  nodes: Vec<NodeID>,
+  current_time: Instant,
+  // TODO: this is overloaded fixme
   last_communication: Option<Instant>,
 }
 
@@ -152,12 +183,12 @@ enum State {
 }
 
 impl State {
-  // WIP: this helper is awkward
+  // TODO: this helper is awkward
   fn id(&self) -> NodeID {
     self.shared().id
   }
 
-  // WIP: this helper is awkward
+  // TODO: this helper is awkward
   fn shared(&self) -> &SharedState {
     match self {
       State::Candidate(c) => &c.shared,
@@ -186,15 +217,11 @@ impl State {
   fn step(self, output: &mut impl Extend<Output>, input: Input) -> State {
     println!("  {:3}: step {:?}", self.id().0, self.debug());
     match input {
-      Input::Write(req, state) => self.write(output, req.payload, Some(state)),
-      Input::Read(req, state) => self.read(output, req, state),
+      Input::Write(req, res) => self.write(output, req.payload, Some(res)),
+      Input::Read(req, res) => self.read(output, req, res),
       Input::Tick(now) => self.tick(output, now),
-      Input::PersistRes(index, leader_id, read_id) => {
-        self.persist_res(output, leader_id, index, read_id)
-      }
-      Input::ReadStateMachineRes(index, read_id, payload) => {
-        self.read_state_machine_res(output, index, read_id, payload)
-      }
+      Input::PersistRes(res) => self.persist_res(output, res),
+      Input::ReadStateMachineRes(res) => self.read_state_machine_res(output, res),
       Input::Message(message) => self.message(output, message),
     }
   }
@@ -263,9 +290,10 @@ impl State {
       .read_buffer
       .range_mut(..(leader.shared.last_applied, leader.max_confirmed_read_id.unwrap_or(ReadID(0))));
     for ((index, read_id), (req, _)) in can_serve {
-      // only don't this once for each read
+      // NB: Only do this once for each read.
       if let Some(req) = req.take() {
-        output.extend(vec![Output::ReadStateMachineReq(*index, *read_id, req.payload)]);
+        let msg = ReadStateMachineReq { index: *index, read_id: *read_id, payload: req.payload };
+        output.extend(vec![Output::ReadStateMachineReq(msg)]);
       }
     }
     leader
@@ -299,9 +327,10 @@ impl State {
           // again, maybe we'll be able to serve it.
 
           let now = candidate.shared.current_time;
-          // WIP: hard state means this is currently impossible but maybe we can
-          // stash the write somewhere on candidates and only time them out if
-          // it becomes a follower instead of a leader
+          // WIP: hard state means it's impossible to jump to leader in a single
+          // step (even in a 1 node cluster) but maybe we can stash the write
+          // somewhere on candidates and only time them out if it ends up a
+          // follower instead of a leader
           let state = State::start_election(candidate, output, now);
           state.write(output, payload, res)
         }
@@ -326,7 +355,6 @@ impl State {
       leader.shared.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
     let read_id = leader.next_read_id;
     leader.next_read_id = ReadID(leader.next_read_id.0 + 1);
-    // WIP we need to clear this at some point but don't do that right now
     leader.max_outstanding_read_id = Some(read_id);
     let entries: Vec<_> = payloads
       .into_iter()
@@ -337,7 +365,7 @@ impl State {
           index: prev_log_index + offset as u64 + 1,
           payload: payload,
         };
-        // WIP debug assertion that this doesn't exist.
+        debug_assert!(leader.write_buffer.get(&(entry.term, entry.index)).is_none());
         if let Some(res) = res {
           leader.write_buffer.insert((entry.term, entry.index), res);
         }
@@ -350,7 +378,9 @@ impl State {
     // TODO: this is duplicated with the one in `follower_append_entries`
     println!("  {:3}: persist {:?}", leader.shared.id.0, &entries);
     if entries.len() > 0 {
-      output.extend(vec![Output::PersistReq(leader.shared.id, entries.clone(), read_id)]);
+      let msg =
+        PersistReq { leader_id: leader.shared.id, read_id: read_id, entries: entries.clone() };
+      output.extend(vec![Output::PersistReq(msg)]);
     } else {
       let id = leader.shared.id;
       let current_term = leader.shared.current_term;
@@ -365,7 +395,7 @@ impl State {
       entries: entries,
       read_id: read_id,
     });
-    State::message_to_all_other_nodes(&leader.shared, output, payload);
+    State::message_to_all_other_nodes(&leader.shared, output, &payload);
     leader
   }
 
@@ -471,20 +501,14 @@ impl State {
     }
   }
 
-  fn persist_res(
-    self,
-    output: &mut impl Extend<Output>,
-    leader_id: NodeID,
-    index: Index,
-    read_id: ReadID,
-  ) -> State {
+  fn persist_res(self, output: &mut impl Extend<Output>, res: PersistRes) -> State {
     let payload = Payload::AppendEntriesRes(AppendEntriesRes {
       term: self.shared().current_term,
       success: true,
-      index: index,
-      read_id: read_id,
+      index: res.log_index,
+      read_id: res.read_id,
     });
-    let msg = Message { src: self.id(), dest: leader_id, payload: payload };
+    let msg = Message { src: self.id(), dest: res.leader_id, payload: payload };
     if msg.src == msg.dest {
       return State::step(self, output, Input::Message(msg));
     }
@@ -495,9 +519,7 @@ impl State {
   fn read_state_machine_res(
     self,
     output: &mut impl Extend<Output>,
-    index: Index,
-    read_id: ReadID,
-    payload: Vec<u8>,
+    res: ReadStateMachineRes,
   ) -> State {
     let mut leader = match self {
       State::Leader(leader) => leader,
@@ -508,8 +530,10 @@ impl State {
       State::Follower(follower) => return State::Follower(follower),
     };
 
+    let index = res.index;
+    let payload = res.payload;
     // Remove the entry so ReadStateMachineRes is idempotent.
-    if let Some((_, mut res)) = leader.read_buffer.remove(&(index, read_id)) {
+    if let Some((_, mut res)) = leader.read_buffer.remove(&(res.index, res.read_id)) {
       match std::str::from_utf8(&payload) {
         Ok(payload) => println!("  {:3}: read success {:?}", leader.shared.id.0, payload),
         Err(_) => println!("  {:3}: read success {:?}", leader.shared.id.0, payload),
@@ -522,7 +546,6 @@ impl State {
     State::Leader(leader)
   }
 
-  // WIP: confusing that you have to call this one instead for leaders
   fn leader_maybe_apply(mut leader: Leader, output: &mut impl Extend<Output>) -> Leader {
     let min_outstanding_read: Option<Index> =
       leader.read_buffer.iter().next().map(|((index, _), _)| *index);
@@ -546,13 +569,13 @@ impl State {
         Payload::StartElectionReq(req) => req.term,
       };
       if term > shared.current_term {
-        // All Servers: If RPC request or response contains term T > currentTerm:
-        // set currentTerm = T, convert to follower (§5.1)
+        // All Servers: If RPC request or response contains term T >
+        // currentTerm: set currentTerm = T, convert to follower (§5.1)
         shared.current_term = term;
-        // WIP: probably want a helper for updating the term
+        // TODO: probably want a helper for updating the term
         shared.voted_for = None;
-        // WIP: do we really convert to follower on a RequestVoteReq with a higher
-        // term?
+        // TODO: do we really convert to follower on a RequestVoteReq with a
+        // higher term?
         self = State::Follower(self.convert_to_follower(output, message.src));
       }
     }
@@ -670,18 +693,17 @@ impl State {
     // WIP: If an existing entry conflicts with a new one (same index but
     // different terms), delete the existing entry and all that follow it (§5.3)
 
-    // WIP: Append any new entries not already in the log
-    // WIP: hacks? is this len check a valid optimization?
+    // Append any new entries not already in the log
     if req.entries.len() > 0 {
       follower.shared.log.extend(req.entries.clone());
-      let msg = Output::PersistReq(req.leader_id, req.entries, req.read_id);
-      output.extend(vec![msg]);
+      let msg = PersistReq { leader_id: req.leader_id, read_id: req.read_id, entries: req.entries };
+      output.extend(vec![Output::PersistReq(msg)]);
     } else {
-      // WIP: duplicated with persist_res
+      // TODO: duplicated with persist_res
       let payload = Payload::AppendEntriesRes(AppendEntriesRes {
         term: follower.shared.current_term,
         success: true,
-        index: req.prev_log_index, // WIP is this right?
+        index: req.prev_log_index, // TODO: is this right?
         read_id: req.read_id,
       });
       let msg = Message { src: follower.shared.id, dest: req.leader_id, payload: payload };
@@ -780,7 +802,7 @@ impl State {
         println!("  {:3}: commit_index={:?}", leader.shared.id.0, new_commit_index);
         leader.shared.commit_index = new_commit_index;
         leader = State::leader_maybe_apply(leader, output);
-        // WIP: think about the order of these
+        // TODO: think about the order of these
         leader = State::maybe_wake_writes(leader);
         leader = State::leader_maybe_advance_reads(leader, output);
         break;
@@ -794,6 +816,12 @@ impl State {
     output: &mut impl Extend<Output>,
     req: &RequestVoteReq,
   ) -> State {
+    // TODO: To prevent [disruption from removed nodes] servers disregard
+    // RequestVote RPCs when they believe a current leader exists. Specifically,
+    // if a server receives a RequestVote RPC within the minimum election
+    // timeout of hearing from a current leader, it does not update its term or
+    // grant its vote. (§6)
+
     let mut shared = self.shared_mut();
     println!(
       "  {:3}: self.process_request_vote voted_for={:?} req={:?}",
@@ -815,7 +843,6 @@ impl State {
       Some(voted_for) => voted_for == req.candidate_id,
     };
     if should_grant {
-      // WIP what was this? volatile.current_time = self.volatile.current_time;
       shared.voted_for = Some(req.candidate_id);
       let payload =
         Payload::RequestVoteRes(RequestVoteRes { term: shared.current_term, vote_granted: true });
@@ -832,9 +859,8 @@ impl State {
     res: &RequestVoteRes,
   ) -> State {
     // NB: The term was checked earlier so don't need to check it again.
-    // WIP debug_assert!(res.term == self.current_term);
     if res.vote_granted {
-      // WIP what happens if we get this message twice?
+      // TODO: this is not idempotent
       candidate.received_votes += 1;
       let needed_votes = State::majority(&candidate.shared);
       if candidate.received_votes >= needed_votes {
@@ -853,11 +879,10 @@ impl State {
   ) -> State {
     println!("  {:3}: start_election {:?}", candidate.shared.id.0, now);
     candidate.received_votes = 0;
-    // WIP this is awkward
+    // TODO: this is awkward
     candidate.shared.voted_for = Some(candidate.shared.id);
     // Increment currentTerm
-    let Term(current_term) = candidate.shared.current_term;
-    candidate.shared.current_term = Term(current_term + 1);
+    candidate.shared.current_term = Term(candidate.shared.current_term.0 + 1);
     // Reset election timer
     candidate.shared.last_communication = Some(now);
     // Send RequestVote RPCs to all other servers
@@ -870,7 +895,7 @@ impl State {
       last_log_term: last_log_term,
     });
     println!("  {:3}: reqvote {:?}", candidate.shared.id.0, payload);
-    State::message_to_all_other_nodes(&candidate.shared, output, payload);
+    State::message_to_all_other_nodes(&candidate.shared, output, &payload);
     // Vote for self
     let res = RequestVoteRes { term: candidate.shared.current_term, vote_granted: true };
     return State::candidate_process_request_vote_res(candidate, output, &res);
@@ -879,7 +904,7 @@ impl State {
   fn message_to_all_other_nodes(
     shared: &SharedState,
     output: &mut impl Extend<Output>,
-    payload: Payload,
+    payload: &Payload,
   ) {
     output.extend(shared.nodes.iter().filter(|node| **node != shared.id).map(|node| {
       Output::Message(Message { src: shared.id, dest: *node, payload: payload.clone() })
@@ -908,7 +933,8 @@ impl State {
       }
       State::Leader(leader) => State::leader_convert_to_follower(leader, output, new_leader_hint),
       State::Follower(follower) => {
-        // WIP: double check that this makes sense
+        // NB: This can happen if a follower gets an AppendEntries from an
+        // already elected leader in a new term.
         follower
       }
     }

@@ -176,14 +176,19 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
   for (_, node) in nodes.iter_mut() {
     for output in node.output.drain(..) {
       match output {
-        Output::PersistReq(leader_id, entries, read_id) => {
+        Output::PersistReq(req) => {
           // TODO: test this being delayed
-          for entry in entries {
+          for entry in req.entries {
             println!("APPEND {:?} {:?}", node.raft.id(), &entry);
             println!();
             node.log.add(entry);
           }
-          node.input.push(Input::PersistRes(node.log.highest_index(), leader_id, read_id));
+          let msg = PersistRes {
+            leader_id: req.leader_id,
+            read_id: req.read_id,
+            log_index: node.log.highest_index(),
+          };
+          node.input.push(Input::PersistRes(msg));
         }
         Output::ApplyReq(index) => {
           // TODO: test this being delayed
@@ -193,12 +198,14 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
           println!("APPLY  {:?} {:?}", node.raft.id(), &node.state);
           println!();
         }
-        Output::ReadStateMachineReq(index, read_id, _) => {
+        Output::ReadStateMachineReq(req) => {
           // TODO: test this being delayed
           println!("READ   {:?} {:?}", node.raft.id(), &node.state);
           println!();
           let payload = node.state.clone();
-          node.input.push(Input::ReadStateMachineRes(index, read_id, payload));
+          let msg =
+            ReadStateMachineRes { index: req.index, read_id: req.read_id, payload: payload };
+          node.input.push(Input::ReadStateMachineRes(msg));
         }
         Output::Message(msg) => rpcs.push(msg),
       }

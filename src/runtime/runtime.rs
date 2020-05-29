@@ -54,7 +54,8 @@ impl Runtime {
 
   pub fn stop(&mut self) {
     // Send the shutdown sentinel.
-    match self.client.sender.send(Input::PersistRes(Index(0), NodeID(0), ReadID(0))).err() {
+    let msg = PersistRes { leader_id: NodeID(0), read_id: ReadID(0), log_index: Index(0) };
+    match self.client.sender.send(Input::PersistRes(msg)).err() {
       Some(_) => println!("runtime crashed before stop"),
       None => {
         println!("runtime stopping");
@@ -89,10 +90,10 @@ impl Runtime {
         None => reqs.recv()?,
       };
       // If we got the shutdown sentinel, exit.
-      match cmd {
+      match &cmd {
         // WIP make this a first class message type
-        Input::PersistRes(index, _, _) => {
-          if index == Index(0) {
+        Input::PersistRes(res) => {
+          if res.log_index == Index(0) {
             return Ok(());
           }
         }
@@ -102,17 +103,24 @@ impl Runtime {
       output.iter().for_each(|o| println!("  out: {:?}", o));
       output.drain(..).for_each(|output| match output {
         Output::ApplyReq(_) => {
-          // WIP implement
+          // TODO: implement
         }
-        Output::PersistReq(leader_id, entries, read_id) => {
-          // WIP implement
-          entries.iter().for_each(|entry| state.extend(entry.payload.iter()));
-          cmds.push_back(Input::PersistRes(entries.last().unwrap().index, leader_id, read_id));
+        Output::PersistReq(req) => {
+          // TODO: implement
+          req.entries.iter().for_each(|entry| state.extend(entry.payload.iter()));
+          let msg = PersistRes {
+            leader_id: req.leader_id,
+            read_id: req.read_id,
+            log_index: req.entries.last().unwrap().index,
+          };
+          cmds.push_back(Input::PersistRes(msg));
         }
-        Output::ReadStateMachineReq(index, read_id, _) => {
-          // WIP implement
+        Output::ReadStateMachineReq(req) => {
+          // TODO: implement
           let payload = state.clone();
-          cmds.push_back(Input::ReadStateMachineRes(index, read_id, payload));
+          let msg =
+            ReadStateMachineRes { index: req.index, read_id: req.read_id, payload: payload };
+          cmds.push_back(Input::ReadStateMachineRes(msg));
         }
         Output::Message(message) => {
           let dest = message.dest;

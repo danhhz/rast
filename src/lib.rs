@@ -62,7 +62,7 @@ mod serde;
 
 pub use crate::error::{ClientError, NotLeaderError};
 pub use crate::future::{ReadFuture, WriteFuture};
-pub use crate::raft::{Config, Input, Output, Raft};
+pub use crate::raft::{Config, Input, Output, PersistRes, Raft, ReadStateMachineRes};
 pub use crate::serde::{
   Entry, Index, Message, NodeID, ReadID, ReadReq, ReadRes, Term, WriteReq, WriteRes,
 };
@@ -100,28 +100,12 @@ mod testutil {
   pub mod noopfuture;
 }
 
-// TODO: use log facade crate instead of println
-// TODO: zero-copy serde
 // TODO: figure out how to call output.extend without creating a vec
 // TODO: more consistent method naming
 // TODO: compress log implementation
-// TODO: randomized invariant testing
-// TODO: failure testing
-// TODO: ensure that heartbeat (empty append) is no disk write in common case
-// TODO: write internals docs
-// TODO: write externals docs
 // TODO: restart node with non-empty log + hard state
-// TODO: single node special cases
-// - election concludes immediately
-// - read/write req to candidate is successful
-// - committed as soon as it's persisted
-// TODO: benchmarks
-// TODO: graceful leader handoff
 // TODO: retry append rpc, find where follower diverges
-// TODO: idempotent messages
-// TODO: read+write requests (cput)
 // TODO: nemesis test shouldn't hang when something panics
-// TODO: follower reads
 // TODO: tests
 // - election timeout, node isn't elected in a short enough time
 // - stuck election/split vote, all nodes vote for themselves
@@ -129,3 +113,7 @@ mod testutil {
 // - expand this list with examples from the raft paper
 // - nothing can be written at an index once that index is read
 // - runtime behavior under shutdown, gracefully returns errors
+// - single node special cases
+//   - election concludes immediately
+//   - read/write req to candidate is successful
+//   - committed as soon as it's persisted
