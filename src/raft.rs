@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::iter::Extend;
 use std::time::{Duration, Instant};
 
+use super::compressed_log::CompressedLog;
 pub use super::error::*;
 pub use super::future::*;
 pub use super::serde::*;
@@ -85,7 +86,7 @@ impl Raft {
         cfg: cfg,
         current_term: Term(0),
         voted_for: None,
-        log: vec![],
+        log: CompressedLog::new(),
         commit_index: Index(0),
         last_applied: Index(0),
         nodes: nodes,
@@ -132,7 +133,7 @@ struct SharedState {
   // Persistent state
   current_term: Term,
   voted_for: Option<NodeID>,
-  log: Vec<Entry>,
+  log: CompressedLog,
 
   // Volatile state
   commit_index: Index,
@@ -288,10 +289,9 @@ impl State {
       }
     }
 
-    let can_serve = leader
-      .read_buffer
-      .range_mut(..(leader.shared.last_applied, leader.max_confirmed_read_id.unwrap_or(ReadID(0))));
-    for ((index, read_id), (req, _)) in can_serve {
+    let can_serve = (leader.shared.last_applied, leader.max_confirmed_read_id.unwrap_or(ReadID(0)));
+    debug!("  {:3}: can_serve={:?}", leader.shared.id.0, can_serve);
+    for ((index, read_id), (req, _)) in leader.read_buffer.range_mut(..can_serve) {
       // NB: Only do this once for each read.
       if let Some(req) = req.take() {
         let msg = ReadStateMachineReq { index: *index, read_id: *read_id, payload: req.payload };
@@ -357,8 +357,7 @@ impl State {
     output: &mut impl Extend<Output>,
     payloads: Vec<(Vec<u8>, Option<WriteFuture>)>,
   ) -> Leader {
-    let (prev_log_term, prev_log_index) =
-      leader.shared.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
+    let (prev_log_term, prev_log_index) = leader.shared.log.last();
     let read_id = leader.next_read_id;
     leader.next_read_id = ReadID(leader.next_read_id.0 + 1);
     leader.max_outstanding_read_id = Some(read_id);
@@ -380,7 +379,7 @@ impl State {
       .collect();
     debug!("  {:3}: entries={:?}", leader.shared.id.0, entries);
 
-    leader.shared.log.extend(entries.clone());
+    leader.shared.log.extend(&entries);
     // TODO: this is duplicated with the one in `follower_append_entries`
     debug!("  {:3}: persist {:?}", leader.shared.id.0, &entries);
     if entries.len() > 0 {
@@ -447,7 +446,7 @@ impl State {
   ) -> Leader {
     let read_id = leader.next_read_id;
     leader.next_read_id = ReadID(leader.next_read_id.0 + 1);
-    let index = leader.shared.log.last().map_or(Index(0), |entry| entry.index);
+    let index = leader.shared.log.last().1;
     leader.read_buffer.insert((index, read_id), (Some(req), res));
     State::leader_maybe_advance_reads(leader, output)
   }
@@ -697,15 +696,32 @@ impl State {
     );
     follower.shared.last_communication = follower.shared.current_time;
 
-    // WIP: Reply false if log doesn’t contain an entry at prevLogIndex whose
-    // term matches prevLogTerm (§5.3)
+    // Reply false if log doesn’t contain an entry at prevLogIndex whose term
+    // matches prevLogTerm (§5.3)
+    let log_match = follower
+      .shared
+      .log
+      .index_term(req.prev_log_index)
+      .map_or(false, |term| term == req.prev_log_term);
+    if !log_match {
+      // TODO: Send back a hint of what we do have.
+      let payload = Payload::AppendEntriesRes(AppendEntriesRes {
+        term: follower.shared.current_term,
+        index: Index(0),
+        success: false,
+        read_id: req.read_id,
+      });
+      let msg =
+        Output::Message(Message { src: follower.shared.id, dest: req.leader_id, payload: payload });
+      output.extend(vec![msg]);
+      return follower;
+    }
 
-    // WIP: If an existing entry conflicts with a new one (same index but
-    // different terms), delete the existing entry and all that follow it (§5.3)
-
-    // Append any new entries not already in the log
+    // If an existing entry conflicts with a new one (same index but different
+    // terms), delete the existing entry and all that follow it (§5.3). Append
+    // any new entries not already in the log
     if req.entries.len() > 0 {
-      follower.shared.log.extend(req.entries.clone());
+      follower.shared.log.extend(&req.entries);
       let msg = PersistReq { leader_id: req.leader_id, read_id: req.read_id, entries: req.entries };
       output.extend(vec![Output::PersistReq(msg)]);
     } else {
@@ -723,7 +739,7 @@ impl State {
     // If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index
     // of last new entry)
     if req.leader_commit > follower.shared.commit_index {
-      let last_entry_index = follower.shared.log.last().map_or(Index(0), |entry| entry.index);
+      let last_entry_index = follower.shared.log.last().1;
       follower.shared.commit_index = cmp::min(req.leader_commit, last_entry_index);
       follower = State::follower_maybe_apply(follower, output);
     }
@@ -799,16 +815,19 @@ impl State {
     // matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N
     // (§5.3, §5.4).
     let needed = State::majority(&leader.shared);
-    for entry in leader.shared.log.iter().rev() {
-      debug!("  {:3}: is committed? {:?}", leader.shared.id.0, entry);
-      if entry.index <= leader.shared.commit_index || entry.term < leader.shared.current_term {
+    for (_, entry_index) in leader.shared.log.iter().rev() {
+      debug!(
+        "  {:3}: is committed? index={:} commit_index={:}",
+        leader.shared.id.0, entry_index.0, leader.shared.commit_index.0
+      );
+      if entry_index <= leader.shared.commit_index {
         break;
       }
       // TODO: inefficient; instead, compute once the min index that has a
       // majority in match_index
-      let count = leader.match_index.iter().filter(|(_, (index, _))| *index >= entry.index).count();
+      let count = leader.match_index.iter().filter(|(_, (index, _))| *index >= entry_index).count();
       if count >= needed {
-        let new_commit_index = entry.index;
+        let new_commit_index = entry_index;
         debug!("  {:3}: commit_index={:?}", leader.shared.id.0, new_commit_index);
         leader.shared.commit_index = new_commit_index;
         leader = State::leader_maybe_apply(leader, output);
@@ -892,8 +911,7 @@ impl State {
     // Reset election timer
     candidate.shared.last_communication = candidate.shared.current_time;
     // Send RequestVote RPCs to all other servers
-    let (last_log_term, last_log_index) =
-      candidate.shared.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
+    let (last_log_term, last_log_index) = candidate.shared.log.last();
     let payload = Payload::RequestVoteReq(RequestVoteReq {
       term: candidate.shared.current_term,
       candidate_id: candidate.shared.id,

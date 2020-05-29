@@ -200,9 +200,16 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
           // TODO: test this being delayed
           for entry in req.entries {
             debug!("APPEND {:?} {:?}", node.raft.id(), &entry);
-            debug!("");
             node.log.add(entry);
           }
+          debug!(
+            "STATE {:?} last={:?} stable={:?} {:?}",
+            node.raft.id(),
+            node.log.highest_index(),
+            node.log.stable,
+            node.log.entries
+          );
+          debug!("");
           let msg = PersistRes {
             leader_id: req.leader_id,
             read_id: req.read_id,
@@ -213,18 +220,24 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
         Output::ApplyReq(index) => {
           // TODO: test this being delayed
           node.log.mark_stable(index);
-          let payload = node.log.get(index).unwrap();
-          node.state.extend(payload);
-          debug!("APPLY  {:?} {:?}", node.raft.id(), &node.state);
+          let mut state: Vec<u8> = vec![];
+          for (_, (_, payload)) in node.log.entries.range(..=index) {
+            state.extend(payload.iter());
+          }
+          debug!("APPLY  {:?} {:?}", node.raft.id(), state);
           debug!("");
         }
         Output::ReadStateMachineReq(req) => {
           // TODO: test this being delayed
           debug!("READ   {:?} {:?}", node.raft.id(), &node.state);
           debug!("");
-          let payload = node.state.clone();
-          let msg =
-            ReadStateMachineRes { index: req.index, read_id: req.read_id, payload: payload };
+          let mut state = vec![];
+          if let Some(stable_index) = node.log.stable {
+            for (_, (_, payload)) in node.log.entries.range(..=stable_index) {
+              state.extend(payload.iter());
+            }
+          }
+          let msg = ReadStateMachineRes { index: req.index, read_id: req.read_id, payload: state };
           node.input.push(Input::ReadStateMachineRes(msg));
         }
         Output::Message(msg) => rpcs.push(msg),

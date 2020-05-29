@@ -147,7 +147,6 @@ fn leader_timeout() {
 }
 
 #[test]
-#[ignore]
 fn overwrite_entries() {
   testutil::log_init();
 
@@ -180,13 +179,10 @@ fn overwrite_entries() {
   assert_eq!(g.n0.raft.debug(), "leader");
 
   // A read on n1 shouldn't have the unfinished write.
-  // TODO: make this work without the write
-  let _ = g.n0.write(WriteReq { payload: String::from("4").into_bytes() });
   let mut res = g.n0.read(ReadReq { payload: vec![] });
-  // g.n0.tick(g.cfg().election_timeout);
   g.drain();
   let res = noopfuture::assert_ready(&mut res).unwrap();
-  assert_eq!(res.payload, String::from("134").into_bytes());
+  assert_eq!(res.payload, String::from("13").into_bytes());
 }
 
 #[test]

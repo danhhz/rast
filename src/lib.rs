@@ -88,6 +88,7 @@ macro_rules! error { ($($x:tt)*) => (
     }
 ) }
 
+mod compressed_log;
 mod error;
 mod future;
 mod raft;

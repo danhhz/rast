@@ -16,8 +16,9 @@ steady-state speed.
 - [x] Replace printlns with log crate
 - [ ] Resolve all WIP comments
 - [ ] Audit all TODO comments
-- [ ] Resolve all ignored tests
+- [x] Resolve all ignored tests
 - [ ] External documentation
+- [ ] Regression test for committing an entry from a previous term
 - [x] Small cleanups
   - [x] Make current_time an Option
   - [x] Structs for {Persist,ReadStateMachine}{Req,Res}
