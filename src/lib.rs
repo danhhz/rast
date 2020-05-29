@@ -13,7 +13,7 @@
 //! use rast::prelude::*;
 //!
 //! # fn main() {
-//! let mut raft = Raft::new(NodeID(0), vec![NodeID(0)], Config::default(), Instant::now());
+//! let mut raft = Raft::new(NodeID(0), vec![NodeID(0)], Config::default());
 //! let mut output = vec![];
 //! raft.step(&mut output, Input::Tick(Instant::now()));
 //! # }

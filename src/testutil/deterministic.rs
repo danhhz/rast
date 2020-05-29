@@ -9,6 +9,7 @@ use crate::serde::{Payload, StartElectionReq};
 
 pub struct DeterministicNode {
   pub raft: Raft,
+  pub now: Instant,
   pub input: Vec<Input>,
   pub output: Vec<Output>,
   pub log: MemLog,
@@ -18,7 +19,8 @@ pub struct DeterministicNode {
 impl DeterministicNode {
   fn new(id: NodeID, nodes: Vec<NodeID>, cfg: Config, now: Instant) -> DeterministicNode {
     DeterministicNode {
-      raft: Raft::new(id, nodes, cfg, now),
+      raft: Raft::new(id, nodes, cfg),
+      now: now,
       input: vec![],
       output: vec![],
       log: MemLog::new(),
@@ -36,7 +38,8 @@ impl DeterministicNode {
   }
 
   pub fn tick(&mut self, inc: Duration) {
-    self.step(Input::Tick(self.raft.current_time() + inc));
+    self.now += inc;
+    self.step(Input::Tick(self.now));
   }
 
   pub fn write(&mut self, req: WriteReq) -> WriteFuture {
@@ -87,7 +90,7 @@ impl DeterministicNode {
     let id = self.raft.id();
     for input in self.input.drain(..) {
       did_work = true;
-      // WIP: dedup this with step
+      // TODO: dedup this with step
       let mut output = vec![];
       println!("input  {:?}: {:?}", id.0, input);
       self.raft.step(&mut output, input);
@@ -227,7 +230,7 @@ pub trait DeterministicGroup {
   fn nodes_mut(&mut self) -> Vec<&mut DeterministicNode>;
 
   fn tick(&mut self, inc: Duration) {
-    // WIP: ensure this ticks them all to the same time
+    // TODO: ensure this ticks them all to the same time
     self.nodes_mut().iter_mut().for_each(|node| node.tick(inc));
   }
 

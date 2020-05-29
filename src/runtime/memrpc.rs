@@ -16,12 +16,12 @@ impl MemRPC {
   }
 
   pub fn register(&mut self, dest: NodeID, sender: Sender<Input>) {
-    // WIP handle error
+    // TODO: handle error
     self.conns.lock().unwrap().insert(dest, sender);
   }
 
   pub fn dial(&self, node: NodeID) -> MemConn {
-    // WIP handle error
+    // TODO: handle error
     let sender = self.conns.lock().unwrap().get(&node).unwrap().clone();
     MemConn { sender: sender }
   }
@@ -32,7 +32,7 @@ pub struct MemConn {
 }
 impl MemConn {
   pub fn send(&self, m: Message) {
-    // WIP handle error
+    // TODO: handle error
     self.sender.send(Input::Message(m)).unwrap();
   }
 }

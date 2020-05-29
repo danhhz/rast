@@ -69,7 +69,7 @@ impl Runtime {
     self.client.clone()
   }
 
-  // WIP get rid of this
+  // TODO: get rid of this
   pub fn sender(&self) -> Sender<Input> {
     self.client.sender.clone()
   }
@@ -91,7 +91,6 @@ impl Runtime {
       };
       // If we got the shutdown sentinel, exit.
       match &cmd {
-        // WIP make this a first class message type
         Input::PersistRes(res) => {
           if res.log_index == Index(0) {
             return Ok(());
