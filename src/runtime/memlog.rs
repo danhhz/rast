@@ -6,7 +6,7 @@ use crate::prelude::*;
 
 pub struct MemLog {
   pub entries: BTreeMap<Index, (Term, Vec<u8>)>,
-  stable: Option<Index>,
+  pub stable: Option<Index>,
 }
 
 impl MemLog {
