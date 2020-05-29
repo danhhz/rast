@@ -1,7 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use std::collections::HashMap;
-use std::time::Instant;
 
 use crate::prelude::*;
 use crate::runtime::{MemLog, MemRPC, RastClient, Runtime};
@@ -14,7 +13,7 @@ pub struct ConcurrentNode {
 impl ConcurrentNode {
   fn new(id: NodeID, nodes: Vec<NodeID>) -> ConcurrentNode {
     let cfg = Config::default();
-    let raft = Raft::new(id, nodes, cfg, Instant::now());
+    let raft = Raft::new(id, nodes, cfg);
     let rpc = MemRPC::new();
     let runtime = Runtime::new(raft, rpc.clone(), MemLog::new());
     ConcurrentNode { runtime: runtime, rpc: rpc }
@@ -26,7 +25,7 @@ impl ConcurrentNode {
 }
 
 pub struct ConcurrentGroup {
-  // WIP remove pub
+  // TODO: remove pub
   pub nodes: HashMap<NodeID, ConcurrentNode>,
 }
 

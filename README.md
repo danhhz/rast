@@ -18,11 +18,10 @@ steady-state speed.
 - [ ] Audit all TODO comments
 - [ ] Resolve all ignored tests
 - [ ] External documentation
-- [ ] Audit public interface
-- [ ] Small cleanups
-  - [ ] Make current_time an Option
+- [x] Small cleanups
+  - [x] Make current_time an Option
   - [x] Structs for {Persist,ReadStateMachine}{Req,Res}
-  - [ ] Clear max_outstanding_read_id when applicable
+  - [x] Clear max_outstanding_read_id when applicable
 
 # v0.1.0-alpha.1
 
@@ -33,7 +32,7 @@ steady-state speed.
 - [ ] Message idempotency
 - [ ] Read-write requests (cput)
 - [ ] Handle panics in state machine
-- [ ] Harden public interface
+- [ ] Audit public interface
 - [ ] Make logging an optional dependency
 - [ ] Clean up log messages
 - [ ] Internal documentation

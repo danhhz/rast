@@ -1,5 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+use std::time::Duration;
+
 use crate::prelude::*;
 use crate::testutil::noopfuture;
 use crate::testutil::{DeterministicGroup, DeterministicGroup1, DeterministicGroup3};
@@ -34,11 +36,13 @@ fn election_multi() {
 fn tick() {
   let mut g = DeterministicGroup3::new();
 
-  // n0 calls an election
-  g.n0.start_election();
+  // all nodes call an election on startup
+  g.n0.tick(Duration::from_nanos(0));
+  g.n1.tick(Duration::from_nanos(0));
+  g.n2.tick(Duration::from_nanos(0));
   assert_eq!(g.n0.raft.current_term(), Term(1));
 
-  // Nothing happens for election_timeout, so it calls a fresh election with a
+  // Nothing happens for election_timeout, so n0 calls a fresh election with a
   // new term.
   g.n0.tick(g.cfg().election_timeout);
   assert_eq!(g.n0.raft.current_term(), Term(2));

@@ -34,7 +34,7 @@ impl<T> RastFuture<T> {
   }
 
   fn fill(&mut self, result: Result<T, ClientError>) {
-    // WIP: what should we do if the lock is poisoned?
+    // TODO: what should we do if the lock is poisoned?
     if let Ok(mut state) = self.state.lock() {
       debug_assert_eq!(state.finished, false);
       state.finished = true;

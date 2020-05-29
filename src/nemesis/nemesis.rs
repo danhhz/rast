@@ -159,7 +159,7 @@ pub fn nemesis_test(cfg: Config) -> Result<(), ValidateError> {
     let cfg = cfg.clone();
     let ops = ops.clone();
     let generator = Generator::new(cfg.clone());
-    // WIP
+    // TODO: round robin
     let c = group.nodes.iter().next().unwrap().1.client();
     thread::spawn(move || {
       let a = Applier::new(cfg, ops, &generator, &c);

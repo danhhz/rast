@@ -78,7 +78,7 @@ pub struct Raft {
 }
 
 impl Raft {
-  pub fn new(id: NodeID, nodes: Vec<NodeID>, cfg: Config, current_time: Instant) -> Raft {
+  pub fn new(id: NodeID, nodes: Vec<NodeID>, cfg: Config) -> Raft {
     let state = State::Candidate(Candidate {
       shared: SharedState {
         id: id,
@@ -89,7 +89,7 @@ impl Raft {
         commit_index: Index(0),
         last_applied: Index(0),
         nodes: nodes,
-        current_time: current_time,
+        current_time: None,
         last_communication: None,
       },
       received_votes: 0,
@@ -101,7 +101,7 @@ impl Raft {
     return self.state.as_ref().expect("unreachable").id();
   }
 
-  pub fn current_time(&self) -> Instant {
+  pub fn current_time(&self) -> Option<Instant> {
     return self.state.as_ref().expect("unreachable").shared().current_time;
   }
 
@@ -139,7 +139,7 @@ struct SharedState {
   last_applied: Index,
   // TODO: double check this doesn't need to be persisted
   nodes: Vec<NodeID>,
-  current_time: Instant,
+  current_time: Option<Instant>,
   // TODO: this is overloaded fixme
   last_communication: Option<Instant>,
 }
@@ -279,7 +279,8 @@ impl State {
     );
     if let Some(((_, max_read_id), _)) = leader.read_buffer.iter().next_back() {
       let need_heartbeat =
-        leader.max_outstanding_read_id.map_or(true, |outstanding| *max_read_id > outstanding);
+        leader.max_confirmed_read_id.map_or(true, |confirmed| *max_read_id > confirmed)
+          && leader.max_outstanding_read_id.map_or(true, |outstanding| *max_read_id > outstanding);
       println!("  {:3}: need_heartbeat={:?}", leader.shared.id.0, need_heartbeat);
       if need_heartbeat {
         leader = State::leader_heartbeat(leader, output);
@@ -326,12 +327,11 @@ impl State {
           // We haven't voted yet so start an election, then try the write
           // again, maybe we'll be able to serve it.
 
-          let now = candidate.shared.current_time;
-          // WIP: hard state means it's impossible to jump to leader in a single
-          // step (even in a 1 node cluster) but maybe we can stash the write
-          // somewhere on candidates and only time them out if it ends up a
-          // follower instead of a leader
-          let state = State::start_election(candidate, output, now);
+          // TODO: hard state means it's impossible to jump to leader in a
+          // single step (even in a 1 node cluster) but maybe we can stash the
+          // write somewhere on candidates and only time them out if it ends up
+          // a follower instead of a leader
+          let state = State::start_election(candidate, output);
           state.write(output, payload, res)
         }
       },
@@ -423,8 +423,7 @@ impl State {
         None => {
           // We haven't voted yet so start an election, then try the read
           // again, maybe we'll be able to serve it.
-          let now = candidate.shared.current_time;
-          let state = State::start_election(candidate, output, now);
+          let state = State::start_election(candidate, output);
           state.read(output, req, res)
         }
       },
@@ -455,7 +454,7 @@ impl State {
       now,
       self.shared().current_time
     );
-    if now <= self.shared().current_time {
+    if self.shared().current_time.map_or(false, |current_time| now <= current_time) {
       // Ignore a repeat tick (as well as one in the past, which shouldn't
       // happen).
       return self;
@@ -466,9 +465,9 @@ impl State {
         let timed_out = candidate.shared.last_communication.map_or(true, |last_communication| {
           now.duration_since(last_communication) >= candidate.shared.cfg.election_timeout
         });
-        candidate.shared.current_time = now;
+        candidate.shared.current_time = Some(now);
         if timed_out {
-          return State::start_election(candidate, output, now);
+          return State::start_election(candidate, output);
         }
         State::Candidate(candidate)
       }
@@ -479,9 +478,9 @@ impl State {
         let timed_out = follower.shared.last_communication.map_or(true, |last_communication| {
           now.duration_since(last_communication) >= follower.shared.cfg.election_timeout
         });
-        follower.shared.current_time = now;
+        follower.shared.current_time = Some(now);
         if timed_out {
-          return State::follower_convert_to_candidate(follower, output, now);
+          return State::follower_convert_to_candidate(follower, output);
         }
         State::Follower(follower)
       }
@@ -489,7 +488,7 @@ impl State {
         let need_heartbeat = leader.shared.last_communication.map_or(true, |last_communication| {
           now.duration_since(last_communication) >= leader.shared.cfg.heartbeat_interval
         });
-        leader.shared.current_time = now;
+        leader.shared.current_time = Some(now);
         if need_heartbeat {
           // Leaders: Upon election: send initial empty AppendEntries RPCs
           // (heartbeat) to each server; repeat during idle periods to prevent
@@ -610,8 +609,7 @@ impl State {
           // Stale request, ignore.
           return State::Candidate(candidate);
         }
-        let now = candidate.shared.current_time;
-        State::start_election(candidate, output, now)
+        State::start_election(candidate, output)
       }
       payload => todo!("{:?}", payload),
     }
@@ -638,10 +636,12 @@ impl State {
           // Stale request, ignore.
           return State::Follower(follower);
         }
-        let now = follower.shared.current_time;
-        State::follower_convert_to_candidate(follower, output, now)
+        State::follower_convert_to_candidate(follower, output)
       }
-      payload => todo!("{:?}", payload),
+      Payload::RequestVoteRes(_) => {
+        // Already a follower, no-op.
+        State::Follower(follower)
+      }
     }
   }
 
@@ -685,7 +685,7 @@ impl State {
       "  {:3}: self.last_communication={:?}",
       follower.shared.id.0, follower.shared.current_time
     );
-    follower.shared.last_communication = Some(follower.shared.current_time);
+    follower.shared.last_communication = follower.shared.current_time;
 
     // WIP: Reply false if log doesn’t contain an entry at prevLogIndex whose
     // term matches prevLogTerm (§5.3)
@@ -777,6 +777,10 @@ impl State {
         "  {:3}: outstanding={:?} confirmed={:?}",
         leader.shared.id.0, leader.max_outstanding_read_id, leader.max_confirmed_read_id
       );
+      if new_max_confirmed_read_id >= leader.max_outstanding_read_id {
+        println!("  {:3}: no outstanding reads", leader.shared.id.0);
+        leader.max_outstanding_read_id = None;
+      }
       leader = State::leader_maybe_advance_reads(leader, output);
     }
 
@@ -872,19 +876,15 @@ impl State {
     return State::Candidate(candidate);
   }
 
-  fn start_election(
-    mut candidate: Candidate,
-    output: &mut impl Extend<Output>,
-    now: Instant,
-  ) -> State {
-    println!("  {:3}: start_election {:?}", candidate.shared.id.0, now);
+  fn start_election(mut candidate: Candidate, output: &mut impl Extend<Output>) -> State {
+    println!("  {:3}: start_election {:?}", candidate.shared.id.0, candidate.shared.current_time);
     candidate.received_votes = 0;
     // TODO: this is awkward
     candidate.shared.voted_for = Some(candidate.shared.id);
     // Increment currentTerm
     candidate.shared.current_term = Term(candidate.shared.current_term.0 + 1);
     // Reset election timer
-    candidate.shared.last_communication = Some(now);
+    candidate.shared.last_communication = candidate.shared.current_time;
     // Send RequestVote RPCs to all other servers
     let (last_log_term, last_log_index) =
       candidate.shared.log.last().map_or((Term(0), Index(0)), |entry| (entry.term, entry.index));
@@ -911,15 +911,11 @@ impl State {
     }))
   }
 
-  fn follower_convert_to_candidate(
-    follower: Follower,
-    output: &mut impl Extend<Output>,
-    now: Instant,
-  ) -> State {
-    println!("  {:3}: convert_to_candidate {:?}", follower.shared.id.0, now);
+  fn follower_convert_to_candidate(follower: Follower, output: &mut impl Extend<Output>) -> State {
+    println!("  {:3}: convert_to_candidate", follower.shared.id.0);
     let candidate = Candidate { shared: follower.shared, received_votes: 0 };
     // Candidates (§5.2): On conversion to candidate, start election:
-    State::start_election(candidate, output, now)
+    State::start_election(candidate, output)
   }
 
   fn convert_to_follower(

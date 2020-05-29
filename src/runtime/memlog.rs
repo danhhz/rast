@@ -37,7 +37,7 @@ impl MemLog {
   }
 
   pub fn mark_stable(&mut self, index: Index) {
-    // WIP: only forward stable
+    // TODO: only forward stable
     self.stable = Some(index);
   }
 }
