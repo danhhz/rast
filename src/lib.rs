@@ -55,6 +55,39 @@
 
 #![warn(clippy::correctness, clippy::perf, clippy::wildcard_imports)]
 
+// Log macros copied from the rand crate without changes:
+// https://crates.io/crates/rand.
+#[allow(unused)]
+macro_rules! trace { ($($x:tt)*) => (
+    #[cfg(feature = "log")] {
+        log::trace!($($x)*)
+    }
+) }
+#[allow(unused)]
+macro_rules! debug { ($($x:tt)*) => (
+    #[cfg(feature = "log")] {
+        log::debug!($($x)*)
+    }
+) }
+#[allow(unused)]
+macro_rules! info { ($($x:tt)*) => (
+    #[cfg(feature = "log")] {
+        log::info!($($x)*)
+    }
+) }
+#[allow(unused)]
+macro_rules! warn { ($($x:tt)*) => (
+    #[cfg(feature = "log")] {
+        log::warn!($($x)*)
+    }
+) }
+#[allow(unused)]
+macro_rules! error { ($($x:tt)*) => (
+    #[cfg(feature = "log")] {
+        log::error!($($x)*)
+    }
+) }
+
 mod error;
 mod future;
 mod raft;
@@ -91,6 +124,15 @@ mod nemesis {
 
 #[cfg(test)]
 mod testutil {
+  use env_logger;
+  pub fn log_init() {
+    let _ = env_logger::builder()
+      .is_test(true)
+      .format_module_path(false)
+      .format_timestamp(None)
+      .try_init();
+  }
+
   mod deterministic;
   pub use deterministic::*;
 

@@ -18,6 +18,10 @@ maintenance = { status = "experimental" }
 [features]
 runtime = []
 
+[dependencies]
+log = { version = "0.4", optional = true }
+
 [dev-dependencies]
 rand = { version = "0.7", features = ["small_rng"] }
 extreme = { version = "666.666.666666" }
+env_logger = { version = "0.7" }

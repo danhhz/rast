@@ -56,11 +56,13 @@ impl Runtime {
     // Send the shutdown sentinel.
     let msg = PersistRes { leader_id: NodeID(0), read_id: ReadID(0), log_index: Index(0) };
     match self.client.sender.send(Input::PersistRes(msg)).err() {
-      Some(_) => println!("runtime crashed before stop"),
+      Some(_) => {
+        debug!("runtime crashed before stop");
+      }
       None => {
-        println!("runtime stopping");
+        debug!("runtime stopping");
         self.handle.take().unwrap().join().unwrap().unwrap();
-        println!("runtime stopped");
+        debug!("runtime stopped");
       }
     }
   }
@@ -99,7 +101,10 @@ impl Runtime {
         _ => {}
       }
       raft.step(&mut output, cmd);
-      output.iter().for_each(|o| println!("  out: {:?}", o));
+      #[cfg(feature = "log")]
+      output.iter().for_each(|o| {
+        debug!("  out: {:?}", o);
+      });
       output.drain(..).for_each(|output| match output {
         Output::ApplyReq(_) => {
           // TODO: implement

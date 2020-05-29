@@ -15,6 +15,7 @@ use rand::{Rng, SeedableRng};
 
 use crate::prelude::*;
 use crate::runtime::RastClient;
+use crate::testutil;
 use crate::testutil::ConcurrentGroup;
 
 pub enum OpReq {
@@ -279,6 +280,8 @@ mod tests {
 
   #[test]
   fn validate_ops() {
+    testutil::log_init();
+
     // Empty
     assert_eq!(validate(vec![]), Ok(()));
 
@@ -325,6 +328,7 @@ mod tests {
 
   #[test]
   fn nemesis_single() {
+    testutil::log_init();
     let cfg = Config { nodes: 1, workers: 4, ops: 100, read: 50, write: 50 };
     let failures = nemesis_test(cfg);
     failures.expect("consistency violation");
@@ -332,6 +336,7 @@ mod tests {
 
   #[test]
   fn nemesis_multi() {
+    testutil::log_init();
     let cfg = Config { nodes: 3, workers: 4, ops: 100, read: 50, write: 50 };
     let failures = nemesis_test(cfg);
     failures.expect("consistency violation");

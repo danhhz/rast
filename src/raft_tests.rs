@@ -3,11 +3,13 @@
 use std::time::Duration;
 
 use crate::prelude::*;
-use crate::testutil::noopfuture;
-use crate::testutil::{DeterministicGroup, DeterministicGroup1, DeterministicGroup3};
+use crate::testutil;
+use crate::testutil::{noopfuture, DeterministicGroup, DeterministicGroup1, DeterministicGroup3};
 
 #[test]
 fn election_one() {
+  testutil::log_init();
+
   let mut g = DeterministicGroup1::new();
   assert_eq!(g.n.raft.debug(), "candidate");
 
@@ -18,6 +20,8 @@ fn election_one() {
 
 #[test]
 fn election_multi() {
+  testutil::log_init();
+
   let mut g = DeterministicGroup3::new();
   assert_eq!(g.n0.raft.debug(), "candidate");
 
@@ -34,6 +38,8 @@ fn election_multi() {
 
 #[test]
 fn tick() {
+  testutil::log_init();
+
   let mut g = DeterministicGroup3::new();
 
   // all nodes call an election on startup
@@ -74,6 +80,8 @@ fn tick() {
 
 #[test]
 fn write_future() {
+  testutil::log_init();
+
   let mut g = DeterministicGroup3::new();
   g.n0.start_election();
   g.drain();
@@ -91,6 +99,8 @@ fn write_future() {
 
 #[test]
 fn read_future() {
+  testutil::log_init();
+
   // TODO:
   // - read kicks off append entries so it can be resolved immediately
   // - two reads while there are no outstanding append entries will batch
@@ -112,6 +122,8 @@ fn read_future() {
 
 #[test]
 fn leader_timeout() {
+  testutil::log_init();
+
   let mut g = DeterministicGroup3::new();
   g.n0.start_election();
   g.drain();
@@ -137,6 +149,8 @@ fn leader_timeout() {
 #[test]
 #[ignore]
 fn overwrite_entries() {
+  testutil::log_init();
+
   let mut g = DeterministicGroup3::new();
   g.n0.start_election();
   g.drain();
@@ -177,6 +191,8 @@ fn overwrite_entries() {
 
 #[test]
 fn regression_request_starts_election() {
+  testutil::log_init();
+
   // Regression test for a bug where a write request didn't start an election
   // (only a tick would).
   {

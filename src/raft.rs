@@ -215,7 +215,7 @@ impl State {
   }
 
   fn step(self, output: &mut impl Extend<Output>, input: Input) -> State {
-    println!("  {:3}: step {:?}", self.id().0, self.debug());
+    debug!("  {:3}: step {:?}", self.id().0, self.debug());
     match input {
       Input::Write(req, res) => self.write(output, req.payload, Some(res)),
       Input::Read(req, res) => self.read(output, req, res),
@@ -229,12 +229,13 @@ impl State {
   fn maybe_wake_writes(mut leader: Leader) -> Leader {
     let current_term = leader.shared.current_term;
     let commit_index = leader.shared.commit_index;
+    #[cfg(feature = "log")]
     let id = leader.shared.id;
     leader.write_buffer.retain(|(term, index), future| {
       debug_assert!(*term == current_term);
       if *index >= commit_index {
         let res = WriteRes { term: *term, index: *index };
-        println!("  {:3}: write success {:?}", id.0, res);
+        debug!("  {:3}: write success {:?}", id.0, res);
         future.fill(Ok(res));
         false
       } else {
@@ -254,7 +255,7 @@ impl State {
     output: &mut impl Extend<Output>,
     upper_bound: Option<Index>,
   ) {
-    println!(
+    debug!(
       "  {:3}: maybe_apply commit_index={:?} last_applied={:?} upper_bound={:?}",
       shared.id.0, shared.commit_index, shared.last_applied, upper_bound,
     );
@@ -269,7 +270,7 @@ impl State {
   }
 
   fn leader_maybe_advance_reads(mut leader: Leader, output: &mut impl Extend<Output>) -> Leader {
-    println!(
+    debug!(
       "  {:3}: leader_maybe_advance_reads max_applied={:?} outstanding={:?} confirmed={:?} read_buffer={:?}",
       leader.shared.id.0,
       leader.shared.last_applied,
@@ -281,7 +282,7 @@ impl State {
       let need_heartbeat =
         leader.max_confirmed_read_id.map_or(true, |confirmed| *max_read_id > confirmed)
           && leader.max_outstanding_read_id.map_or(true, |outstanding| *max_read_id > outstanding);
-      println!("  {:3}: need_heartbeat={:?}", leader.shared.id.0, need_heartbeat);
+      debug!("  {:3}: need_heartbeat={:?}", leader.shared.id.0, need_heartbeat);
       if need_heartbeat {
         leader = State::leader_heartbeat(leader, output);
       }
@@ -306,9 +307,14 @@ impl State {
     payload: Vec<u8>,
     mut res: Option<WriteFuture>,
   ) -> State {
+    #[cfg(feature = "log")]
     match std::str::from_utf8(&payload) {
-      Ok(payload) => println!("  {:3}: write {:?}", self.id().0, payload),
-      Err(_) => println!("  {:3}: write {:?}", self.id().0, payload),
+      Ok(payload) => {
+        debug!("  {:3}: write {:?}", self.id().0, payload);
+      }
+      Err(_) => {
+        debug!("  {:3}: write {:?}", self.id().0, payload);
+      }
     }
     match self {
       State::Leader(leader) => {
@@ -372,19 +378,18 @@ impl State {
         entry
       })
       .collect();
-    println!("  {:3}: entries={:?}", leader.shared.id.0, entries);
+    debug!("  {:3}: entries={:?}", leader.shared.id.0, entries);
 
     leader.shared.log.extend(entries.clone());
     // TODO: this is duplicated with the one in `follower_append_entries`
-    println!("  {:3}: persist {:?}", leader.shared.id.0, &entries);
+    debug!("  {:3}: persist {:?}", leader.shared.id.0, &entries);
     if entries.len() > 0 {
       let msg =
         PersistReq { leader_id: leader.shared.id, read_id: read_id, entries: entries.clone() };
       output.extend(vec![Output::PersistReq(msg)]);
     } else {
       let id = leader.shared.id;
-      let current_term = leader.shared.current_term;
-      leader = State::ack_term_index(leader, output, id, current_term, prev_log_index, read_id);
+      leader = State::ack_term_index(leader, output, id, prev_log_index, read_id);
     }
     let payload = Payload::AppendEntriesReq(AppendEntriesReq {
       term: leader.shared.current_term,
@@ -406,7 +411,7 @@ impl State {
   // when apply = read_index serve read. don't let apply get ahead of read_index
   // what if heartbeat doesn't come back? next heartbeat or write retries it
   fn read(self, output: &mut impl Extend<Output>, req: ReadReq, mut res: ReadFuture) -> State {
-    println!("  {:3}: read {:?}", self.id().0, req);
+    debug!("  {:3}: read {:?}", self.id().0, req);
     match self {
       State::Leader(leader) => {
         // Only a leader can serve a read, let's go.
@@ -448,7 +453,7 @@ impl State {
   }
 
   fn tick(self, output: &mut impl Extend<Output>, now: Instant) -> State {
-    println!(
+    debug!(
       "  {:3}: self.tick={:?} current_time={:?}",
       self.shared().id.0,
       now,
@@ -533,9 +538,14 @@ impl State {
     let payload = res.payload;
     // Remove the entry so ReadStateMachineRes is idempotent.
     if let Some((_, mut res)) = leader.read_buffer.remove(&(res.index, res.read_id)) {
+      #[cfg(feature = "log")]
       match std::str::from_utf8(&payload) {
-        Ok(payload) => println!("  {:3}: read success {:?}", leader.shared.id.0, payload),
-        Err(_) => println!("  {:3}: read success {:?}", leader.shared.id.0, payload),
+        Ok(payload) => {
+          debug!("  {:3}: read success {:?}", leader.shared.id.0, payload);
+        }
+        Err(_) => {
+          debug!("  {:3}: read success {:?}", leader.shared.id.0, payload);
+        }
       }
       res.fill(Ok(ReadRes { term: leader.shared.current_term, index: index, payload: payload }));
     }
@@ -681,7 +691,7 @@ impl State {
       return follower;
     }
 
-    println!(
+    debug!(
       "  {:3}: self.last_communication={:?}",
       follower.shared.id.0, follower.shared.current_time
     );
@@ -728,7 +738,7 @@ impl State {
   ) -> Leader {
     // If successful: update nextIndex and matchIndex for follower (§5.3)
     if res.success {
-      return State::ack_term_index(leader, output, src, res.term, res.index, res.read_id);
+      return State::ack_term_index(leader, output, src, res.index, res.read_id);
     }
     // If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
     todo!()
@@ -738,14 +748,10 @@ impl State {
     mut leader: Leader,
     output: &mut impl Extend<Output>,
     src: NodeID,
-    term: Term,
     index: Index,
     read_id: ReadID,
   ) -> Leader {
-    println!(
-      "  {:3}: self.ack_term_index src={:?} {:}.{:}",
-      leader.shared.id.0, src, term.0, index.0
-    );
+    debug!("  {:3}: self.ack_term_index src={:?} index={:}", leader.shared.id.0, src, index.0);
     leader
       .match_index
       .entry(src)
@@ -756,11 +762,11 @@ impl State {
     let mut read_ids: Vec<ReadID> =
       leader.match_index.iter().map(|(_, (_, read_id))| *read_id).collect();
     read_ids.sort_unstable();
-    println!("  {:3}: read_ids={:?}", leader.shared.id.0, &read_ids);
+    debug!("  {:3}: read_ids={:?}", leader.shared.id.0, &read_ids);
     if read_ids.len() >= State::majority(&leader.shared) {
       let new_max_confirmed_read_id =
         read_ids.get(read_ids.len() - State::majority(&leader.shared)).copied();
-      println!(
+      debug!(
         "  {:3}: read_ids={:?} new_confirmed={:?}",
         leader.shared.id.0, &read_ids, new_max_confirmed_read_id
       );
@@ -773,18 +779,18 @@ impl State {
       // TODO: debug_assert that new_max_confirmed_read_id has a majority and that
       // it's the highest read_id with a majority.
       leader.max_confirmed_read_id = new_max_confirmed_read_id;
-      println!(
+      debug!(
         "  {:3}: outstanding={:?} confirmed={:?}",
         leader.shared.id.0, leader.max_outstanding_read_id, leader.max_confirmed_read_id
       );
       if new_max_confirmed_read_id >= leader.max_outstanding_read_id {
-        println!("  {:3}: no outstanding reads", leader.shared.id.0);
+        debug!("  {:3}: no outstanding reads", leader.shared.id.0);
         leader.max_outstanding_read_id = None;
       }
       leader = State::leader_maybe_advance_reads(leader, output);
     }
 
-    println!(
+    debug!(
       "  {:3}: match_indexes={:?}",
       leader.shared.id.0,
       leader.match_index.iter().map(|(_, (index, _))| *index).collect::<Vec<_>>(),
@@ -794,7 +800,7 @@ impl State {
     // (§5.3, §5.4).
     let needed = State::majority(&leader.shared);
     for entry in leader.shared.log.iter().rev() {
-      println!("  {:3}: is committed? {:?}", leader.shared.id.0, entry);
+      debug!("  {:3}: is committed? {:?}", leader.shared.id.0, entry);
       if entry.index <= leader.shared.commit_index || entry.term < leader.shared.current_term {
         break;
       }
@@ -803,7 +809,7 @@ impl State {
       let count = leader.match_index.iter().filter(|(_, (index, _))| *index >= entry.index).count();
       if count >= needed {
         let new_commit_index = entry.index;
-        println!("  {:3}: commit_index={:?}", leader.shared.id.0, new_commit_index);
+        debug!("  {:3}: commit_index={:?}", leader.shared.id.0, new_commit_index);
         leader.shared.commit_index = new_commit_index;
         leader = State::leader_maybe_apply(leader, output);
         // TODO: think about the order of these
@@ -827,7 +833,7 @@ impl State {
     // grant its vote. (§6)
 
     let mut shared = self.shared_mut();
-    println!(
+    debug!(
       "  {:3}: self.process_request_vote voted_for={:?} req={:?}",
       shared.id.0, shared.voted_for, req
     );
@@ -877,7 +883,7 @@ impl State {
   }
 
   fn start_election(mut candidate: Candidate, output: &mut impl Extend<Output>) -> State {
-    println!("  {:3}: start_election {:?}", candidate.shared.id.0, candidate.shared.current_time);
+    debug!("  {:3}: start_election {:?}", candidate.shared.id.0, candidate.shared.current_time);
     candidate.received_votes = 0;
     // TODO: this is awkward
     candidate.shared.voted_for = Some(candidate.shared.id);
@@ -894,7 +900,7 @@ impl State {
       last_log_index: last_log_index,
       last_log_term: last_log_term,
     });
-    println!("  {:3}: reqvote {:?}", candidate.shared.id.0, payload);
+    debug!("  {:3}: reqvote {:?}", candidate.shared.id.0, payload);
     State::message_to_all_other_nodes(&candidate.shared, output, &payload);
     // Vote for self
     let res = RequestVoteRes { term: candidate.shared.current_term, vote_granted: true };
@@ -912,7 +918,7 @@ impl State {
   }
 
   fn follower_convert_to_candidate(follower: Follower, output: &mut impl Extend<Output>) -> State {
-    println!("  {:3}: convert_to_candidate", follower.shared.id.0);
+    debug!("  {:3}: convert_to_candidate", follower.shared.id.0);
     let candidate = Candidate { shared: follower.shared, received_votes: 0 };
     // Candidates (§5.2): On conversion to candidate, start election:
     State::start_election(candidate, output)
@@ -941,7 +947,7 @@ impl State {
     _output: &mut impl Extend<Output>,
     new_leader_hint: NodeID,
   ) -> Follower {
-    println!("  {:3}: convert_to_follower leader={:?}", candidate.shared.id.0, new_leader_hint.0);
+    debug!("  {:3}: convert_to_follower leader={:?}", candidate.shared.id.0, new_leader_hint.0);
     Follower { shared: candidate.shared, leader_hint: Some(new_leader_hint) }
   }
 
@@ -950,13 +956,13 @@ impl State {
     _output: &mut impl Extend<Output>,
     new_leader_hint: NodeID,
   ) -> Follower {
-    println!("  {:3}: convert_to_follower leader={:?}", leader.shared.id.0, new_leader_hint.0);
+    debug!("  {:3}: convert_to_follower leader={:?}", leader.shared.id.0, new_leader_hint.0);
     leader = State::clear_outstanding_requests(leader, Some(new_leader_hint));
     Follower { shared: leader.shared, leader_hint: Some(new_leader_hint) }
   }
 
   fn candidate_convert_to_leader(candidate: Candidate, output: &mut impl Extend<Output>) -> Leader {
-    println!("  {:3}: convert_to_leader", candidate.shared.id.0);
+    debug!("  {:3}: convert_to_leader", candidate.shared.id.0);
 
     let leader = Leader {
       shared: candidate.shared,
