@@ -13,7 +13,7 @@ steady-state speed.
 
 # v0.1.0-alpha.0
 
-- [ ] Replace printlns with log crate
+- [x] Replace printlns with log crate
 - [ ] Resolve all WIP comments
 - [ ] Audit all TODO comments
 - [ ] Resolve all ignored tests

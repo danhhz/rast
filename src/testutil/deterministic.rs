@@ -46,12 +46,16 @@ impl DeterministicNode {
     let mut output = vec![];
     let res = WriteFuture::new();
 
-    println!("write  {:?}: {:?}", self.raft.id().0, req);
+    #[cfg(feature = "log")]
+    debug!("w   {:?}: {:?}", self.raft.id().0, req);
     self.raft.step(&mut output, Input::Write(req, res.clone()));
-    output.iter().for_each(|output| {
-      println!("output {:?}: {:?}", self.raft.id().0, output);
-    });
-    println!();
+    #[cfg(feature = "log")]
+    {
+      output.iter().for_each(|output| {
+        debug!("out {:?}: {:?}", self.raft.id().0, output);
+      });
+      debug!("");
+    }
 
     self.output.extend(output);
     res
@@ -61,12 +65,16 @@ impl DeterministicNode {
     let mut output = vec![];
     let res = ReadFuture::new();
 
-    println!("read   {:?}: {:?}", self.raft.id().0, req);
+    #[cfg(feature = "log")]
+    debug!("r   {:?}: {:?}", self.raft.id().0, req);
     self.raft.step(&mut output, Input::Read(req, res.clone()));
-    output.iter().for_each(|output| {
-      println!("output {:?}: {:?}", self.raft.id().0, output);
-    });
-    println!();
+    #[cfg(feature = "log")]
+    {
+      output.iter().for_each(|output| {
+        debug!("out {:?}: {:?}", self.raft.id().0, output);
+      });
+      debug!("");
+    }
 
     self.output.extend(output);
     res
@@ -75,29 +83,38 @@ impl DeterministicNode {
   pub fn step(&mut self, input: Input) {
     let mut output = vec![];
 
-    println!("input  {:?}: {:?}", self.raft.id().0, input);
+    #[cfg(feature = "log")]
+    debug!("in  {:?}: {:?}", self.raft.id().0, input);
     self.raft.step(&mut output, input);
-    output.iter().for_each(|output| {
-      println!("output {:?}: {:?}", self.raft.id().0, output);
-    });
-    println!();
+    #[cfg(feature = "log")]
+    {
+      output.iter().for_each(|output| {
+        debug!("out {:?}: {:?}", self.raft.id().0, output);
+      });
+      debug!("");
+    }
 
     self.output.extend(output);
   }
 
   fn drain_inputs(&mut self) -> bool {
     let mut did_work = false;
+    #[cfg(feature = "log")]
     let id = self.raft.id();
     for input in self.input.drain(..) {
       did_work = true;
       // TODO: dedup this with step
       let mut output = vec![];
-      println!("input  {:?}: {:?}", id.0, input);
+      #[cfg(feature = "log")]
+      debug!("in  {:?}: {:?}", id.0, input);
       self.raft.step(&mut output, input);
-      output.iter().for_each(|output| {
-        println!("output {:?}: {:?}", id.0, output);
-      });
-      println!();
+      #[cfg(feature = "log")]
+      {
+        output.iter().for_each(|output| {
+          debug!("out {:?}: {:?}", id.0, output);
+        });
+        debug!("");
+      }
       self.output.extend(output);
     }
     did_work
@@ -182,8 +199,8 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
         Output::PersistReq(req) => {
           // TODO: test this being delayed
           for entry in req.entries {
-            println!("APPEND {:?} {:?}", node.raft.id(), &entry);
-            println!();
+            debug!("APPEND {:?} {:?}", node.raft.id(), &entry);
+            debug!("");
             node.log.add(entry);
           }
           let msg = PersistRes {
@@ -198,13 +215,13 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
           node.log.mark_stable(index);
           let payload = node.log.get(index).unwrap();
           node.state.extend(payload);
-          println!("APPLY  {:?} {:?}", node.raft.id(), &node.state);
-          println!();
+          debug!("APPLY  {:?} {:?}", node.raft.id(), &node.state);
+          debug!("");
         }
         Output::ReadStateMachineReq(req) => {
           // TODO: test this being delayed
-          println!("READ   {:?} {:?}", node.raft.id(), &node.state);
-          println!();
+          debug!("READ   {:?} {:?}", node.raft.id(), &node.state);
+          debug!("");
           let payload = node.state.clone();
           let msg =
             ReadStateMachineRes { index: req.index, read_id: req.read_id, payload: payload };
