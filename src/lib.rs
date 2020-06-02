@@ -53,6 +53,7 @@
 //! # }
 //! ```
 
+#![warn(missing_docs, unsafe_code)]
 #![warn(clippy::correctness, clippy::perf, clippy::wildcard_imports)]
 
 // Log macros copied from the rand crate without changes:
@@ -101,10 +102,20 @@ pub use crate::serde::{
   Entry, Index, Message, NodeID, ReadID, ReadReq, ReadRes, Term, WriteReq, WriteRes,
 };
 
+/// The Raft prelude.
+///
+/// This module re-exports all the types necessary to implement a runtime around
+/// the core deterministic Raft logic. It exists because modules named "prelude"
+/// are special cased by clippy::wildcard_imports.
 pub mod prelude {
   pub use crate::*;
 }
 
+/// A "batteries included" runtime.
+///
+/// This hooks the determinic Raft implementation up to a ticker, persistent
+/// log, and rpc system. This is enabled by opting in to the "runtime" crate
+/// feature.
 #[cfg(any(feature = "runtime", test))]
 pub mod runtime {
   mod memlog;
@@ -140,6 +151,7 @@ mod testutil {
   mod concurrent;
   pub use concurrent::*;
 
+  #[allow(unsafe_code)]
   pub mod noopfuture;
 }
 

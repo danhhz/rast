@@ -63,12 +63,14 @@ impl<T> RastFuture<T> {
   }
 }
 
+/// A [`Future`](std::future::Future) resolved with the result of a user write.
 #[derive(Debug, Clone)]
 pub struct WriteFuture {
   f: RastFuture<WriteRes>,
 }
 
 impl WriteFuture {
+  /// Returns a new, empty `WriteFuture`.
   pub fn new() -> WriteFuture {
     WriteFuture { f: RastFuture::new() }
   }
@@ -84,12 +86,14 @@ impl Future for WriteFuture {
   }
 }
 
+/// A [`Future`](std::future::Future) resolved with the result of a user read.
 #[derive(Debug, Clone)]
 pub struct ReadFuture {
   f: RastFuture<ReadRes>,
 }
 
 impl ReadFuture {
+  /// Returns a new, empty `ReadFuture`.
   pub fn new() -> ReadFuture {
     ReadFuture { f: RastFuture::new() }
   }

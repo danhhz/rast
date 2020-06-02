@@ -9,12 +9,15 @@ use std::thread::JoinHandle;
 use crate::prelude::*;
 use crate::runtime::{MemConn, MemLog, MemRPC};
 
+/// A thread-safe client for interacting with the local [Raft](crate::Raft)
+/// node.
 #[derive(Clone)]
 pub struct RastClient {
   sender: Sender<Input>,
 }
 
 impl RastClient {
+  /// Submits a read request to the local Raft node.
   pub fn read(&self, req: ReadReq) -> ReadFuture {
     let mut res = ReadFuture::new();
     self.sender.send(Input::Read(req, res.clone())).err().iter().for_each(|_| {
@@ -25,6 +28,7 @@ impl RastClient {
     res
   }
 
+  /// Submits a write request to the local Raft node.
   pub fn write(&self, req: WriteReq) -> WriteFuture {
     let mut res = WriteFuture::new();
     self.sender.send(Input::Write(req, res.clone())).err().iter().for_each(|_| {
@@ -36,13 +40,20 @@ impl RastClient {
   }
 }
 
+/// An in-process end-to-end implementation of Raft, including log and rpc.
+///
+/// Currently only suitable for unit tests and benchmarks.
 pub struct Runtime {
+  /// The unique id of the local Raft node.
   pub id: NodeID,
   handle: Option<JoinHandle<Result<(), mpsc::RecvError>>>,
   client: RastClient,
 }
 
 impl Runtime {
+  /// Starts a Raft runtime, driving network/disk IO and clock ticks as
+  /// necessary. This runtime is spawned in a new thread and stops when
+  /// [`stop`](Runtime::stop) is called or when the returned handle is dropped.
   pub fn new(raft: Raft, rpc: MemRPC, log: MemLog) -> Runtime {
     let id = raft.id();
     let (sender, receiver) = mpsc::channel();
@@ -52,6 +63,7 @@ impl Runtime {
     Runtime { id: id, handle: Some(handle), client: client }
   }
 
+  /// Stops the Raft runtime represented by this handle.
   pub fn stop(&mut self) {
     // Send the shutdown sentinel.
     let msg = PersistRes { leader_id: NodeID(0), read_id: ReadID(0), log_index: Index(0) };
@@ -67,11 +79,12 @@ impl Runtime {
     }
   }
 
+  /// Returns a new thread-safe client for interacting with this Raft node.
   pub fn client(&self) -> RastClient {
     self.client.clone()
   }
 
-  // TODO: get rid of this
+  /// TODO: Get rid of this.
   pub fn sender(&self) -> Sender<Input> {
     self.client.sender.clone()
   }
