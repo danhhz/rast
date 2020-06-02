@@ -6,18 +6,23 @@ use std::fmt::{Display, Formatter};
 
 use super::serde::NodeID;
 
+/// An error to be handed by the user of this Raft library.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClientError {
+  /// See [`NotLeaderError`].
   NotLeaderError(NotLeaderError),
 }
 
+/// An error returned when a read or write was sent to a node that was not the
+/// Raft leader.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NotLeaderError {
-  hint: Option<NodeID>,
+  /// A hint for which node might be able to serve this request.
+  pub hint: Option<NodeID>,
 }
 
 impl NotLeaderError {
-  pub fn new(hint: Option<NodeID>) -> NotLeaderError {
+  pub(crate) fn new(hint: Option<NodeID>) -> NotLeaderError {
     NotLeaderError { hint: hint }
   }
 }

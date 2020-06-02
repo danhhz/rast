@@ -11,6 +11,9 @@ documentation = "https://docs.rs/rast"
 repository = "https://github.com/danhhz/rast"
 readme = "README.md"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [badges]
 circle-ci = { repository = "danhhz/rast", branch = "dev" }
 maintenance = { status = "experimental" }

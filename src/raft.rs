@@ -10,9 +10,19 @@ pub use super::error::*;
 pub use super::future::*;
 pub use super::serde::*;
 
+/// Raft tunables.
+///
+/// The configuration of all nodes in a group should match, but certain
+/// variations between them are permissible when altering the configuration in a
+/// rolling restart. TODO: Describe how this would work.
 #[derive(Clone)]
 pub struct Config {
+  /// The interval after which a node will assume the current leader is dead and
+  /// call an election. TODO: Notes on tuning this.
   pub election_timeout: Duration,
+  /// The interval after which a leader will notify its peers that they don't
+  /// need to call an elecation. This should be less than `election_timeout`.
+  /// TODO: Should this be derived from `election_timeout`?
   pub heartbeat_interval: Duration,
 }
 
@@ -25,61 +35,188 @@ impl Default for Config {
   }
 }
 
+/// An input to [`step`](Raft::step).
+///
+/// Inputs include read requests, write requests, an rpc arrival, clock ticks,
+/// and the completon of disk IO.
+///
+/// There are no particular constraints on the order that inputs are processed
+/// except those described in [`Output`].
 #[derive(Debug)]
 pub enum Input {
+  /// A user request to enter a write in the replicated state machine.
+  ///
+  /// The write payload is an opaque `Vec<u8>` handed as-is to the state machine
+  /// for intrepretation. The provided future will be resolved when this write
+  /// completes.
   Write(WriteReq, WriteFuture),
+  /// A user request to read from the replicated state machine.
+  ///
+  /// The read payload is an opaque `Vec<u8>` handed as-is to the state machine
+  /// for intrepretation. The provided future will be resolved when this read
+  /// completes.
   Read(ReadReq, ReadFuture),
+  /// A communication to the Raft logic of the current time.
+  ///
+  /// Correctness of this Raft implementation (including reads) is entirely
+  /// independant from clocks. However, Raft very much relies on a periodic
+  /// clock tick for availability. If ticks are delayed, unnecessary elections
+  /// and leadership transfers will happen, which affects tail latencies.
+  ///
+  /// TODO: How often should a tick event happen for a given [`Config`]?
   Tick(Instant),
+  /// An rpc resulting from a [`Output::Message`] on another node.
   Message(Message),
+  /// A communication that a [`Output::PersistReq`] has completed.
   PersistRes(PersistRes),
+  /// A communication that a [`Output::ReadStateMachineReq`] has completed.
   ReadStateMachineRes(ReadStateMachineRes),
 }
 
+/// An output from [`step`](Raft::step).
+///
+/// Outputs include rpcs to send and data to be persisted.
+///
+/// `Message` outputs are assumed to be lossy (any necessary messages will be
+/// retried if they are lost). It is also not required for correctness that
+/// messages are delivered in the order that they are output. However, it's best
+/// for availability if messages between any two nodes are a delivered in order.
+///
+/// All disk outputs must be processed and in the order they are emitted. This
+/// applies to the `PersistReq`, `ApplyReq`, and `ReadStateMachineReq` outputs.
 #[derive(Debug)]
 pub enum Output {
+  /// An rpc to be sent to another node by the runtime.
   Message(Message),
+  /// A request that the given entries be durably written to the Raft log.
+  ///
+  /// Completion is communciated to Raft by an [`Input::PersistRes`]. Processing
+  /// this request is subject to the ordering requirements described on
+  /// [`Output`].
   PersistReq(PersistReq),
+  /// A request that the given entries be applied to the state machine.
+  ///
+  /// No communication of completion is necessary but processing this request is
+  /// subject to the ordering requirements described on [`Output`].
   ApplyReq(Index),
+  /// A request that the state machine's current state be read.
+  ///
+  /// Completion is communciated to Raft by an [`Input::ReadStateMachineRes`].
+  /// Processing this request is subject to the ordering requirements described
+  /// on [`Output`].
   ReadStateMachineReq(ReadStateMachineReq),
 }
 
+/// See [`Output::PersistReq`].
 #[derive(Debug)]
 pub struct PersistReq {
+  /// The id of the leader that initiated this write. This must be copied to the
+  /// resulting `PersistRes`.
   pub leader_id: NodeID,
+  /// This must be copied to the resulting `PersistRes`.
   pub read_id: ReadID,
+  // The Raft log entries to be durably persisted to disk.
   pub entries: Vec<Entry>,
 }
 
+/// See [`Input::PersistRes`].
 #[derive(Debug)]
 pub struct PersistRes {
+  /// The id of the leader that initiated this write. This must be copied from
+  /// the corresponding `PersistReq`.
   pub leader_id: NodeID,
+  /// This must be copied from the corresponding `PersistReq`.
   pub read_id: ReadID,
-  pub log_index: Index, // TODO: remove this
+  /// TODO: Remove this.
+  pub log_index: Index,
 }
 
+/// See [`Output::ReadStateMachineReq`].
 #[derive(Debug)]
 pub struct ReadStateMachineReq {
+  /// This must be copied to the resulting `ReadStateMachineRes`. TODO: Remove
+  /// this.
   pub index: Index,
+  /// This must be copied to the resulting `ReadStateMachineRes`.
   pub read_id: ReadID,
+  /// The read payload to be handed to the replicated state machine.
+  ///
+  /// For example: This could be a key when the replicated state machine is a
+  /// key-value store.
   pub payload: Vec<u8>,
 }
 
+/// See [`Input::ReadStateMachineRes`].
 #[derive(Debug)]
 pub struct ReadStateMachineRes {
-  pub index: Index, // TODO: remove this
+  /// This must be copied from the corresponding `PersistReq`. TODO: Remove
+  /// this.
+  pub index: Index,
+  /// This must be copied from the corresponding `PersistReq`.
   pub read_id: ReadID,
+  /// The result of reading the state machine with the request's payload.
+  ///
+  /// For example: This could be a value when the replicated state machine is a
+  /// key-value store.
   pub payload: Vec<u8>,
 }
 
 /// An implementation of the [raft consensus protocol].
 ///
 /// [raft consensus protocol]: https://raft.github.io/
+///
+/// Paraphrased from the [Raft paper]: Raft is a consensus algorithm for
+/// managing a replicated state machine via a replicated log. Each _node_
+/// (called a server by the Raft literature) stores a log containing a series of
+/// commands, which its state machine executes in order. Each log contains the
+/// same commands in the same order, so each state machine processes the same
+/// sequence of commands. Since the state machines are deterministic, the
+/// maintained states all match.
+///
+/// [raft paper]: https://raft.github.io/raft.pdf
+///
+/// This is a deterministic implementation of the Raft logic. Network and disk
+/// IO are modeled as inputs and outputs to the [`step`](Raft::step) method.
+/// This method takes one input (an rpc arrival, a disk write has finished) and
+/// produces zero or more outputs (send this rpc, write this to disk). Raft uses
+/// a clock for availability and this is also modeled as an input. `step` is
+/// called in a loop, invoked whenever there is a new input. This produces
+/// outputs, which represent network/disk IO to be performed. The completion of
+/// that IO is then communicated as an input to `step` (possibly on another
+/// node).
+///
+/// These input and output events are written to be fully pipelineable. For
+/// example, when an "AppendEntries" rpc arrives, Raft requires that the new log
+/// entries are persisted to disk before the rpc response is sent (similarly for
+/// "RequestVote" and persisting the Raft "hard state"). An output requests the
+/// disk write and when it finishes an input communicating this is given to
+/// `step`. This will, in turn, cause an output with the "AppendEntries" rpc
+/// response. While the entries is being persisted to disk, `step` can continue
+/// to be called with other rpc messages, click ticks, etc. See [`Input`] and
+/// [`Output`] for details.
+///
+/// [`Read`](Input::Read)s and [`Write`](Input::Write)s are similarly modeled as
+/// inputs. With each, a [`Future`](std::future::Future) is passed in that is
+/// resolved with the result of the read or write when it completes.
+///
+/// This is an implementation of only the core Raft logic and needs an rpc
+/// system, service discovery, a disk-backed log, and a disk-backed state
+/// machine. Implementations of these, as well as a "batteries included" runtime
+/// loop is included in the [`runtime`](crate::runtime) module.
+///
+/// TODO: Document consistency guarantees.
 pub struct Raft {
   state: Option<State>,
 }
 
 impl Raft {
-  pub fn new(id: NodeID, nodes: Vec<NodeID>, cfg: Config) -> Raft {
+  /// Returns a new, empty Raft node.
+  ///
+  /// This should not be used when a node restarts. The `id` must be unique
+  /// all-time. It must be reused if the node restarts and cannot ever be reused
+  /// (whether by another node or this one if it loses data). The `peers` must
+  /// contain all nodes in the group, including this one.
+  pub fn new(id: NodeID, peers: Vec<NodeID>, cfg: Config) -> Raft {
     let state = State::Candidate(Candidate {
       shared: SharedState {
         id: id,
@@ -89,7 +226,7 @@ impl Raft {
         log: CompressedLog::new(),
         commit_index: Index(0),
         last_applied: Index(0),
-        nodes: nodes,
+        peers: peers,
         current_time: None,
         last_communication: None,
       },
@@ -98,25 +235,32 @@ impl Raft {
     Raft { state: Some(state) }
   }
 
+  /// The unique id of this node.
   pub fn id(&self) -> NodeID {
     return self.state.as_ref().expect("unreachable").id();
   }
 
+  #[cfg(test)]
   pub fn current_time(&self) -> Option<Instant> {
     return self.state.as_ref().expect("unreachable").shared().current_time;
   }
 
+  #[cfg(test)]
   pub fn current_term(&self) -> Term {
     return self.state.as_ref().expect("unreachable").shared().current_term;
   }
 
-  pub fn debug(&self) -> &'static str {
+  #[cfg(test)]
+  fn debug(&self) -> &'static str {
     return self.state.as_ref().expect("unreachable").debug();
   }
 
+  /// Advance the raft logic in response to a single input.
+  ///
+  /// This is guaranteed to be non-blocking. Any blocking work (network/disk IO)
+  /// is emitted as an [`Output`] entry.
   pub fn step(&mut self, output: &mut impl Extend<Output>, input: Input) {
-    // TODO: this is not actually "unreachable" if step panics, handle this
-    // somehow
+    // TODO: this is not actually "unreachable" if step panics, handle this.
     self.state = Some(self.state.take().expect("unreachable").step(output, input));
   }
 
@@ -139,7 +283,7 @@ struct SharedState {
   commit_index: Index,
   last_applied: Index,
   // TODO: double check this doesn't need to be persisted
-  nodes: Vec<NodeID>,
+  peers: Vec<NodeID>,
   current_time: Option<Instant>,
   // TODO: this is overloaded fixme
   last_communication: Option<Instant>,
@@ -207,6 +351,7 @@ impl State {
   }
 
   // TODO: impl Debug instead
+  #[cfg(test)]
   fn debug(&self) -> &'static str {
     match self {
       State::Candidate(_) => "candidate",
@@ -346,7 +491,7 @@ impl State {
   }
 
   fn leader_heartbeat(leader: Leader, output: &mut impl Extend<Output>) -> Leader {
-    // Leaders: Upon election: send initial empty AppendEntries RPCs
+    // Leaders: Upon election: send initial empty AppendEntries rpcs
     // (heartbeat) to each server; repeat during idle periods to prevent
     // election timeouts (§5.2)
     State::leader_write(leader, output, vec![])
@@ -403,12 +548,52 @@ impl State {
     leader
   }
 
-  // start: save read_index
-  // if no read_index, have to start everything when first heartbeat comes back
-  // send heartbeat with read_id, save read with read_index and read_id
-  // get heartbeat with read_id, mark every read with read_id <= that one as ready
-  // when apply = read_index serve read. don't let apply get ahead of read_index
-  // what if heartbeat doesn't come back? next heartbeat or write retries it
+  /// Queues a user read request to be processed.
+  ///
+  /// Reads are implemented as the write-less variant described in the Raft
+  /// paper. (NB: Not the leasing variant that's clock dependant). Currently,
+  /// reads are only serveable by leaders, but it's possible to extend this
+  /// scheme to followers. The paper describes two requirements for serving
+  /// these reads.
+  ///
+  /// 1) The leader must have committed some entry, thus committing everything
+  ///    that was in its log when it was elected. This is only interesting for
+  ///    new leaders.
+  /// 2) The leader snapshots its highest log index (the per-read "read index")
+  ///    at the time the read is queued and must wait for a
+  ///    heartbeat/AppendEntries to succeed. This confirms the leader was still
+  ///    active at the time the read was queued and allows the read to be served
+  ///    at the read index.
+  ///
+  /// Mechanically, this is implemented as follows:
+  ///
+  /// - An id space, [`ReadID`], is introduced for AppendEntries and reads. This
+  ///   resets to 0 for each term and increments for each read and for each
+  ///   "round" of AppendEntries. This means that (Term, ReadID) gives a total
+  ///   ordering to reads and AppendEntries.
+  /// - When a read is queued, the highest log index is snapshotted and the next
+  ///   ReadID is taken. These are buffered with the read request and response
+  ///   future.
+  /// - To ensure responsiveness, if there were no reads queued, the next
+  ///   heartbeat is immediately started. (NB: This heartbeat will have a higher
+  ///   ReadID). To prevent excessive heartbeats, if any reads were already
+  ///   queued, we don't immediately kick off a second heartbeat. However,
+  ///   whenever a heartbeat finishes, if there are buffered reads that don't
+  ///   have an outstanding AppendEntries (imagine a write in the meantime),
+  ///   another one is immediately kicked off. This naturally batches reads
+  ///   under high read loads and keeps latencies low, while bounding the number
+  ///   of outstanding heartbeats.
+  /// - Whenever an AppendEntries receives its majority of successful responses,
+  ///   any buffered reads with a lower ReadID are now eligible to be served at
+  ///   the read index they were queued with.
+  /// - To avoid complexity in the replicated state machine implementation, we
+  ///   hold the `ReadStateMachineReq` until the read index has been applied.
+  ///   Further, we hold up applying any later indexes until the
+  ///   `ReadStateMachineReq` finishes, similar to a "barrier". This means the
+  ///   replicated state machine can blindly respond to any
+  ///   `ReadStateMachineReq`s that it receives without worrying about the
+  ///   indexes of what it's applied. (This assumes it has handled all
+  ///   `PersistReq`s and `ApplyReq`s as is contractually required by `step`.)
   fn read(self, output: &mut impl Extend<Output>, req: ReadReq, mut res: ReadFuture) -> State {
     debug!("  {:3}: read {:?}", self.id().0, req);
     match self {
@@ -477,7 +662,7 @@ impl State {
       }
       State::Follower(mut follower) => {
         // Followers (§5.2): If election timeout elapses without receiving
-        // AppendEntries RPC from current leader or granting vote to candidate:
+        // AppendEntries rpc from current leader or granting vote to candidate:
         // convert to candidate
         let timed_out = follower.shared.last_communication.map_or(true, |last_communication| {
           now.duration_since(last_communication) >= follower.shared.cfg.election_timeout
@@ -494,7 +679,7 @@ impl State {
         });
         leader.shared.current_time = Some(now);
         if need_heartbeat {
-          // Leaders: Upon election: send initial empty AppendEntries RPCs
+          // Leaders: Upon election: send initial empty AppendEntries rpcs
           // (heartbeat) to each server; repeat during idle periods to prevent
           // election timeouts (§5.2)
           leader = State::leader_heartbeat(leader, output)
@@ -577,7 +762,7 @@ impl State {
         Payload::StartElectionReq(req) => req.term,
       };
       if term > shared.current_term {
-        // All Servers: If RPC request or response contains term T >
+        // All Servers: If rpc request or response contains term T >
         // currentTerm: set currentTerm = T, convert to follower (§5.1)
         shared.current_term = term;
         // TODO: probably want a helper for updating the term
@@ -605,7 +790,7 @@ impl State {
       }
       Payload::AppendEntriesReq(req) => {
         if req.term > candidate.shared.current_term {
-          // Candidates (§5.2): If AppendEntries RPC received from new leader:
+          // Candidates (§5.2): If AppendEntries rpc received from new leader:
           // convert to follower
           let follower = State::candidate_convert_to_follower(candidate, output, message.src);
           return State::Follower(follower).step(output, Input::Message(message));
@@ -630,7 +815,7 @@ impl State {
     message: Message,
   ) -> State {
     match message.payload {
-      // Followers (§5.2): Respond to RPCs from candidates and leaders
+      // Followers (§5.2): Respond to rpcs from candidates and leaders
       Payload::AppendEntriesReq(req) => {
         State::Follower(State::follower_append_entries(follower, output, req))
       }
@@ -704,7 +889,7 @@ impl State {
       .index_term(req.prev_log_index)
       .map_or(false, |term| term == req.prev_log_term);
     if !log_match {
-      // TODO: Send back a hint of what we do have.
+      // TODO: send back a hint of what we do have
       let payload = Payload::AppendEntriesRes(AppendEntriesRes {
         term: follower.shared.current_term,
         index: Index(0),
@@ -846,8 +1031,8 @@ impl State {
     req: &RequestVoteReq,
   ) -> State {
     // TODO: To prevent [disruption from removed nodes] servers disregard
-    // RequestVote RPCs when they believe a current leader exists. Specifically,
-    // if a server receives a RequestVote RPC within the minimum election
+    // RequestVote rpcs when they believe a current leader exists. Specifically,
+    // if a server receives a RequestVote rpc within the minimum election
     // timeout of hearing from a current leader, it does not update its term or
     // grant its vote. (§6)
 
@@ -910,7 +1095,7 @@ impl State {
     candidate.shared.current_term = Term(candidate.shared.current_term.0 + 1);
     // Reset election timer
     candidate.shared.last_communication = candidate.shared.current_time;
-    // Send RequestVote RPCs to all other servers
+    // Send RequestVote rpcs to all other servers
     let (last_log_term, last_log_index) = candidate.shared.log.last();
     let payload = Payload::RequestVoteReq(RequestVoteReq {
       term: candidate.shared.current_term,
@@ -930,7 +1115,7 @@ impl State {
     output: &mut impl Extend<Output>,
     payload: &Payload,
   ) {
-    output.extend(shared.nodes.iter().filter(|node| **node != shared.id).map(|node| {
+    output.extend(shared.peers.iter().filter(|peer| **peer != shared.id).map(|node| {
       Output::Message(Message { src: shared.id, dest: *node, payload: payload.clone() })
     }))
   }
@@ -998,7 +1183,7 @@ impl State {
       max_confirmed_read_id: None,
       read_buffer: BTreeMap::new(),
     };
-    // Leaders: Upon election: send initial empty AppendEntries RPCs
+    // Leaders: Upon election: send initial empty AppendEntries rpcs
     // (heartbeat) to each server; repeat during idle periods to prevent
     // election timeouts (§5.2)
     State::leader_heartbeat(leader, output)
@@ -1025,7 +1210,7 @@ impl State {
   }
 
   fn majority(shared: &SharedState) -> usize {
-    (shared.nodes.len() + 1) / 2
+    (shared.peers.len() + 1) / 2
   }
 }
 

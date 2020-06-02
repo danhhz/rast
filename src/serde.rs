@@ -3,15 +3,24 @@
 use std::fmt;
 use std::ops::Add;
 
+/// A Raft term.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Term(pub u64);
 
+/// A Raft index.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Index(pub u64);
 
+/// A unique identifier for a node in a raft group.
+///
+/// Nodes must restart with the same ID, unless they lose data, in which case
+/// they need to be started from scratch with a new ID.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NodeID(pub u64);
 
+/// An internal identifier for tracking the allowability of a read request.
+///
+/// TODO: Make this more general.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ReadID(pub u64);
 
@@ -23,8 +32,10 @@ impl Add<u64> for Index {
   }
 }
 
+/// See [`Input::Write`](crate::Input::Write).
 #[derive(Clone)]
 pub struct WriteReq {
+  /// An opaque payload handed to the state machine.
   pub payload: Vec<u8>,
 }
 
@@ -43,14 +54,22 @@ impl From<String> for WriteReq {
   }
 }
 
+/// See [`Input::Write`](crate::Input::Write).
 #[derive(Debug, Clone, PartialEq)]
 pub struct WriteRes {
+  /// The term at which the write happened.
   pub term: Term,
+  /// The index at which the write happened.
   pub index: Index,
 }
 
+/// See [`Input::Read`](crate::Input::Read).
 #[derive(Clone)]
 pub struct ReadReq {
+  /// The read payload to be handed to the replicated state machine.
+  ///
+  /// For example: This could be a key when the replicated state machine is a
+  /// key-value store.
   pub payload: Vec<u8>,
 }
 
@@ -69,17 +88,28 @@ impl fmt::Debug for ReadReq {
   }
 }
 
+/// See [`Input::Read`](crate::Input::Read).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReadRes {
+  /// The term at which the read happened.
   pub term: Term,
+  /// The index at which the read happened.
   pub index: Index,
+  /// The result of reading the state machine with the request's payload.
+  ///
+  /// For example: This could be a value when the replicated state machine is a
+  /// key-value store.
   pub payload: Vec<u8>,
 }
 
+/// An entry in the Raft log.
 #[derive(Clone)]
 pub struct Entry {
+  /// The term of the entry.
   pub term: Term,
+  /// The index of the entry.
   pub index: Index,
+  /// The opaque user payload of the entry.
   pub payload: Vec<u8>,
 }
 
@@ -92,10 +122,14 @@ impl fmt::Debug for Entry {
   }
 }
 
+/// An rpc message.
 #[derive(Clone)]
 pub struct Message {
+  /// The node sending this rpc.
   pub src: NodeID,
+  /// The node to receive this rpc.
   pub dest: NodeID,
+  /// TODO: Hide this from the external API.
   pub payload: Payload,
 }
 
