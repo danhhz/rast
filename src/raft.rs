@@ -260,7 +260,7 @@ impl Raft {
   /// This is guaranteed to be non-blocking. Any blocking work (network/disk IO)
   /// is emitted as an [`Output`] entry.
   pub fn step(&mut self, output: &mut impl Extend<Output>, input: Input) {
-    // TODO: this is not actually "unreachable" if step panics, handle this.
+    // TODO: this is not actually "unreachable" if step panics, handle this
     self.state = Some(self.state.take().expect("unreachable").step(output, input));
   }
 
@@ -317,7 +317,7 @@ struct Leader {
 struct Follower {
   shared: SharedState,
 
-  leader_hint: Option<NodeID>,
+  leader_hint: NodeID,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -360,6 +360,9 @@ impl State {
     }
   }
 
+  // NB: In some cases, step recursively calls itself. Example: When a candidate
+  // receives a read or write, it campaigns for leadership and tries the read or
+  // write again.
   fn step(self, output: &mut impl Extend<Output>, input: Input) -> State {
     debug!("  {:3}: step {:?}", self.id().0, self.debug());
     match input {
@@ -486,7 +489,14 @@ impl State {
           state.write(output, payload, res)
         }
       },
-      State::Follower(_) => todo!(),
+      State::Follower(follower) => {
+        if let Some(mut res) = res.take() {
+          res.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(Some(
+            follower.leader_hint,
+          )))));
+        };
+        State::Follower(follower)
+      }
     }
   }
 
@@ -617,7 +627,7 @@ impl State {
         }
       },
       State::Follower(follower) => {
-        res.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(follower.leader_hint))));
+        res.fill(Err(ClientError::NotLeaderError(NotLeaderError::new(Some(follower.leader_hint)))));
         State::Follower(follower)
       }
     }
@@ -821,8 +831,8 @@ impl State {
       }
       Payload::RequestVoteReq(req) => State::Follower(follower).process_request_vote(output, &req),
       Payload::AppendEntriesRes(_) => {
-        // TODO: double check this
-        // No-op, stale response to a request sent out by this node when it was a leader.
+        // No-op, stale response to a request sent out by this node when it was
+        // a leader. TODO: double check this
         State::Follower(follower)
       }
       Payload::StartElectionReq(req) => {
@@ -977,8 +987,8 @@ impl State {
         new_max_confirmed_read_id,
         leader.max_confirmed_read_id
       );
-      // TODO: debug_assert that new_max_confirmed_read_id has a majority and that
-      // it's the highest read_id with a majority.
+      // TODO: debug_assert that new_max_confirmed_read_id has a majority and
+      // that it's the highest read_id with a majority
       leader.max_confirmed_read_id = new_max_confirmed_read_id;
       debug!(
         "  {:3}: outstanding={:?} confirmed={:?}",
@@ -1002,8 +1012,12 @@ impl State {
     let needed = State::majority(&leader.shared);
     for (_, entry_index) in leader.shared.log.iter().rev() {
       debug!(
-        "  {:3}: is committed? index={:} commit_index={:}",
-        leader.shared.id.0, entry_index.0, leader.shared.commit_index.0
+        "  {:3}: is committed? term={:} index={:} current_term={:} commit_index={:}",
+        leader.shared.id.0,
+        entry_term.0,
+        entry_index.0,
+        leader.shared.current_term.0,
+        leader.shared.commit_index.0,
       );
       if entry_index <= leader.shared.commit_index {
         break;
@@ -1013,7 +1027,7 @@ impl State {
       let count = leader.match_index.iter().filter(|(_, (index, _))| *index >= entry_index).count();
       if count >= needed {
         let new_commit_index = entry_index;
-        debug!("  {:3}: commit_index={:?}", leader.shared.id.0, new_commit_index);
+        debug!("  {:3}: new_commit_index={:?}", leader.shared.id.0, new_commit_index);
         leader.shared.commit_index = new_commit_index;
         leader = State::leader_maybe_apply(leader, output);
         // TODO: think about the order of these
@@ -1030,7 +1044,7 @@ impl State {
     output: &mut impl Extend<Output>,
     req: &RequestVoteReq,
   ) -> State {
-    // TODO: To prevent [disruption from removed nodes] servers disregard
+    // TODO: To prevent [disruption from removed nodes], servers disregard
     // RequestVote rpcs when they believe a current leader exists. Specifically,
     // if a server receives a RequestVote rpc within the minimum election
     // timeout of hearing from a current leader, it does not update its term or
@@ -1151,7 +1165,7 @@ impl State {
     new_leader_hint: NodeID,
   ) -> Follower {
     debug!("  {:3}: convert_to_follower leader={:?}", candidate.shared.id.0, new_leader_hint.0);
-    Follower { shared: candidate.shared, leader_hint: Some(new_leader_hint) }
+    Follower { shared: candidate.shared, leader_hint: new_leader_hint }
   }
 
   fn leader_convert_to_follower(
@@ -1161,7 +1175,7 @@ impl State {
   ) -> Follower {
     debug!("  {:3}: convert_to_follower leader={:?}", leader.shared.id.0, new_leader_hint.0);
     leader = State::clear_outstanding_requests(leader, Some(new_leader_hint));
-    Follower { shared: leader.shared, leader_hint: Some(new_leader_hint) }
+    Follower { shared: leader.shared, leader_hint: new_leader_hint }
   }
 
   fn candidate_convert_to_leader(candidate: Candidate, output: &mut impl Extend<Output>) -> Leader {
