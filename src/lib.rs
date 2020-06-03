@@ -157,7 +157,6 @@ mod testutil {
 
 // TODO: figure out how to call output.extend without creating a vec
 // TODO: more consistent method naming
-// TODO: compress log implementation
 // TODO: restart node with non-empty log + hard state
 // TODO: retry append rpc, find where follower diverges
 // TODO: nemesis test shouldn't hang when something panics
@@ -168,6 +167,7 @@ mod testutil {
 // - expand this list with examples from the raft paper
 // - nothing can be written at an index once that index is read
 // - runtime behavior under shutdown, gracefully returns errors
+// - regression test for committing an entry from a previous term
 // - single node special cases
 //   - election concludes immediately
 //   - read/write req to candidate is successful

@@ -15,7 +15,7 @@ fn election_one() {
 
   g.n.start_election();
   // TODO: this isn't accurate once we persist hard state
-  // assert_eq!(g.n.raft.debug(), "leader");
+  assert_eq!(g.n.raft.debug(), "leader");
 }
 
 #[test]
@@ -178,6 +178,8 @@ fn overwrite_entries() {
   g.drain();
   assert_eq!(g.n0.raft.debug(), "leader");
 
+  println!("\n\nWIP\n\n");
+
   // A read on n1 shouldn't have the unfinished write.
   let mut res = g.n0.read(ReadReq { payload: vec![] });
   g.drain();
@@ -243,4 +245,18 @@ fn regression_request_starts_election() {
       Ok(ReadRes { term: Term(1), index: Index(0), payload: vec![] })
     );
   }
+}
+
+/// Regression test for a bug where a write sent to a follower would panic.
+#[test]
+fn regression_follower_write() {
+  testutil::log_init();
+
+  let mut g = DeterministicGroup3::new();
+  g.n0.start_election();
+  g.drain();
+
+  // A write is sent to a follower. This used to panic.
+  assert_eq!(g.n1.raft.debug(), "follower");
+  g.n1.write(WriteReq { payload: String::from("1").into_bytes() });
 }

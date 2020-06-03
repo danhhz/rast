@@ -39,10 +39,9 @@ steady-state speed.
 
 - [x] Replace printlns with log crate
 - [x] Resolve all WIP comments
-- [ ] Audit all TODO comments
+- [x] Audit all TODO comments
 - [x] Resolve all ignored tests
 - [x] External documentation
-- [ ] Regression test for committing an entry from a previous term
 - [x] Small cleanups
   - [x] Make current_time an Option
   - [x] Structs for {Persist,ReadStateMachine}{Req,Res}
@@ -51,6 +50,7 @@ steady-state speed.
 # v0.1.0-alpha.1
 
 - [ ] Handle node restarts
+  - [ ] Persist hard state
 - [ ] Zero-copy message serialization
 - [ ] More extensive nemesis testing
 - [ ] Initial benchmarking
