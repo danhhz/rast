@@ -35,18 +35,6 @@ steady-state speed.
 [cap’n proto]: https://capnproto.org/
 [flatbuffers]: https://google.github.io/flatbuffers/
 
-# v0.1.0-alpha.0
-
-- [x] Replace printlns with log crate
-- [x] Resolve all WIP comments
-- [x] Audit all TODO comments
-- [x] Resolve all ignored tests
-- [x] External documentation
-- [x] Small cleanups
-  - [x] Make current_time an Option
-  - [x] Structs for {Persist,ReadStateMachine}{Req,Res}
-  - [x] Clear max_outstanding_read_id when applicable
-
 # v0.1.0-alpha.1
 
 - [ ] Handle node restarts
