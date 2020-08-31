@@ -11,7 +11,7 @@ mod test {
 
   use serde_json;
 
-  use super::samples::test::TestAllTypes;
+  use super::samples::test_capnp::TestAllTypes;
 
   use capnp_runtime::prelude::*;
 

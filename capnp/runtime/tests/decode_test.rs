@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::Read;
 
 mod samples;
-use samples::test::TestAllTypes;
+use samples::test_capnp::TestAllTypes;
 
 use capnp_runtime::prelude::*;
 
