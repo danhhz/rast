@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use crate::common::*;
 use crate::error::Error;
 use crate::pointer::{ListPointer, StructPointer};
-use crate::segment_pointer::SegmentPointer;
+use crate::segment_pointer::{SegmentPointer, SegmentPointerOwned};
 
 #[derive(Clone)]
 pub struct UntypedStruct<'a> {
@@ -27,13 +27,13 @@ pub struct UntypedList<'a> {
   pub pointer_end: SegmentPointer<'a>,
 }
 
-// pub struct UntypedStructOwned {
-//   pointer: StructPointer,
-//   pointer_end: SegmentOwned,
-// }
+pub struct UntypedStructOwned {
+  pointer: StructPointer,
+  pointer_end: SegmentPointerOwned,
+}
 
-// impl UntypedStructOwned {
-//   fn as_ref<'a>(&'a self) -> UntypedStruct<'a> {
-//     UntypedStruct { pointer: self.pointer, pointer_end: self.pointer_end.as_ref() }
-//   }
-// }
+impl UntypedStructOwned {
+  pub fn as_ref<'a>(&'a self) -> UntypedStruct<'a> {
+    UntypedStruct { pointer: self.pointer.clone(), pointer_end: self.pointer_end.as_ref() }
+  }
+}

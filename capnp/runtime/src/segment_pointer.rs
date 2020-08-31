@@ -6,7 +6,7 @@ use std::ops::Add;
 use crate::common::*;
 use crate::error::Error;
 use crate::pointer::*;
-use crate::segment::Segment;
+use crate::segment::{Segment, SegmentOwned};
 
 #[derive(Clone)]
 pub struct SegmentPointer<'a> {
@@ -220,5 +220,16 @@ impl<'a> Add<NumWords> for SegmentPointer<'a> {
   type Output = SegmentPointer<'a>;
   fn add(self, other: NumWords) -> SegmentPointer<'a> {
     SegmentPointer { seg: self.seg, off: self.off + other }
+  }
+}
+
+pub struct SegmentPointerOwned {
+  pub seg: SegmentOwned,
+  pub off: NumWords,
+}
+
+impl SegmentPointerOwned {
+  pub fn as_ref<'a>(&'a self) -> SegmentPointer<'a> {
+    SegmentPointer { seg: Segment::Borrowed(self.seg.as_ref()), off: self.off }
   }
 }

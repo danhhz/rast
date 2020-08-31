@@ -16,12 +16,13 @@ Rast [Cap'n Proto]
 - [ ] ListMeta
 - [x] Add context to error messages
 - [ ] Mark whether an error is user handleable?
-- [ ] Bring back generated owned structs
+- [x] Bring back generated owned structs
 - [ ] Return a reference to underlying bytes for capnp bytes fields
 - [ ] README
 - [ ] Document how to run the golden tests
 - [ ] Set up CI
 - [ ] Clean up runtime prelude
+- [ ] Audit pub usage
 - [ ] Audit TODO comments
 - [ ] Resolve WIP comments
 - [x] Remove dbg!
@@ -33,6 +34,7 @@ Rast [Cap'n Proto]
 - [ ] Add version check for generated code vs the runtime crate it gets
 - [ ] Use StringTree for generated code
 - [ ] Support for bool fields
+- [ ] Connect generated ref and owned structs with associated types
 - [ ] Security: Pointer validation (tests)
 - [ ] Security: Amplification attack
 - [ ] Security: Stack overflow DoS attack

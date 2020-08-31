@@ -60,3 +60,12 @@ impl<'a> std::fmt::Debug for TestAllTypes<'a> {
   }
 }
 
+pub struct TestAllTypesOwned {
+  data: UntypedStructOwned,
+}
+
+impl TestAllTypesOwned {
+  pub fn as_ref<'a>(&'a self) -> TestAllTypes<'a> {
+    TestAllTypes { data: self.data.as_ref() }
+  }
+}

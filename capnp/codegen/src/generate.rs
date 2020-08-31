@@ -299,23 +299,17 @@ impl Struct {
     write!(w, "  }}\n")?;
     write!(w, "}}\n\n")?;
 
-    // write!(w, "pub struct {}Owned {{\n", struct_name)?;
-    // write!(w, "  data: UntypedStructOwned,\n")?;
-    // write!(w, "}}\n\n")?;
+    write!(w, "pub struct {}Owned {{\n", struct_name)?;
+    write!(w, "  data: UntypedStructOwned,\n")?;
+    write!(w, "}}\n\n")?;
 
-    // write!(w, "impl {}Owned {{\n", struct_name)?;
+    write!(w, "impl {}Owned {{\n", struct_name)?;
 
-    // write!(w, "  pub fn new(\n")?;
-    // write!(w, "  ) -> {}Owned {{\n", struct_name)?;
-    // write!(w, "    let buf = vec![0; {}];\n", (self.data_words + self.pointer_words)*8)?; // WIP
-    // write!(w, "    {}Owned {{ struct_data: StructOwned {{ struct_data: BufOwned {{ buf: buf, off: NumWords(0) }}, data_size: NumWords({}), pointer_size: NumWords({}) }} }}\n", struct_name, self.data_words, self.pointer_words)?;
-    // write!(w, "  }}\n\n")?;
+    write!(w, "  pub fn as_ref<'a>(&'a self) -> {}<'a> {{\n", struct_name)?;
+    write!(w, "    {} {{ data: self.data.as_ref() }}\n", struct_name)?;
+    write!(w, "  }}\n")?;
 
-    // write!(w, "  pub fn as_ref<'a>(&'a self) -> {}<'a> {{\n", struct_name)?;
-    // write!(w, "    {} {{ data: self.data.as_ref() }}\n", struct_name)?;
-    // write!(w, "  }}\n")?;
-
-    // write!(w, "}}\n")?;
+    write!(w, "}}\n")?;
 
     Ok(())
   }
