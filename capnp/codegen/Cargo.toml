@@ -1,0 +1,11 @@
+[package]
+# TODO: Rename this package, capnpc_rust is taken.
+name = "capnpc_rust"
+version = "0.1.0-alpha.0"
+authors = ["Daniel Harrison <daniel.harrison@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+capnp = "0.13"
+heck = "0.3"
+rand = "0.7.3"
