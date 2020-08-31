@@ -24,14 +24,18 @@ pub trait TypedStruct<'a> {
 
 impl<'a, T: TypedStruct<'a>> TypedListElement<'a> for T {
   fn from_untyped_list(untyped: UntypedList<'a>) -> Result<Vec<Self>, Error> {
-    let num_words = match untyped.pointer.layout {
+    let pointer_declared_len = match untyped.pointer.layout {
       ListLayout::Composite(num_words) => num_words,
-      _ => return Err(Error("unsupported list layout for TypedStruct")),
+      x => return Err(Error::from(format!("unsupported list layout for TypedStruct: {:?}", x))),
     };
     let list_elements_begin = untyped.pointer_end + untyped.pointer.off;
     let (tag, tag_end) = list_elements_begin.list_composite_tag()?;
-    if num_words != (tag.data_size + tag.pointer_size) * tag.num_elements {
-      return Err(Error("composite tag length doesn't agree with pointer"));
+    let composite_len = (tag.data_size + tag.pointer_size) * tag.num_elements;
+    if composite_len != pointer_declared_len {
+      return Err(Error::from(format!(
+        "composite tag length ({:?}) doesn't agree with pointer ({:?})",
+        composite_len, pointer_declared_len
+      )));
     }
 
     let mut ret = Vec::with_capacity(tag.num_elements.0 as usize);

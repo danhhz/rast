@@ -14,7 +14,7 @@ Rast [Cap'n Proto]
 - [ ] Port remaining capnp testdata tests
 - [ ] Rename FieldTypeEnum
 - [ ] ListMeta
-- [ ] Add context to error messages
+- [x] Add context to error messages
 - [ ] Mark whether an error is user handleable?
 - [ ] Bring back generated owned structs
 - [ ] Return a reference to underlying bytes for capnp bytes fields
@@ -24,6 +24,8 @@ Rast [Cap'n Proto]
 - [ ] Clean up runtime prelude
 - [ ] Audit TODO comments
 - [ ] Resolve WIP comments
+- [x] Remove dbg!
+- [ ] Remove println!
 
 # v0.1.0
 
@@ -34,6 +36,7 @@ Rast [Cap'n Proto]
 - [ ] Security: Pointer validation (tests)
 - [ ] Security: Amplification attack
 - [ ] Security: Stack overflow DoS attack
+- [ ] Security: Fuzzing tests
 
 # After v0.1.0
 

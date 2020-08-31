@@ -73,9 +73,7 @@ impl<'a> SegmentPointer<'a> {
     &self,
     offset: NumElements,
   ) -> Result<(StructPointer, SegmentPointer<'a>), Error> {
-    let p = self.pointer(offset);
-    println!("struct_pointer={:?}", p);
-    match p {
+    match self.pointer(offset) {
       Pointer::Null => Ok((StructPointer::empty(), SegmentPointer::empty())),
       Pointer::Struct(x) => {
         let sp = StructPointer { off: x.off, data_size: x.data_size, pointer_size: x.pointer_size };
@@ -83,7 +81,10 @@ impl<'a> SegmentPointer<'a> {
         Ok((sp, sp_end))
       }
       Pointer::Far(x) => {
-        let seg = self.seg.other(x.seg).ok_or(Error("far pointer segment not found"))?;
+        let seg = self
+          .seg
+          .other(x.seg)
+          .ok_or(Error::from(format!("encoding: far pointer segment {:?} not found", x.seg)))?;
         let far = SegmentPointer { seg: seg, off: x.off };
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -107,13 +108,13 @@ impl<'a> SegmentPointer<'a> {
             // TODO: This is kinda hacky.
             let far_far = match far.pointer(NumElements(0)) {
               Pointer::Far(x) => Ok(x),
-              x => {
-                dbg!(x);
-                Err(Error("expected far pointer"))
-              }
+              x => Err(Error::from(format!("encoding: expected far pointer got: {:?}", x))),
             }?;
             if let LandingPadSize::TwoWords = far_far.landing_pad_size {
-              return Err(Error("encoding error: two word landing pad not a one word far pointer"));
+              return Err(Error::from(format!(
+                "encoding: expected one word far pointer got: {:?}",
+                far_far,
+              )));
             }
 
             // The [far_far pointer/landing pad] is itself immediately followed by
@@ -121,8 +122,10 @@ impl<'a> SegmentPointer<'a> {
             // pointer to the target object would look, except that the offset is
             // always zero.
             let (sp_template, _) = far.struct_pointer(NumElements(1))?;
-            let seg =
-              far.seg.other(far_far.seg).ok_or(Error("far far pointer segment not found"))?;
+            let seg = far.seg.other(far_far.seg).ok_or(Error::from(format!(
+              "encoding: far far pointer segment {:?} not found",
+              far_far.seg
+            )))?;
             let sp_end = SegmentPointer { seg: seg, off: NumWords(0) };
             let sp = StructPointer {
               off: far_far.off,
@@ -133,13 +136,11 @@ impl<'a> SegmentPointer<'a> {
           }
         }
       }
-      x => {
-        dbg!(x);
-        Err(Error("expected struct pointer"))
-      }
+      x => Err(Error::from(format!("encoding: expected struct pointer got: {:?}", x))),
     }
   }
 
+  // TODO: Dedup this with fn struct_pointer
   pub fn list_pointer(
     &self,
     offset: NumElements,
@@ -151,8 +152,10 @@ impl<'a> SegmentPointer<'a> {
         Ok((lp, lp_end))
       }
       Pointer::Far(x) => {
-        dbg!(&x);
-        let seg = self.seg.other(x.seg).ok_or(Error("far pointer segment not found"))?;
+        let seg = self
+          .seg
+          .other(x.seg)
+          .ok_or(Error::from(format!("encoding: far pointer segment {:?} not found", x.seg)))?;
         let far = SegmentPointer { seg: seg, off: x.off };
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -176,13 +179,13 @@ impl<'a> SegmentPointer<'a> {
             // TODO: This is kinda hacky.
             let far_far = match far.pointer(NumElements(0)) {
               Pointer::Far(x) => Ok(x),
-              x => {
-                dbg!(x);
-                Err(Error("expected far pointer"))
-              }
+              x => Err(Error::from(format!("encoding: expected far pointer got: {:?}", x))),
             }?;
             if let LandingPadSize::TwoWords = far_far.landing_pad_size {
-              return Err(Error("encoding error: two word landing pad not a one word far pointer"));
+              return Err(Error::from(format!(
+                "encoding: expected one word far pointer got: {:?}",
+                far_far,
+              )));
             }
 
             // The [far_far pointer/landing pad] is itself immediately followed by
@@ -190,20 +193,23 @@ impl<'a> SegmentPointer<'a> {
             // pointer to the target object would look, except that the offset is
             // always zero.
             let (lp_template, _) = far.list_pointer(NumElements(1))?;
-            let seg =
-              far.seg.other(far_far.seg).ok_or(Error("far far pointer segment not found"))?;
+            let seg = far.seg.other(far_far.seg).ok_or(Error::from(format!(
+              "encoding: far far pointer segment {:?} not found",
+              far_far.seg
+            )))?;
             let lp_end = SegmentPointer { seg: seg, off: NumWords(0) };
             let lp = ListPointer { off: far_far.off, layout: lp_template.layout };
             Ok((lp, lp_end))
           }
         }
       }
-      _ => Err(Error("expected list pointer")),
+      x => Err(Error::from(format!("encoding: expected list pointer got: {:?}", x))),
     }
   }
 
   pub fn list_composite_tag(&self) -> Result<(ListCompositeTag, SegmentPointer<'a>), Error> {
-    let raw = self.u64_raw(NumElements(0)).ok_or(Error("expected composite tag"))?;
+    let raw =
+      self.u64_raw(NumElements(0)).ok_or(Error::from("encoding: expected composite tag"))?;
     let tag = decode_composite_tag(raw)?;
     let tag_end = self.clone() + POINTER_WIDTH_WORDS;
     Ok((tag, tag_end))

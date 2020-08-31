@@ -13,10 +13,7 @@ impl<'a> TypedListElement<'a> for u8 {
   fn from_untyped_list(untyped: UntypedList<'a>) -> Result<Vec<Self>, Error> {
     let num_elements = match untyped.pointer.layout {
       ListLayout::Packed(num_elements, ElementWidth::OneByte) => num_elements,
-      _ => {
-        dbg!(untyped.pointer.layout);
-        return Err(Error("unsupported list layout for u8"));
-      }
+      x => return Err(Error::from(format!("unsupported list layout for u8: {:?}", x))),
     };
     let list_elements_begin = untyped.pointer_end + untyped.pointer.off;
     let mut ret = Vec::new();
@@ -31,7 +28,7 @@ impl<'a> TypedListElement<'a> for u64 {
   fn from_untyped_list(untyped: UntypedList<'a>) -> Result<Vec<Self>, Error> {
     let num_elements = match untyped.pointer.layout {
       ListLayout::Packed(num_elements, ElementWidth::FourBytes) => num_elements,
-      _ => return Err(Error("unsupported list layout for u64")),
+      x => return Err(Error::from(format!("unsupported list layout for u64: {:?}", x))),
     };
     let list_elements_begin = untyped.pointer_end + untyped.pointer.off;
     let mut ret = Vec::new();
@@ -44,6 +41,6 @@ impl<'a> TypedListElement<'a> for u64 {
 
 impl<'a, T: TypedListElement<'a>> TypedListElement<'a> for Vec<T> {
   fn from_untyped_list(untyped: UntypedList<'a>) -> Result<Vec<Self>, Error> {
-    Err(Error("unimplemented TypedListElement<'a> for Vec<T>"))
+    Err(Error::from("unimplemented TypedListElement<'a> for Vec<T>"))
   }
 }

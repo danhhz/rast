@@ -140,7 +140,7 @@ pub fn decode_composite_tag(buf: [u8; 8]) -> Result<ListCompositeTag, Error> {
   // offset (B) instead indicates the number of elements in the list.
   let sp = match decode_pointer(buf) {
     Pointer::Struct(sp) => sp,
-    _ => return Err(Error("expected composite tag")),
+    x => return Err(Error::from(format!("expected composite tag got: {:?}", x))),
   };
   Ok(ListCompositeTag {
     num_elements: NumElements(sp.off.0),

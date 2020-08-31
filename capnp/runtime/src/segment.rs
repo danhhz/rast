@@ -77,7 +77,7 @@ pub fn decode_segment<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
   let mut by_id = HashMap::new();
 
   let num_segments_bytes: [u8; 4] =
-    buf.get(0..4).ok_or(Error("invalid segment count"))?.try_into().unwrap();
+    buf.get(0..4).ok_or(Error::from("encoding: incomplete segment count"))?.try_into().unwrap();
   let num_segments_minus_one = u32::from_le_bytes(num_segments_bytes);
   let num_segments = num_segments_minus_one + 1;
   let mut size_offset = 4;
@@ -85,22 +85,23 @@ pub fn decode_segment<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
   let mut buf_offset = 4 * (1 + num_segments as usize) + padding;
 
   for idx in 0..num_segments {
+    let id = SegmentID(idx);
     let segment_size_words = u32::from_le_bytes(
       buf
         .get(size_offset..size_offset + 4)
-        .ok_or(Error("invalid segment size"))?
+        .ok_or(Error::from(format!("encoding: invalid segment {:?} size", id)))?
         .try_into()
         .unwrap(),
     );
     let segment_size_bytes = segment_size_words as usize * 8;
     let segment_bytes = buf
       .get(buf_offset..buf_offset + segment_size_bytes)
-      .ok_or(Error("insufficient segment bytes"))?;
+      .ok_or(Error::from(format!("encoding: insufficient segment {:?} bytes", id)))?;
     size_offset += 4;
     buf_offset += segment_size_bytes;
-    by_id.insert(SegmentID(idx), segment_bytes);
+    by_id.insert(id, segment_bytes);
   }
 
-  let first_segment_buf = by_id.get(&SegmentID(0)).ok_or(Error("missing first segment"))?;
+  let first_segment_buf = by_id.get(&SegmentID(0)).ok_or(Error::from("encoding: no segments"))?;
   Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Rc::new(by_id)) }))
 }
