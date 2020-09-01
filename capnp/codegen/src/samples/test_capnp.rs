@@ -60,12 +60,33 @@ impl<'a> std::fmt::Debug for TestAllTypes<'a> {
   }
 }
 
-pub struct TestAllTypesOwned {
-  data: UntypedStructOwned,
+pub struct TestAllTypesShared {
+  data: UntypedStructShared,
 }
 
-impl TestAllTypesOwned {
+impl TestAllTypesShared {
+  pub fn new(
+    u_int64_field: u64,
+    data_field: &'_ [u8],
+    struct_field: Option<TestAllTypesShared>,
+    struct_list: &'_ [TestAllTypesShared],
+  ) -> TestAllTypesShared {
+    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(6), NumWords(20));
+    TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);
+    TestAllTypes::DATA_FIELD_META.set(&mut data, data_field);
+    TestAllTypes::STRUCT_FIELD_META.set(&mut data, struct_field);
+    TestAllTypes::STRUCT_LIST_META.set(&mut data, struct_list);
+    TestAllTypesShared { data: data.into_shared() }
+  }
+
   pub fn as_ref<'a>(&'a self) -> TestAllTypes<'a> {
     TestAllTypes { data: self.data.as_ref() }
   }
 }
+
+impl TypedStructShared for TestAllTypesShared {
+  fn to_untyped(&self) -> UntypedStructShared {
+    self.data.clone()
+  }
+}
+

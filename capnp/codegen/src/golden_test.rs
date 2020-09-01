@@ -20,9 +20,7 @@ fn write_file<P: AsRef<Path>>(path: P, mut contents: &[u8]) -> Result<(), io::Er
   Ok(())
 }
 
-#[test]
-fn golden_test_capnp() -> Result<(), Box<dyn Error>> {
-  let file = "test";
+fn golden_capnp(file: &'static str) -> Result<(), Box<dyn Error>> {
   let input_path = format!("src/samples/{}.capnp.bin", file);
   let expected_path = format!("src/samples/{}_capnp.rs", file);
 
@@ -40,4 +38,14 @@ fn golden_test_capnp() -> Result<(), Box<dyn Error>> {
   }
   assert_eq!(output, expected?);
   Ok(())
+}
+
+#[test]
+fn golden_test_capnp() -> Result<(), Box<dyn Error>> {
+  golden_capnp("test")
+}
+
+#[test]
+fn golden_rast_capnp() -> Result<(), Box<dyn Error>> {
+  golden_capnp("rast")
 }

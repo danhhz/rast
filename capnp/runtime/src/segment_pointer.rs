@@ -6,12 +6,19 @@ use std::ops::Add;
 use crate::common::*;
 use crate::error::Error;
 use crate::pointer::*;
-use crate::segment::{Segment, SegmentOwned};
+use crate::segment::{Segment, SegmentOwned, SegmentShared};
 
 #[derive(Clone)]
 pub struct SegmentPointer<'a> {
   pub seg: Segment<'a>,
   pub off: NumWords,
+}
+
+impl<'a> Add<NumWords> for SegmentPointer<'a> {
+  type Output = SegmentPointer<'a>;
+  fn add(self, other: NumWords) -> SegmentPointer<'a> {
+    SegmentPointer { seg: self.seg, off: self.off + other }
+  }
 }
 
 impl<'a> SegmentPointer<'a> {
@@ -78,6 +85,7 @@ impl<'a> SegmentPointer<'a> {
       Pointer::Struct(x) => {
         let sp = StructPointer { off: x.off, data_size: x.data_size, pointer_size: x.pointer_size };
         let sp_end = self.clone() + POINTER_WIDTH_WORDS * offset + POINTER_WIDTH_WORDS;
+        // println!("found struct pointer {:?}", &sp);
         Ok((sp, sp_end))
       }
       Pointer::Far(x) => {
@@ -85,6 +93,7 @@ impl<'a> SegmentPointer<'a> {
           .seg
           .other(x.seg)
           .ok_or(Error::from(format!("encoding: far pointer segment {:?} not found", x.seg)))?;
+        // println!("following far pointer for struct: {:?} {:?}", x, seg.buf());
         let far = SegmentPointer { seg: seg, off: x.off };
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -149,6 +158,7 @@ impl<'a> SegmentPointer<'a> {
       Pointer::Null => Ok((ListPointer::empty(), SegmentPointer::empty())),
       Pointer::List(lp) => {
         let lp_end = self.clone() + POINTER_WIDTH_WORDS * offset + POINTER_WIDTH_WORDS;
+        // println!("found list pointer {:?}", &lp);
         Ok((lp, lp_end))
       }
       Pointer::Far(x) => {
@@ -156,6 +166,7 @@ impl<'a> SegmentPointer<'a> {
           .seg
           .other(x.seg)
           .ok_or(Error::from(format!("encoding: far pointer segment {:?} not found", x.seg)))?;
+        // println!("following far pointer for list: {:?} {:?}", x, seg.buf());
         let far = SegmentPointer { seg: seg, off: x.off };
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -210,16 +221,28 @@ impl<'a> SegmentPointer<'a> {
   pub fn list_composite_tag(&self) -> Result<(ListCompositeTag, SegmentPointer<'a>), Error> {
     let raw =
       self.u64_raw(NumElements(0)).ok_or(Error::from("encoding: expected composite tag"))?;
-    let tag = decode_composite_tag(raw)?;
+    let tag = ListCompositeTag::decode(raw)?;
     let tag_end = self.clone() + POINTER_WIDTH_WORDS;
     Ok((tag, tag_end))
   }
 }
 
-impl<'a> Add<NumWords> for SegmentPointer<'a> {
-  type Output = SegmentPointer<'a>;
-  fn add(self, other: NumWords) -> SegmentPointer<'a> {
-    SegmentPointer { seg: self.seg, off: self.off + other }
+#[derive(Clone)]
+pub struct SegmentPointerShared {
+  pub seg: SegmentShared,
+  pub off: NumWords,
+}
+
+impl Add<NumWords> for SegmentPointerShared {
+  type Output = SegmentPointerShared;
+  fn add(self, other: NumWords) -> SegmentPointerShared {
+    SegmentPointerShared { seg: self.seg, off: self.off + other }
+  }
+}
+
+impl SegmentPointerShared {
+  pub fn as_ref<'a>(&'a self) -> SegmentPointer<'a> {
+    SegmentPointer { seg: Segment::Borrowed(self.seg.as_ref()), off: self.off }
   }
 }
 
@@ -229,7 +252,15 @@ pub struct SegmentPointerOwned {
 }
 
 impl SegmentPointerOwned {
-  pub fn as_ref<'a>(&'a self) -> SegmentPointer<'a> {
-    SegmentPointer { seg: Segment::Borrowed(self.seg.as_ref()), off: self.off }
+  pub fn into_shared(self) -> SegmentPointerShared {
+    SegmentPointerShared { seg: self.seg.into_shared(), off: self.off }
+  }
+
+  pub fn set_u64(&mut self, offset: NumElements, value: u64) {
+    self.seg.set_u64(self.off, offset, value);
+  }
+
+  pub fn set_pointer(&mut self, offset: NumElements, value: Pointer) {
+    self.seg.set_pointer(self.off, offset, value);
   }
 }

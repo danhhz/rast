@@ -1,7 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use std::mem;
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Sub};
 
 // NB: This only ever uses the bottom 29 bits.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
@@ -31,6 +31,13 @@ impl Add<NumWords> for NumWords {
   }
 }
 
+impl Sub<NumWords> for NumWords {
+  type Output = NumWords;
+  fn sub(self, other: NumWords) -> NumWords {
+    NumWords(self.0 - other.0)
+  }
+}
+
 impl Mul<NumElements> for NumWords {
   type Output = NumWords;
   fn mul(self, other: NumElements) -> NumWords {
@@ -43,6 +50,7 @@ pub const U16_WIDTH_BYTES: usize = mem::size_of::<u16>();
 pub const U64_WIDTH_BYTES: usize = mem::size_of::<u64>();
 pub const DISCRIMINANT_WIDTH_BYTES: usize = U16_WIDTH_BYTES;
 
+pub const WORD_BYTES: usize = NumWords(1).as_bytes();
 pub const POINTER_WIDTH_WORDS: NumWords = NumWords(1);
 pub const POINTER_WIDTH_BYTES: usize = POINTER_WIDTH_WORDS.as_bytes();
 pub const COMPOSITE_TAG_WIDTH_BYTES: usize = U64_WIDTH_BYTES;

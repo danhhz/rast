@@ -2,4 +2,5 @@
 
 #![allow(dead_code)]
 
+pub mod rast_capnp;
 pub mod test_capnp;

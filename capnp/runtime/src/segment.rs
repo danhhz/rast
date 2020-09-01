@@ -4,27 +4,83 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::rc::Rc;
 
+use crate::common::{
+  NumElements, NumWords, POINTER_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES, WORD_BYTES,
+};
 use crate::error::Error;
+use crate::pointer::Pointer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SegmentID(pub u32);
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SegmentOwned {
-  // TODO: The whole structure of this probably has to change to implement
-  // mutability on the generated capnp structs. This Rc, for example, will have
-  // to go.
-  buf: Rc<Vec<u8>>,
-  other: Rc<HashMap<SegmentID, SegmentOwned>>,
+  pub buf: Vec<u8>,
+  pub other: HashMap<SegmentID, SegmentShared>,
 }
 
 impl SegmentOwned {
+  pub fn new_from_buf(buf: Vec<u8>) -> SegmentOwned {
+    SegmentOwned { buf: buf, other: HashMap::new() }
+  }
+
+  pub fn into_shared(self) -> SegmentShared {
+    SegmentShared { buf: Rc::new(self.buf), other: Rc::new(self.other) }
+  }
+
+  pub fn len_words_rounded_up(&self) -> NumWords {
+    // WIP: Verify soundness of this i32 conversion
+    NumWords(((self.buf.len() + WORD_BYTES - 1) / WORD_BYTES) as i32)
+  }
+
+  pub fn set_u8(&mut self, off: NumWords, offset: NumElements, value: u8) {
+    let begin = off.as_bytes() + offset.as_bytes(U8_WIDTH_BYTES);
+    let end = begin + U8_WIDTH_BYTES;
+    if self.buf.len() < end {
+      self.buf.resize(end, 0);
+    }
+    // NB: This range is guaranteed to exist because we just resized it.
+    self.buf[begin..end].copy_from_slice(&u8::to_le_bytes(value));
+  }
+
+  pub fn set_u64(&mut self, off: NumWords, offset: NumElements, value: u64) {
+    let begin = off.as_bytes() + offset.as_bytes(U64_WIDTH_BYTES);
+    let end = begin + U64_WIDTH_BYTES;
+    if self.buf.len() < end {
+      self.buf.resize(end, 0);
+    }
+    // NB: This range is guaranteed to exist because we just resized it.
+    self.buf[begin..end].copy_from_slice(&u64::to_le_bytes(value));
+  }
+
+  pub fn set_pointer(&mut self, off: NumWords, offset: NumElements, value: Pointer) {
+    let begin = off.as_bytes() + offset.as_bytes(POINTER_WIDTH_BYTES);
+    let end = begin + POINTER_WIDTH_BYTES;
+    if self.buf.len() < end {
+      self.buf.resize(end, 0);
+    }
+    // NB: This range is guaranteed to exist because we just resized it.
+    self.buf[begin..end].copy_from_slice(&value.encode());
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct SegmentShared {
+  buf: Rc<Vec<u8>>,
+  other: Rc<HashMap<SegmentID, SegmentShared>>,
+}
+
+impl SegmentShared {
   pub fn as_ref<'a>(&'a self) -> SegmentBorrowed<'a> {
     let mut other: HashMap<SegmentID, &'a [u8]> = HashMap::with_capacity(self.other.len());
     for (k, v) in self.other.iter() {
       other.insert(*k, &v.buf);
     }
     SegmentBorrowed { buf: &self.buf, other: Some(Rc::new(other)) }
+  }
+
+  pub fn buf(&self) -> &[u8] {
+    &self.buf
   }
 }
 
@@ -44,7 +100,7 @@ impl<'a> SegmentBorrowed<'a> {
 
 #[derive(Debug, Clone)]
 pub enum Segment<'a> {
-  Owned(SegmentOwned),
+  Shared(SegmentShared),
   Borrowed(SegmentBorrowed<'a>),
 }
 
@@ -55,14 +111,14 @@ impl<'a> Segment<'a> {
 
   pub fn buf(&'a self) -> &'a [u8] {
     match self {
-      Segment::Owned(o) => o.buf.as_slice(),
+      Segment::Shared(o) => o.buf.as_slice(),
       Segment::Borrowed(b) => b.buf,
     }
   }
 
   pub fn other(&self, id: SegmentID) -> Option<Segment<'a>> {
     match self {
-      Segment::Owned(o) => o.other.get(&id).map(|s| Segment::Owned(s.clone())),
+      Segment::Shared(o) => o.other.get(&id).map(|s| Segment::Shared(s.clone())),
       Segment::Borrowed(b) => match &b.other {
         None => None,
         Some(other) => other

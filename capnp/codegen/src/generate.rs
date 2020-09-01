@@ -61,6 +61,7 @@ trait FieldType {
   fn type_out(&self) -> String;
   fn type_out_result(&self) -> bool;
   fn type_in(&self) -> String;
+  fn type_in_option(&self) -> bool;
   fn type_owned(&self) -> String;
   fn type_meta(&self) -> String;
   fn type_meta_class(&self) -> &'static str;
@@ -82,6 +83,9 @@ impl FieldType for PrimitiveField {
   }
   fn type_in(&self) -> String {
     self.type_.clone()
+  }
+  fn type_in_option(&self) -> bool {
+    false
   }
   fn type_owned(&self) -> String {
     self.type_.clone()
@@ -112,6 +116,9 @@ impl FieldType for WrappedField {
   fn type_in(&self) -> String {
     self.wrap_type.clone()
   }
+  fn type_in_option(&self) -> bool {
+    self.wrapped.ftype().type_in_option()
+  }
   fn type_owned(&self) -> String {
     self.wrap_type.clone()
   }
@@ -138,7 +145,12 @@ impl FieldType for StructField {
     true
   }
   fn type_in(&self) -> String {
-    format!("{}<'a>", self.type_)
+    // TODO: Figure out how to accept a non-shared version. This would require
+    // recursively copying in all the data.
+    format!("{}Shared", self.type_)
+  }
+  fn type_in_option(&self) -> bool {
+    true
   }
   fn type_owned(&self) -> String {
     self.type_.clone()
@@ -170,7 +182,10 @@ impl FieldType for ListField {
     true
   }
   fn type_in(&self) -> String {
-    format!("&'a [{}]", self.wrapped.ftype().type_in())
+    format!("&'_ [{}]", self.wrapped.ftype().type_in())
+  }
+  fn type_in_option(&self) -> bool {
+    false
   }
   fn type_owned(&self) -> String {
     format!("Vec<<{}>>", self.wrapped.ftype().type_in())
@@ -199,7 +214,10 @@ impl FieldType for EnumField {
     true
   }
   fn type_in(&self) -> String {
-    format!("{}<'a>", self.name)
+    format!("{}<'_>", self.name)
+  }
+  fn type_in_option(&self) -> bool {
+    false
   }
   fn type_owned(&self) -> String {
     self.name.clone()
@@ -299,17 +317,39 @@ impl Struct {
     write!(w, "  }}\n")?;
     write!(w, "}}\n\n")?;
 
-    write!(w, "pub struct {}Owned {{\n", struct_name)?;
-    write!(w, "  data: UntypedStructOwned,\n")?;
+    write!(w, "pub struct {}Shared {{\n", struct_name)?;
+    write!(w, "  data: UntypedStructShared,\n")?;
     write!(w, "}}\n\n")?;
 
-    write!(w, "impl {}Owned {{\n", struct_name)?;
+    write!(w, "impl {}Shared {{\n", struct_name)?;
+
+    write!(w, "  pub fn new(\n")?;
+    for field in self.fields.iter() {
+      if field.type_.ftype().type_in_option() {
+        write!(w, "    {}: Option<{}>,\n", field.name, field.type_.ftype().type_in())?;
+      } else {
+        write!(w, "    {}: {},\n", field.name, field.type_.ftype().type_in())?;
+      }
+    }
+    write!(w, "  ) -> {}Shared {{\n", struct_name)?;
+    write!(w, "    let mut data = UntypedStructOwned::new_with_root_struct(NumWords({}), NumWords({}));\n", self.data_words, self.pointer_words)?;
+    for field in self.fields.iter() {
+      write!(w, "    {}::{}_META.set(&mut data, {});\n", struct_name, field.meta_name(), field.name)?;
+    }
+    write!(w, "    {}Shared {{ data: data.into_shared() }}\n", struct_name)?;
+    write!(w, "  }}\n\n")?;
 
     write!(w, "  pub fn as_ref<'a>(&'a self) -> {}<'a> {{\n", struct_name)?;
     write!(w, "    {} {{ data: self.data.as_ref() }}\n", struct_name)?;
     write!(w, "  }}\n")?;
 
-    write!(w, "}}\n")?;
+    write!(w, "}}\n\n")?;
+
+    write!(w, "impl TypedStructShared for {}Shared {{\n", struct_name)?;
+    write!(w, "  fn to_untyped(&self) -> UntypedStructShared {{\n")?;
+    write!(w, "    self.data.clone()\n")?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n\n")?;
 
     Ok(())
   }
@@ -413,7 +453,7 @@ impl<'a> Generator<'a> {
       match node.which()? {
         node::Which::Struct(struct_) => {
           if struct_.get_discriminant_count() > 0 {
-            self.union(node, struct_)?.render(w)?;
+            // WIP self.union(node, struct_)?.render(w)?;
           } else {
             self.struct_(node, struct_)?.render(w)?;
           }
@@ -567,7 +607,8 @@ impl<'a> Generator<'a> {
         let type_ =
           FieldTypeEnum::Enum(EnumField { name: type_name.to_camel_case(), union: union });
         let offset = 0; // WIP
-        Field { name: name, doc_comment: doc_comment, type_: type_, offset: offset }
+        Field { name: name, doc_comment: doc_comment, type_: type_, offset: offset };
+        return Ok(None); // WIP
       }
     };
 
