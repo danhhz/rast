@@ -1,10 +1,11 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 #![allow(dead_code, unused_variables)]
+// WIP
+#![allow(unreachable_code)]
 
 mod common;
 mod error;
-pub mod fmt_debug;
 mod pointer;
 mod reflect;
 mod segment;
@@ -22,3 +23,6 @@ pub mod prelude {
 
 #[cfg(feature = "serde")]
 pub mod serde;
+
+#[cfg(feature = "rand")]
+pub mod rand;

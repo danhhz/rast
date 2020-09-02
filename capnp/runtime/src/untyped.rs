@@ -1,11 +1,13 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::io::{self, Write};
 
 use crate::common::*;
 use crate::error::Error;
 use crate::pointer::{ListPointer, Pointer, StructPointer};
-use crate::segment::SegmentOwned;
+use crate::segment::{Segment, SegmentID, SegmentOwned};
 use crate::segment_pointer::{SegmentPointer, SegmentPointerOwned, SegmentPointerShared};
 
 #[derive(Clone)]
@@ -23,9 +25,78 @@ impl<'a> TryFrom<SegmentPointer<'a>> for UntypedStruct<'a> {
   }
 }
 
+impl<'a> UntypedStruct<'a> {
+  pub fn encode_as_root_alternate<W: Write>(&self, w: &mut W) -> io::Result<()> {
+    // Emit this struct's segment prefixed with a pointer to this struct.
+    let root_pointer = StructPointer {
+      off: self.pointer_end.off + self.pointer.off,
+      data_size: self.pointer.data_size,
+      pointer_size: self.pointer.pointer_size,
+    }
+    .encode();
+    let seg_buf = self.pointer_end.seg.buf();
+    let fake_len_bytes = seg_buf.len() + root_pointer.len();
+    let fake_len_words = (fake_len_bytes + 7) / 8;
+    let padding = vec![0; fake_len_words * 8 - fake_len_bytes];
+
+    // WIP: What do we do about the segment id?
+    w.write_all(&u32::to_le_bytes(0))?;
+    w.write_all(&u32::to_le_bytes(fake_len_words as u32))?;
+    w.write_all(&root_pointer)?;
+    w.write_all(seg_buf)?;
+    w.write_all(&padding)?;
+
+    let mut seen_segments = HashSet::new();
+    for (id, segment) in self.pointer_end.seg.all_other() {
+      if seen_segments.contains(&id) {
+        continue;
+      }
+      seen_segments.insert(id);
+      UntypedStruct::encode_segment_alternate(w, &mut seen_segments, id, segment)?;
+    }
+    Ok(())
+  }
+
+  fn encode_segment_alternate<W: Write>(
+    w: &mut W,
+    seen_segments: &mut HashSet<SegmentID>,
+    id: SegmentID,
+    segment: Segment<'_>,
+  ) -> io::Result<()> {
+    let seg_buf = segment.buf();
+    let len_bytes = seg_buf.len();
+    let len_words = (len_bytes + 7) / 8;
+    let padding = vec![0; len_words * 8 - len_bytes];
+
+    w.write_all(&u32::to_le_bytes(id.0))?;
+    w.write_all(&u32::to_le_bytes(len_words as u32))?;
+    w.write_all(seg_buf)?;
+    w.write_all(&padding)?;
+    for (id, segment) in segment.all_other() {
+      if seen_segments.contains(&id) {
+        continue;
+      }
+      seen_segments.insert(id);
+      UntypedStruct::encode_segment_alternate(w, seen_segments, id, segment)?;
+    }
+    Ok(())
+  }
+}
+
 pub struct UntypedList<'a> {
   pub pointer: ListPointer,
   pub pointer_end: SegmentPointer<'a>,
+}
+
+pub struct UntypedListShared {
+  pub pointer: ListPointer,
+  pub pointer_end: SegmentPointerShared,
+}
+
+impl UntypedListShared {
+  pub fn as_ref<'a>(&'a self) -> UntypedList<'a> {
+    UntypedList { pointer: self.pointer.clone(), pointer_end: self.pointer_end.as_ref() }
+  }
 }
 
 #[derive(Clone)]

@@ -12,13 +12,10 @@ use capnp_runtime::prelude::*;
 
 #[test]
 fn decode_binary() -> Result<(), Box<dyn error::Error>> {
-  let args: Vec<String> = std::env::args().collect();
-  println!("{:?}", args);
-
   let mut f = File::open("testdata/binary")?;
   let mut buf = Vec::new();
   f.read_to_end(&mut buf)?;
-  let seg = decode_segment(&buf)?;
+  let seg = decode_stream_official(&buf)?;
   let message = TestAllTypes::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
 
   let mut f = File::open("testdata/pretty.txt")?;
@@ -32,13 +29,10 @@ fn decode_binary() -> Result<(), Box<dyn error::Error>> {
 
 #[test]
 fn decode_segmented() -> Result<(), Box<dyn error::Error>> {
-  let args: Vec<String> = std::env::args().collect();
-  println!("{:?}", args);
-
   let mut f = File::open("testdata/segmented")?;
   let mut buf = Vec::new();
   f.read_to_end(&mut buf)?;
-  let seg = decode_segment(&buf)?;
+  let seg = decode_stream_official(&buf)?;
   let message = TestAllTypes::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
 
   let mut f = File::open("testdata/pretty.txt")?;

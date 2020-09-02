@@ -64,6 +64,7 @@ trait FieldType {
   fn type_in_option(&self) -> bool;
   fn type_owned(&self) -> String;
   fn type_meta(&self) -> String;
+  fn type_element(&self) -> String;
   fn type_meta_class(&self) -> &'static str;
 }
 
@@ -92,6 +93,9 @@ impl FieldType for PrimitiveField {
   }
   fn type_meta(&self) -> String {
     self.type_.to_shouty_snake_case()
+  }
+  fn type_element(&self) -> String {
+    format!("ElementType::Primitive(PrimitiveElementType::{})", self.type_.to_shouty_snake_case())
   }
   fn type_meta_class(&self) -> &'static str {
     "Primitive"
@@ -123,6 +127,9 @@ impl FieldType for WrappedField {
     self.wrap_type.clone()
   }
   fn type_meta(&self) -> String {
+    self.wrapped.ftype().type_meta()
+  }
+  fn type_element(&self) -> String {
     self.wrapped.ftype().type_meta()
   }
   fn type_meta_class(&self) -> &'static str {
@@ -157,6 +164,12 @@ impl FieldType for StructField {
   }
   fn type_meta(&self) -> String {
     "Struct".to_string()
+  }
+  fn type_element(&self) -> String {
+    format!(
+      "ElementType::Pointer(PointerElementType::Struct(StructElementType {{meta: &{}::META}}))",
+      self.type_
+    )
   }
   fn type_meta_class(&self) -> &'static str {
     "Pointer"
@@ -193,6 +206,12 @@ impl FieldType for ListField {
   fn type_meta(&self) -> String {
     "List".to_string()
   }
+  fn type_element(&self) -> String {
+    format!(
+      "ElementType::Pointer(PointerElementType::List(ListElementType{{values: &{}}}))",
+      self.wrapped.ftype().type_element()
+    )
+  }
   fn type_meta_class(&self) -> &'static str {
     "Pointer"
   }
@@ -224,6 +243,9 @@ impl FieldType for EnumField {
   }
   fn type_meta(&self) -> String {
     "Enum".to_string()
+  }
+  fn type_element(&self) -> String {
+    format!("EnumElementType")
   }
   fn type_meta_class(&self) -> &'static str {
     "Enum"
@@ -260,12 +282,14 @@ impl Struct {
       write!(w, "  const {}_META: {}FieldMeta = {}FieldMeta {{\n", field.meta_name(), field.ftype().type_meta(), field.ftype().type_meta())?;
       write!(w, "    name: \"{}\",\n", field.name)?;
       write!(w, "    offset: NumElements({}),\n", field.offset)?;
-      match field.type_ {
+      match &field.type_ {
         FieldTypeEnum::Struct(_) => {
-          write!(w, "    meta: || &{}::META,\n", field.ftype().type_owned())?;
+          write!(w, "    meta: &{}::META,\n", field.ftype().type_owned())?;
         }
-        FieldTypeEnum::List(_) => {
-          write!(w, "    get_element: |data, sink| sink.list({}{{data: data.clone()}}.{}().to_element_list()),\n", struct_name, field.name)?;
+        FieldTypeEnum::List(x) => {
+          write!(w, "    meta: &ListMeta {{\n")?;
+          write!(w, "      value_type: {}\n", x.wrapped.ftype().type_element())?;
+          write!(w, "    }},\n")?;
         }
         _ => {} // No-op
       }
@@ -275,7 +299,9 @@ impl Struct {
 
     write!(w, "  const META: StructMeta = StructMeta {{\n")?;
     write!(w, "    name: \"{}\",\n", struct_name)?;
-    write!(w, "    fields: &[\n")?;
+    write!(w, "    data_size: NumWords({}),\n", self.data_words)?;
+    write!(w, "    pointer_size: NumWords({}),\n", self.pointer_words)?;
+    write!(w, "    fields: || &[\n")?;
     for field in self.fields.iter() {
       write!(w, "      FieldMeta::{}({}FieldMeta::{}({}::{}_META)),\n",
       field.ftype().type_meta_class(), field.ftype().type_meta_class(), field.ftype().type_meta(), struct_name, field.meta_name())?;
@@ -300,20 +326,32 @@ impl Struct {
     write!(w, "}}\n\n")?;
 
     write!(w, "impl<'a> TypedStruct<'a> for {}<'a> {{\n", struct_name)?;
-    write!(w, "  fn meta(&self) -> &'static StructMeta {{\n")?;
+    write!(w, "  fn meta() -> &'static StructMeta {{\n")?;
     write!(w, "    &{}::META\n", struct_name)?;
     write!(w, "  }}\n")?;
     write!(w, "  fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {{\n")?;
     write!(w, "    {} {{ data: data }}\n", struct_name)?;
     write!(w, "  }}\n")?;
-    write!(w, "  fn to_untyped(&self) -> UntypedStruct<'a> {{\n")?;
+    write!(w, "  fn as_untyped(&self) -> UntypedStruct<'a> {{\n")?;
     write!(w, "    self.data.clone()\n")?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n\n")?;
 
     write!(w, "impl<'a> std::fmt::Debug for {}<'a> {{\n", struct_name)?;
     write!(w, "  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {{\n")?;
-    write!(w, "    PointerElement::Struct(&{}::META, self.data.clone()).fmt(f)\n", struct_name)?;
+    write!(w, "    self.as_element().fmt(f)\n")?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n\n")?;
+
+    write!(w, "impl<'a> std::cmp::PartialOrd for {}<'a> {{\n", struct_name)?;
+    write!(w, "  fn partial_cmp(&self, other: &{}<'a>) -> Option<std::cmp::Ordering> {{\n", struct_name)?;
+    write!(w, "    self.as_element().partial_cmp(&other.as_element())\n")?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n\n")?;
+
+    write!(w, "impl<'a> std::cmp::PartialEq for {}<'a> {{\n", struct_name)?;
+    write!(w, "  fn eq(&self, other: &{}<'a>) -> bool {{\n", struct_name)?;
+    write!(w, "    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)\n")?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n\n")?;
 
@@ -332,7 +370,7 @@ impl Struct {
       }
     }
     write!(w, "  ) -> {}Shared {{\n", struct_name)?;
-    write!(w, "    let mut data = UntypedStructOwned::new_with_root_struct(NumWords({}), NumWords({}));\n", self.data_words, self.pointer_words)?;
+    write!(w, "    let mut data = UntypedStructOwned::new_with_root_struct({}::META.data_size, {}::META.pointer_size);\n", struct_name, struct_name)?;
     for field in self.fields.iter() {
       write!(w, "    {}::{}_META.set(&mut data, {});\n", struct_name, field.meta_name(), field.name)?;
     }
@@ -346,7 +384,13 @@ impl Struct {
     write!(w, "}}\n\n")?;
 
     write!(w, "impl TypedStructShared for {}Shared {{\n", struct_name)?;
-    write!(w, "  fn to_untyped(&self) -> UntypedStructShared {{\n")?;
+    write!(w, "  fn meta() -> &'static StructMeta {{\n")?;
+    write!(w, "    &{}::META\n", struct_name)?;
+    write!(w, "  }}\n")?;
+    write!(w, "  fn from_untyped_struct(data: UntypedStructShared) -> Self {{\n")?;
+    write!(w, "    {}Shared {{ data: data }}\n", struct_name)?;
+    write!(w, "  }}\n")?;
+    write!(w, "  fn as_untyped(&self) -> UntypedStructShared {{\n")?;
     write!(w, "    self.data.clone()\n")?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n\n")?;

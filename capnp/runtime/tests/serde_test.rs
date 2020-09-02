@@ -20,7 +20,7 @@ mod test {
     let mut f = File::open("testdata/binary")?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let seg = decode_segment(&buf)?;
+    let seg = decode_stream_official(&buf)?;
     let message = TestAllTypes::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
 
     let mut f = File::open("testdata/short.json")?;
@@ -28,8 +28,10 @@ mod test {
     f.read_to_end(&mut expected)?;
     let expected = String::from_utf8(expected)?;
 
-    let actual =
-      serde_json::ser::to_string(&PointerElement::Struct(message.meta(), message.to_untyped()))?;
+    let actual = serde_json::ser::to_string(&PointerElement::Struct(StructElement(
+      TestAllTypes::meta(),
+      message.as_untyped(),
+    )))?;
     assert_eq!(actual, expected);
     Ok(())
   }

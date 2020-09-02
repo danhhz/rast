@@ -13,22 +13,28 @@ impl<'a> TestAllTypes<'a> {
   const DATA_FIELD_META: ListFieldMeta = ListFieldMeta {
     name: "data_field",
     offset: NumElements(1),
-    get_element: |data, sink| sink.list(TestAllTypes{data: data.clone()}.data_field().to_element_list()),
+    meta: &ListMeta {
+      value_type: ElementType::Primitive(PrimitiveElementType::U8)
+    },
   };
   const STRUCT_FIELD_META: StructFieldMeta = StructFieldMeta {
     name: "struct_field",
     offset: NumElements(2),
-    meta: || &TestAllTypes::META,
+    meta: &TestAllTypes::META,
   };
   const STRUCT_LIST_META: ListFieldMeta = ListFieldMeta {
     name: "struct_list",
     offset: NumElements(17),
-    get_element: |data, sink| sink.list(TestAllTypes{data: data.clone()}.struct_list().to_element_list()),
+    meta: &ListMeta {
+      value_type: ElementType::Pointer(PointerElementType::Struct(StructElementType {meta: &TestAllTypes::META}))
+    },
   };
 
   const META: StructMeta = StructMeta {
     name: "TestAllTypes",
-    fields: &[
+    data_size: NumWords(6),
+    pointer_size: NumWords(20),
+    fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(TestAllTypes::U_INT64_FIELD_META)),
       FieldMeta::Pointer(PointerFieldMeta::List(TestAllTypes::DATA_FIELD_META)),
       FieldMeta::Pointer(PointerFieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META)),
@@ -43,20 +49,32 @@ impl<'a> TestAllTypes<'a> {
 }
 
 impl<'a> TypedStruct<'a> for TestAllTypes<'a> {
-  fn meta(&self) -> &'static StructMeta {
+  fn meta() -> &'static StructMeta {
     &TestAllTypes::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
     TestAllTypes { data: data }
   }
-  fn to_untyped(&self) -> UntypedStruct<'a> {
+  fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
 impl<'a> std::fmt::Debug for TestAllTypes<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    PointerElement::Struct(&TestAllTypes::META, self.data.clone()).fmt(f)
+    self.as_element().fmt(f)
+  }
+}
+
+impl<'a> std::cmp::PartialOrd for TestAllTypes<'a> {
+  fn partial_cmp(&self, other: &TestAllTypes<'a>) -> Option<std::cmp::Ordering> {
+    self.as_element().partial_cmp(&other.as_element())
+  }
+}
+
+impl<'a> std::cmp::PartialEq for TestAllTypes<'a> {
+  fn eq(&self, other: &TestAllTypes<'a>) -> bool {
+    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
 
@@ -71,7 +89,7 @@ impl TestAllTypesShared {
     struct_field: Option<TestAllTypesShared>,
     struct_list: &'_ [TestAllTypesShared],
   ) -> TestAllTypesShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(6), NumWords(20));
+    let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
     TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);
     TestAllTypes::DATA_FIELD_META.set(&mut data, data_field);
     TestAllTypes::STRUCT_FIELD_META.set(&mut data, struct_field);
@@ -85,7 +103,13 @@ impl TestAllTypesShared {
 }
 
 impl TypedStructShared for TestAllTypesShared {
-  fn to_untyped(&self) -> UntypedStructShared {
+  fn meta() -> &'static StructMeta {
+    &TestAllTypes::META
+  }
+  fn from_untyped_struct(data: UntypedStructShared) -> Self {
+    TestAllTypesShared { data: data }
+  }
+  fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
   }
 }

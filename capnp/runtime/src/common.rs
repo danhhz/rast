@@ -55,7 +55,7 @@ pub const POINTER_WIDTH_WORDS: NumWords = NumWords(1);
 pub const POINTER_WIDTH_BYTES: usize = POINTER_WIDTH_WORDS.as_bytes();
 pub const COMPOSITE_TAG_WIDTH_BYTES: usize = U64_WIDTH_BYTES;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ElementWidth {
   Void,
   OneBit,
@@ -64,4 +64,15 @@ pub enum ElementWidth {
   FourBytes,
   EightBytesNonPointer,
   EightBytesPointer,
+}
+
+impl ElementWidth {
+  pub fn list_len_bytes(&self, list_len: usize) -> usize {
+    match self {
+      ElementWidth::OneByte => 1 * list_len,
+      ElementWidth::EightBytesNonPointer => 8 * list_len,
+      ElementWidth::EightBytesPointer => 8 * list_len,
+      _ => todo!(),
+    }
+  }
 }

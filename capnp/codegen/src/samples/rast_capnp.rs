@@ -18,12 +18,16 @@ impl<'a> Entry<'a> {
   const PAYLOAD_META: ListFieldMeta = ListFieldMeta {
     name: "payload",
     offset: NumElements(0),
-    get_element: |data, sink| sink.list(Entry{data: data.clone()}.payload().to_element_list()),
+    meta: &ListMeta {
+      value_type: ElementType::Primitive(PrimitiveElementType::U8)
+    },
   };
 
   const META: StructMeta = StructMeta {
     name: "Entry",
-    fields: &[
+    data_size: NumWords(2),
+    pointer_size: NumWords(1),
+    fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::TERM_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::INDEX_META)),
       FieldMeta::Pointer(PointerFieldMeta::List(Entry::PAYLOAD_META)),
@@ -39,20 +43,32 @@ impl<'a> Entry<'a> {
 }
 
 impl<'a> TypedStruct<'a> for Entry<'a> {
-  fn meta(&self) -> &'static StructMeta {
+  fn meta() -> &'static StructMeta {
     &Entry::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
     Entry { data: data }
   }
-  fn to_untyped(&self) -> UntypedStruct<'a> {
+  fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
 impl<'a> std::fmt::Debug for Entry<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    PointerElement::Struct(&Entry::META, self.data.clone()).fmt(f)
+    self.as_element().fmt(f)
+  }
+}
+
+impl<'a> std::cmp::PartialOrd for Entry<'a> {
+  fn partial_cmp(&self, other: &Entry<'a>) -> Option<std::cmp::Ordering> {
+    self.as_element().partial_cmp(&other.as_element())
+  }
+}
+
+impl<'a> std::cmp::PartialEq for Entry<'a> {
+  fn eq(&self, other: &Entry<'a>) -> bool {
+    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
 
@@ -66,7 +82,7 @@ impl EntryShared {
     index: u64,
     payload: &'_ [u8],
   ) -> EntryShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(2), NumWords(1));
+    let mut data = UntypedStructOwned::new_with_root_struct(Entry::META.data_size, Entry::META.pointer_size);
     Entry::TERM_META.set(&mut data, term);
     Entry::INDEX_META.set(&mut data, index);
     Entry::PAYLOAD_META.set(&mut data, payload);
@@ -79,7 +95,13 @@ impl EntryShared {
 }
 
 impl TypedStructShared for EntryShared {
-  fn to_untyped(&self) -> UntypedStructShared {
+  fn meta() -> &'static StructMeta {
+    &Entry::META
+  }
+  fn from_untyped_struct(data: UntypedStructShared) -> Self {
+    EntryShared { data: data }
+  }
+  fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
   }
 }
@@ -102,7 +124,9 @@ impl<'a> Message<'a> {
 
   const META: StructMeta = StructMeta {
     name: "Message",
-    fields: &[
+    data_size: NumWords(3),
+    pointer_size: NumWords(1),
+    fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::SRC_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::DEST_META)),
     ],
@@ -115,20 +139,32 @@ impl<'a> Message<'a> {
 }
 
 impl<'a> TypedStruct<'a> for Message<'a> {
-  fn meta(&self) -> &'static StructMeta {
+  fn meta() -> &'static StructMeta {
     &Message::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
     Message { data: data }
   }
-  fn to_untyped(&self) -> UntypedStruct<'a> {
+  fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
 impl<'a> std::fmt::Debug for Message<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    PointerElement::Struct(&Message::META, self.data.clone()).fmt(f)
+    self.as_element().fmt(f)
+  }
+}
+
+impl<'a> std::cmp::PartialOrd for Message<'a> {
+  fn partial_cmp(&self, other: &Message<'a>) -> Option<std::cmp::Ordering> {
+    self.as_element().partial_cmp(&other.as_element())
+  }
+}
+
+impl<'a> std::cmp::PartialEq for Message<'a> {
+  fn eq(&self, other: &Message<'a>) -> bool {
+    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
 
@@ -141,7 +177,7 @@ impl MessageShared {
     src: u64,
     dest: u64,
   ) -> MessageShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(3), NumWords(1));
+    let mut data = UntypedStructOwned::new_with_root_struct(Message::META.data_size, Message::META.pointer_size);
     Message::SRC_META.set(&mut data, src);
     Message::DEST_META.set(&mut data, dest);
     MessageShared { data: data.into_shared() }
@@ -153,7 +189,13 @@ impl MessageShared {
 }
 
 impl TypedStructShared for MessageShared {
-  fn to_untyped(&self) -> UntypedStructShared {
+  fn meta() -> &'static StructMeta {
+    &Message::META
+  }
+  fn from_untyped_struct(data: UntypedStructShared) -> Self {
+    MessageShared { data: data }
+  }
+  fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
   }
 }
@@ -191,12 +233,16 @@ impl<'a> AppendEntriesReq<'a> {
   const ENTRIES_META: ListFieldMeta = ListFieldMeta {
     name: "entries",
     offset: NumElements(0),
-    get_element: |data, sink| sink.list(AppendEntriesReq{data: data.clone()}.entries().to_element_list()),
+    meta: &ListMeta {
+      value_type: ElementType::Pointer(PointerElementType::Struct(StructElementType {meta: &Entry::META}))
+    },
   };
 
   const META: StructMeta = StructMeta {
     name: "AppendEntriesReq",
-    fields: &[
+    data_size: NumWords(6),
+    pointer_size: NumWords(1),
+    fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::TERM_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::LEADER_ID_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::PREV_LOG_INDEX_META)),
@@ -217,20 +263,32 @@ impl<'a> AppendEntriesReq<'a> {
 }
 
 impl<'a> TypedStruct<'a> for AppendEntriesReq<'a> {
-  fn meta(&self) -> &'static StructMeta {
+  fn meta() -> &'static StructMeta {
     &AppendEntriesReq::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
     AppendEntriesReq { data: data }
   }
-  fn to_untyped(&self) -> UntypedStruct<'a> {
+  fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
 impl<'a> std::fmt::Debug for AppendEntriesReq<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    PointerElement::Struct(&AppendEntriesReq::META, self.data.clone()).fmt(f)
+    self.as_element().fmt(f)
+  }
+}
+
+impl<'a> std::cmp::PartialOrd for AppendEntriesReq<'a> {
+  fn partial_cmp(&self, other: &AppendEntriesReq<'a>) -> Option<std::cmp::Ordering> {
+    self.as_element().partial_cmp(&other.as_element())
+  }
+}
+
+impl<'a> std::cmp::PartialEq for AppendEntriesReq<'a> {
+  fn eq(&self, other: &AppendEntriesReq<'a>) -> bool {
+    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
 
@@ -248,7 +306,7 @@ impl AppendEntriesReqShared {
     read_id: u64,
     entries: &'_ [EntryShared],
   ) -> AppendEntriesReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(6), NumWords(1));
+    let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesReq::META.data_size, AppendEntriesReq::META.pointer_size);
     AppendEntriesReq::TERM_META.set(&mut data, term);
     AppendEntriesReq::LEADER_ID_META.set(&mut data, leader_id);
     AppendEntriesReq::PREV_LOG_INDEX_META.set(&mut data, prev_log_index);
@@ -265,7 +323,13 @@ impl AppendEntriesReqShared {
 }
 
 impl TypedStructShared for AppendEntriesReqShared {
-  fn to_untyped(&self) -> UntypedStructShared {
+  fn meta() -> &'static StructMeta {
+    &AppendEntriesReq::META
+  }
+  fn from_untyped_struct(data: UntypedStructShared) -> Self {
+    AppendEntriesReqShared { data: data }
+  }
+  fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
   }
 }
@@ -295,7 +359,9 @@ impl<'a> AppendEntriesRes<'a> {
 
   const META: StructMeta = StructMeta {
     name: "AppendEntriesRes",
-    fields: &[
+    data_size: NumWords(4),
+    pointer_size: NumWords(0),
+    fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::TERM_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::SUCCESS_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::INDEX_META)),
@@ -310,20 +376,32 @@ impl<'a> AppendEntriesRes<'a> {
 }
 
 impl<'a> TypedStruct<'a> for AppendEntriesRes<'a> {
-  fn meta(&self) -> &'static StructMeta {
+  fn meta() -> &'static StructMeta {
     &AppendEntriesRes::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
     AppendEntriesRes { data: data }
   }
-  fn to_untyped(&self) -> UntypedStruct<'a> {
+  fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
 impl<'a> std::fmt::Debug for AppendEntriesRes<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    PointerElement::Struct(&AppendEntriesRes::META, self.data.clone()).fmt(f)
+    self.as_element().fmt(f)
+  }
+}
+
+impl<'a> std::cmp::PartialOrd for AppendEntriesRes<'a> {
+  fn partial_cmp(&self, other: &AppendEntriesRes<'a>) -> Option<std::cmp::Ordering> {
+    self.as_element().partial_cmp(&other.as_element())
+  }
+}
+
+impl<'a> std::cmp::PartialEq for AppendEntriesRes<'a> {
+  fn eq(&self, other: &AppendEntriesRes<'a>) -> bool {
+    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
 
@@ -338,7 +416,7 @@ impl AppendEntriesResShared {
     index: u64,
     read_id: u64,
   ) -> AppendEntriesResShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(4), NumWords(0));
+    let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesRes::META.data_size, AppendEntriesRes::META.pointer_size);
     AppendEntriesRes::TERM_META.set(&mut data, term);
     AppendEntriesRes::SUCCESS_META.set(&mut data, success);
     AppendEntriesRes::INDEX_META.set(&mut data, index);
@@ -352,7 +430,13 @@ impl AppendEntriesResShared {
 }
 
 impl TypedStructShared for AppendEntriesResShared {
-  fn to_untyped(&self) -> UntypedStructShared {
+  fn meta() -> &'static StructMeta {
+    &AppendEntriesRes::META
+  }
+  fn from_untyped_struct(data: UntypedStructShared) -> Self {
+    AppendEntriesResShared { data: data }
+  }
+  fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
   }
 }
@@ -382,7 +466,9 @@ impl<'a> RequestVoteReq<'a> {
 
   const META: StructMeta = StructMeta {
     name: "RequestVoteReq",
-    fields: &[
+    data_size: NumWords(4),
+    pointer_size: NumWords(0),
+    fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::TERM_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::CANDIDATE_ID_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::LAST_LOG_INDEX_META)),
@@ -397,20 +483,32 @@ impl<'a> RequestVoteReq<'a> {
 }
 
 impl<'a> TypedStruct<'a> for RequestVoteReq<'a> {
-  fn meta(&self) -> &'static StructMeta {
+  fn meta() -> &'static StructMeta {
     &RequestVoteReq::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
     RequestVoteReq { data: data }
   }
-  fn to_untyped(&self) -> UntypedStruct<'a> {
+  fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
 impl<'a> std::fmt::Debug for RequestVoteReq<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    PointerElement::Struct(&RequestVoteReq::META, self.data.clone()).fmt(f)
+    self.as_element().fmt(f)
+  }
+}
+
+impl<'a> std::cmp::PartialOrd for RequestVoteReq<'a> {
+  fn partial_cmp(&self, other: &RequestVoteReq<'a>) -> Option<std::cmp::Ordering> {
+    self.as_element().partial_cmp(&other.as_element())
+  }
+}
+
+impl<'a> std::cmp::PartialEq for RequestVoteReq<'a> {
+  fn eq(&self, other: &RequestVoteReq<'a>) -> bool {
+    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
 
@@ -425,7 +523,7 @@ impl RequestVoteReqShared {
     last_log_index: u64,
     last_log_term: u64,
   ) -> RequestVoteReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(4), NumWords(0));
+    let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteReq::META.data_size, RequestVoteReq::META.pointer_size);
     RequestVoteReq::TERM_META.set(&mut data, term);
     RequestVoteReq::CANDIDATE_ID_META.set(&mut data, candidate_id);
     RequestVoteReq::LAST_LOG_INDEX_META.set(&mut data, last_log_index);
@@ -439,7 +537,13 @@ impl RequestVoteReqShared {
 }
 
 impl TypedStructShared for RequestVoteReqShared {
-  fn to_untyped(&self) -> UntypedStructShared {
+  fn meta() -> &'static StructMeta {
+    &RequestVoteReq::META
+  }
+  fn from_untyped_struct(data: UntypedStructShared) -> Self {
+    RequestVoteReqShared { data: data }
+  }
+  fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
   }
 }
@@ -461,7 +565,9 @@ impl<'a> RequestVoteRes<'a> {
 
   const META: StructMeta = StructMeta {
     name: "RequestVoteRes",
-    fields: &[
+    data_size: NumWords(2),
+    pointer_size: NumWords(0),
+    fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteRes::TERM_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteRes::VOTE_GRANTED_META)),
     ],
@@ -472,20 +578,32 @@ impl<'a> RequestVoteRes<'a> {
 }
 
 impl<'a> TypedStruct<'a> for RequestVoteRes<'a> {
-  fn meta(&self) -> &'static StructMeta {
+  fn meta() -> &'static StructMeta {
     &RequestVoteRes::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
     RequestVoteRes { data: data }
   }
-  fn to_untyped(&self) -> UntypedStruct<'a> {
+  fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
 impl<'a> std::fmt::Debug for RequestVoteRes<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    PointerElement::Struct(&RequestVoteRes::META, self.data.clone()).fmt(f)
+    self.as_element().fmt(f)
+  }
+}
+
+impl<'a> std::cmp::PartialOrd for RequestVoteRes<'a> {
+  fn partial_cmp(&self, other: &RequestVoteRes<'a>) -> Option<std::cmp::Ordering> {
+    self.as_element().partial_cmp(&other.as_element())
+  }
+}
+
+impl<'a> std::cmp::PartialEq for RequestVoteRes<'a> {
+  fn eq(&self, other: &RequestVoteRes<'a>) -> bool {
+    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
 
@@ -498,7 +616,7 @@ impl RequestVoteResShared {
     term: u64,
     vote_granted: u64,
   ) -> RequestVoteResShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(2), NumWords(0));
+    let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteRes::META.data_size, RequestVoteRes::META.pointer_size);
     RequestVoteRes::TERM_META.set(&mut data, term);
     RequestVoteRes::VOTE_GRANTED_META.set(&mut data, vote_granted);
     RequestVoteResShared { data: data.into_shared() }
@@ -510,7 +628,13 @@ impl RequestVoteResShared {
 }
 
 impl TypedStructShared for RequestVoteResShared {
-  fn to_untyped(&self) -> UntypedStructShared {
+  fn meta() -> &'static StructMeta {
+    &RequestVoteRes::META
+  }
+  fn from_untyped_struct(data: UntypedStructShared) -> Self {
+    RequestVoteResShared { data: data }
+  }
+  fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
   }
 }
@@ -528,7 +652,9 @@ impl<'a> StartElectionReq<'a> {
 
   const META: StructMeta = StructMeta {
     name: "StartElectionReq",
-    fields: &[
+    data_size: NumWords(1),
+    pointer_size: NumWords(0),
+    fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(StartElectionReq::TERM_META)),
     ],
   };
@@ -537,20 +663,32 @@ impl<'a> StartElectionReq<'a> {
 }
 
 impl<'a> TypedStruct<'a> for StartElectionReq<'a> {
-  fn meta(&self) -> &'static StructMeta {
+  fn meta() -> &'static StructMeta {
     &StartElectionReq::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
     StartElectionReq { data: data }
   }
-  fn to_untyped(&self) -> UntypedStruct<'a> {
+  fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
 impl<'a> std::fmt::Debug for StartElectionReq<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    PointerElement::Struct(&StartElectionReq::META, self.data.clone()).fmt(f)
+    self.as_element().fmt(f)
+  }
+}
+
+impl<'a> std::cmp::PartialOrd for StartElectionReq<'a> {
+  fn partial_cmp(&self, other: &StartElectionReq<'a>) -> Option<std::cmp::Ordering> {
+    self.as_element().partial_cmp(&other.as_element())
+  }
+}
+
+impl<'a> std::cmp::PartialEq for StartElectionReq<'a> {
+  fn eq(&self, other: &StartElectionReq<'a>) -> bool {
+    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
 
@@ -562,7 +700,7 @@ impl StartElectionReqShared {
   pub fn new(
     term: u64,
   ) -> StartElectionReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(NumWords(1), NumWords(0));
+    let mut data = UntypedStructOwned::new_with_root_struct(StartElectionReq::META.data_size, StartElectionReq::META.pointer_size);
     StartElectionReq::TERM_META.set(&mut data, term);
     StartElectionReqShared { data: data.into_shared() }
   }
@@ -573,7 +711,13 @@ impl StartElectionReqShared {
 }
 
 impl TypedStructShared for StartElectionReqShared {
-  fn to_untyped(&self) -> UntypedStructShared {
+  fn meta() -> &'static StructMeta {
+    &StartElectionReq::META
+  }
+  fn from_untyped_struct(data: UntypedStructShared) -> Self {
+    StartElectionReqShared { data: data }
+  }
+  fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
   }
 }

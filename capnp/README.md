@@ -9,15 +9,18 @@ Rast [Cap'n Proto]
 - [ ] User-facing rustdoc
 - [ ] Implement random encode/decode test (via serde Deserialize?)
 - [ ] Support the remaining non-bool field types
-- [ ] Encoding via constructor
+- [x] Encoding via constructor
 - [ ] Clean up codegen code structure
 - [ ] Port remaining capnp testdata tests
 - [ ] Rename FieldTypeEnum
-- [ ] ListMeta
+- [x] ListMeta
+- [x] Merge StructMeta/ListMeta and StructElementType/ListElementType
 - [x] Add context to error messages
 - [ ] Mark whether an error is user handleable?
 - [x] Bring back generated owned structs
 - [ ] Return a reference to underlying bytes for capnp bytes fields
+- [ ] Replace Vec in list return types with IntoIter
+- [ ] Escape field names so metas don't conflict
 - [ ] README
 - [ ] Document how to run the golden tests
 - [ ] Set up CI
@@ -27,6 +30,8 @@ Rast [Cap'n Proto]
 - [ ] Resolve WIP comments
 - [x] Remove dbg!
 - [ ] Remove println!
+- [ ] Remove "pub use"
+- [ ] Test for zero-sized struct encoding
 
 # v0.1.0
 

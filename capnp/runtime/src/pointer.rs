@@ -60,13 +60,13 @@ impl StructPointer {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ListLayout {
   Packed(NumElements, ElementWidth),
   Composite(NumWords),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListPointer {
   pub off: NumWords,
   pub layout: ListLayout,

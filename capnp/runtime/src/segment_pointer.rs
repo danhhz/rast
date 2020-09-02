@@ -89,10 +89,13 @@ impl<'a> SegmentPointer<'a> {
         Ok((sp, sp_end))
       }
       Pointer::Far(x) => {
-        let seg = self
-          .seg
-          .other(x.seg)
-          .ok_or(Error::from(format!("encoding: far pointer segment {:?} not found", x.seg)))?;
+        let seg = self.seg.other(x.seg).ok_or_else(|| {
+          Error::from(format!(
+            "encoding: far struct pointer segment {:?} not found in {:?}",
+            x.seg,
+            self.seg.all_other().iter().map(|x| x.0).collect::<Vec<_>>()
+          ))
+        })?;
         // println!("following far pointer for struct: {:?} {:?}", x, seg.buf());
         let far = SegmentPointer { seg: seg, off: x.off };
         match x.landing_pad_size {
@@ -162,10 +165,10 @@ impl<'a> SegmentPointer<'a> {
         Ok((lp, lp_end))
       }
       Pointer::Far(x) => {
-        let seg = self
-          .seg
-          .other(x.seg)
-          .ok_or(Error::from(format!("encoding: far pointer segment {:?} not found", x.seg)))?;
+        let seg = self.seg.other(x.seg).ok_or(Error::from(format!(
+          "encoding: far list pointer segment {:?} not found",
+          x.seg
+        )))?;
         // println!("following far pointer for list: {:?} {:?}", x, seg.buf());
         let far = SegmentPointer { seg: seg, off: x.off };
         match x.landing_pad_size {
