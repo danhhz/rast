@@ -16,6 +16,21 @@ pub enum Pointer {
 }
 
 impl Pointer {
+  pub fn decode(buf: [u8; 8]) -> Pointer {
+    if u64::from_le_bytes(buf) == 0 {
+      return Pointer::Null;
+    }
+    let pointer_type =
+      u32::from_le_bytes(buf[0..4].try_into().unwrap()) & 0b_00000000_00000000_00000000_00000011;
+    match pointer_type {
+      0 => Pointer::Struct(StructPointer::decode(buf)),
+      1 => Pointer::List(ListPointer::decode(buf)),
+      2 => Pointer::Far(FarPointer::decode(buf)),
+      3 => Pointer::Other(buf),
+      _ => unreachable!(),
+    }
+  }
+
   pub fn encode(&self) -> [u8; 8] {
     match self {
       Pointer::Null => [0; 8],
@@ -165,21 +180,6 @@ impl FarPointer {
   }
 }
 
-pub fn decode_pointer(buf: [u8; 8]) -> Pointer {
-  if u64::from_le_bytes(buf) == 0 {
-    return Pointer::Null;
-  }
-  let pointer_type =
-    u32::from_le_bytes(buf[0..4].try_into().unwrap()) & 0b_00000000_00000000_00000000_00000011;
-  match pointer_type {
-    0 => Pointer::Struct(StructPointer::decode(buf)),
-    1 => Pointer::List(ListPointer::decode(buf)),
-    2 => Pointer::Far(FarPointer::decode(buf)),
-    3 => Pointer::Other(buf),
-    _ => unreachable!(),
-  }
-}
-
 #[derive(Debug)]
 pub struct ListCompositeTag {
   pub num_elements: NumElements,
@@ -191,7 +191,7 @@ impl ListCompositeTag {
   pub fn decode(buf: [u8; 8]) -> Result<Self, Error> {
     // The tag has the same layout as a struct pointer, except that the pointer
     // offset (B) instead indicates the number of elements in the list.
-    let sp = match decode_pointer(buf) {
+    let sp = match Pointer::decode(buf) {
       Pointer::Struct(sp) => sp,
       x => return Err(Error::from(format!("expected composite tag got: {:?}", x))),
     };

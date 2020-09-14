@@ -6,27 +6,22 @@ pub struct TestAllTypes<'a> {
 }
 
 impl<'a> TestAllTypes<'a> {
-  const U_INT64_FIELD_META: U64FieldMeta = U64FieldMeta {
-    name: "u_int64_field",
-    offset: NumElements(3),
-  };
+  const U_INT64_FIELD_META: U64FieldMeta =
+    U64FieldMeta { name: "u_int64_field", offset: NumElements(3) };
   const DATA_FIELD_META: ListFieldMeta = ListFieldMeta {
     name: "data_field",
     offset: NumElements(1),
-    meta: &ListMeta {
-      value_type: ElementType::Primitive(PrimitiveElementType::U8)
-    },
+    meta: &ListMeta { value_type: ElementType::Primitive(PrimitiveElementType::U8) },
   };
-  const STRUCT_FIELD_META: StructFieldMeta = StructFieldMeta {
-    name: "struct_field",
-    offset: NumElements(2),
-    meta: &TestAllTypes::META,
-  };
+  const STRUCT_FIELD_META: StructFieldMeta =
+    StructFieldMeta { name: "struct_field", offset: NumElements(2), meta: &TestAllTypes::META };
   const STRUCT_LIST_META: ListFieldMeta = ListFieldMeta {
     name: "struct_list",
     offset: NumElements(17),
     meta: &ListMeta {
-      value_type: ElementType::Pointer(PointerElementType::Struct(StructElementType {meta: &TestAllTypes::META}))
+      value_type: ElementType::Pointer(PointerElementType::Struct(StructElementType {
+        meta: &TestAllTypes::META,
+      })),
     },
   };
 
@@ -34,18 +29,28 @@ impl<'a> TestAllTypes<'a> {
     name: "TestAllTypes",
     data_size: NumWords(6),
     pointer_size: NumWords(20),
-    fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(TestAllTypes::U_INT64_FIELD_META)),
-      FieldMeta::Pointer(PointerFieldMeta::List(TestAllTypes::DATA_FIELD_META)),
-      FieldMeta::Pointer(PointerFieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META)),
-      FieldMeta::Pointer(PointerFieldMeta::List(TestAllTypes::STRUCT_LIST_META)),
-    ],
+    fields: || {
+      &[
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(TestAllTypes::U_INT64_FIELD_META)),
+        FieldMeta::Pointer(PointerFieldMeta::List(TestAllTypes::DATA_FIELD_META)),
+        FieldMeta::Pointer(PointerFieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META)),
+        FieldMeta::Pointer(PointerFieldMeta::List(TestAllTypes::STRUCT_LIST_META)),
+      ]
+    },
   };
 
-  pub fn u_int64_field(&self) -> u64 { TestAllTypes::U_INT64_FIELD_META.get(&self.data) }
-  pub fn data_field(&self) -> Result<Vec<u8>, Error> { TestAllTypes::DATA_FIELD_META.get(&self.data) }
-  pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> { TestAllTypes::STRUCT_FIELD_META.get(&self.data) }
-  pub fn struct_list(&self) -> Result<Vec<TestAllTypes<'a>>, Error> { TestAllTypes::STRUCT_LIST_META.get(&self.data) }
+  pub fn u_int64_field(&self) -> u64 {
+    TestAllTypes::U_INT64_FIELD_META.get(&self.data)
+  }
+  pub fn data_field(&self) -> Result<Vec<u8>, Error> {
+    TestAllTypes::DATA_FIELD_META.get(&self.data)
+  }
+  pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> {
+    TestAllTypes::STRUCT_FIELD_META.get(&self.data)
+  }
+  pub fn struct_list(&self) -> Result<Vec<TestAllTypes<'a>>, Error> {
+    TestAllTypes::STRUCT_LIST_META.get(&self.data)
+  }
 }
 
 impl<'a> TypedStruct<'a> for TestAllTypes<'a> {
@@ -87,9 +92,12 @@ impl TestAllTypesShared {
     u_int64_field: u64,
     data_field: &'_ [u8],
     struct_field: Option<&TestAllTypesShared>,
-    struct_list: &'_ [&TestAllTypesShared],
+    struct_list: &'_ [TestAllTypesShared],
   ) -> TestAllTypesShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
+    let mut data = UntypedStructOwned::new_with_root_struct(
+      TestAllTypes::META.data_size,
+      TestAllTypes::META.pointer_size,
+    );
     TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);
     TestAllTypes::DATA_FIELD_META.set(&mut data, data_field);
     TestAllTypes::STRUCT_FIELD_META.set(&mut data, struct_field);
@@ -113,4 +121,3 @@ impl TypedStructShared for TestAllTypesShared {
     self.data.clone()
   }
 }
-

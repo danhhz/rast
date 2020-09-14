@@ -1,24 +1,22 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::hash::Hasher;
 use std::iter::Iterator;
 use std::rc::Rc;
 
-use crate::common::{
-  NumElements, NumWords, POINTER_WIDTH_BYTES, U16_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
-  WORD_BYTES,
-};
+use crate::common::{NumWords, WORD_BYTES};
 use crate::error::Error;
-use crate::pointer::Pointer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SegmentID(pub u32);
 
 #[derive(Debug)]
 pub struct SegmentOwned {
-  pub buf: Vec<u8>,
-  pub other: HashMap<SegmentID, SegmentShared>,
+  buf: Vec<u8>,
+  other: HashMap<SegmentID, SegmentShared>,
 }
 
 impl SegmentOwned {
@@ -30,49 +28,31 @@ impl SegmentOwned {
     SegmentShared { buf: Rc::new(self.buf), other: Rc::new(self.other) }
   }
 
-  pub fn len_words_rounded_up(&self) -> NumWords {
+  pub fn len_words_rounded_up(&mut self) -> NumWords {
     // WIP: Verify soundness of this i32 conversion
     NumWords(((self.buf.len() + WORD_BYTES - 1) / WORD_BYTES) as i32)
   }
 
-  pub fn set_u8(&mut self, off: NumWords, offset: NumElements, value: u8) {
-    let begin = off.as_bytes() + offset.as_bytes(U8_WIDTH_BYTES);
-    let end = begin + U8_WIDTH_BYTES;
-    if self.buf.len() < end {
-      self.buf.resize(end, 0);
-    }
-    // NB: This range is guaranteed to exist because we just resized it.
-    self.buf[begin..end].copy_from_slice(&u8::to_le_bytes(value));
+  pub fn buf_mut(&mut self) -> &mut [u8] {
+    &mut self.buf
   }
 
-  pub fn set_u16(&mut self, off: NumWords, offset: NumElements, value: u16) {
-    let begin = off.as_bytes() + offset.as_bytes(U16_WIDTH_BYTES);
-    let end = begin + U16_WIDTH_BYTES;
-    if self.buf.len() < end {
-      self.buf.resize(end, 0);
+  pub fn ensure_len(&mut self, len_bytes: usize) {
+    // TODO: Segments should always stay word-sized.
+    if self.buf.len() < len_bytes {
+      self.buf.resize(len_bytes, 0);
     }
-    // NB: This range is guaranteed to exist because we just resized it.
-    self.buf[begin..end].copy_from_slice(&u16::to_le_bytes(value));
   }
 
-  pub fn set_u64(&mut self, off: NumWords, offset: NumElements, value: u64) {
-    let begin = off.as_bytes() + offset.as_bytes(U64_WIDTH_BYTES);
-    let end = begin + U64_WIDTH_BYTES;
-    if self.buf.len() < end {
-      self.buf.resize(end, 0);
-    }
-    // NB: This range is guaranteed to exist because we just resized it.
-    self.buf[begin..end].copy_from_slice(&u64::to_le_bytes(value));
-  }
-
-  pub fn set_pointer(&mut self, off: NumWords, offset: NumElements, value: Pointer) {
-    let begin = off.as_bytes() + offset.as_bytes(POINTER_WIDTH_BYTES);
-    let end = begin + POINTER_WIDTH_BYTES;
-    if self.buf.len() < end {
-      self.buf.resize(end, 0);
-    }
-    // NB: This range is guaranteed to exist because we just resized it.
-    self.buf[begin..end].copy_from_slice(&value.encode());
+  pub fn other_reference(&mut self, other: SegmentShared) -> SegmentID {
+    let mut h = DefaultHasher::new();
+    // WIP: Box so this is stable
+    h.write_usize(other.buf().as_ptr() as usize);
+    let segment_id = SegmentID(h.finish() as u32);
+    // WIP: Is this really needed? Makes things O(n^2).
+    self.other.extend(other.all_other());
+    self.other.insert(segment_id, other);
+    segment_id
   }
 }
 

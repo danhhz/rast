@@ -58,7 +58,7 @@ pub const POINTER_WIDTH_WORDS: NumWords = NumWords(1);
 pub const POINTER_WIDTH_BYTES: usize = POINTER_WIDTH_WORDS.as_bytes();
 pub const COMPOSITE_TAG_WIDTH_BYTES: usize = U64_WIDTH_BYTES;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum ElementWidth {
   Void,
   OneBit,

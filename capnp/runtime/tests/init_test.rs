@@ -14,10 +14,9 @@ mod test {
       123,
       &vec![4, 5, 6],
       Some(&TestAllTypesShared::new(789, &vec![], None, &vec![])),
-      &vec![&TestAllTypesShared::new(10, &vec![], None, &vec![])],
+      &vec![TestAllTypesShared::new(10, &vec![], None, &vec![])],
     );
-    // WIP: Why are the null data fields printing? Am I encoding them that way?
-    let expected = "(u_int64_field = 123, data_field = [4, 5, 6], struct_field = (u_int64_field = 789, data_field = []), struct_list = [(u_int64_field = 10, data_field = [])])";
+    let expected = "(u_int64_field = 123, data_field = [4, 5, 6], struct_field = (u_int64_field = 789), struct_list = [(u_int64_field = 10)])";
     assert_eq!(format!("{:?}", message.as_ref()), expected);
     Ok(())
   }
@@ -33,7 +32,7 @@ mod test {
       6,
       7,
       8,
-      &vec![&entry, &EntryShared::new(13, 14, &vec![15])],
+      &vec![entry, EntryShared::new(13, 14, &vec![15])],
     );
     let message = MessageShared::new(1, 2, PayloadShared::AppendEntriesReq(req));
     let expected = "(src = 1, dest = 2, payload = (append_entries_req = (term = 3, leader_id = 4, prev_log_index = 5, prev_log_term = 6, leader_commit = 7, read_id = 8, entries = [(term = 9, index = 10, payload = [11, 12]), (term = 13, index = 14, payload = [15])])))";

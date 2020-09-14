@@ -80,7 +80,7 @@ pub fn gen_untyped_struct<R: Rng>(rng: &mut R, meta: &'static StructMeta) -> Unt
         PointerFieldMeta::Struct(x) => {
           if rng.gen_bool(0.5) {
             let untyped = gen_untyped_struct(rng, x.meta);
-            x.set_untyped(&mut data, x.meta, Some(&untyped))
+            x.set_struct_element(&mut data, &StructElementShared(x.meta, untyped))
           }
         }
         PointerFieldMeta::List(x) => {

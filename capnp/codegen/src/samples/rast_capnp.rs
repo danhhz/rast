@@ -7,39 +7,39 @@ pub struct Entry<'a> {
 }
 
 impl<'a> Entry<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
-    name: "term",
-    offset: NumElements(0),
-  };
-  const INDEX_META: U64FieldMeta = U64FieldMeta {
-    name: "index",
-    offset: NumElements(1),
-  };
+  const TERM_META: U64FieldMeta = U64FieldMeta { name: "term", offset: NumElements(0) };
+  const INDEX_META: U64FieldMeta = U64FieldMeta { name: "index", offset: NumElements(1) };
   const PAYLOAD_META: ListFieldMeta = ListFieldMeta {
     name: "payload",
     offset: NumElements(0),
-    meta: &ListMeta {
-      value_type: ElementType::Primitive(PrimitiveElementType::U8)
-    },
+    meta: &ListMeta { value_type: ElementType::Primitive(PrimitiveElementType::U8) },
   };
 
   const META: StructMeta = StructMeta {
     name: "Entry",
     data_size: NumWords(2),
     pointer_size: NumWords(1),
-    fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::INDEX_META)),
-      FieldMeta::Pointer(PointerFieldMeta::List(Entry::PAYLOAD_META)),
-    ],
+    fields: || {
+      &[
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::TERM_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::INDEX_META)),
+        FieldMeta::Pointer(PointerFieldMeta::List(Entry::PAYLOAD_META)),
+      ]
+    },
   };
 
   /// The term of the entry.
-  pub fn term(&self) -> u64 { Entry::TERM_META.get(&self.data) }
+  pub fn term(&self) -> u64 {
+    Entry::TERM_META.get(&self.data)
+  }
   /// The index of the entry.
-  pub fn index(&self) -> u64 { Entry::INDEX_META.get(&self.data) }
+  pub fn index(&self) -> u64 {
+    Entry::INDEX_META.get(&self.data)
+  }
   /// The opaque user payload of the entry.
-  pub fn payload(&self) -> Result<Vec<u8>, Error> { Entry::PAYLOAD_META.get(&self.data) }
+  pub fn payload(&self) -> Result<Vec<u8>, Error> {
+    Entry::PAYLOAD_META.get(&self.data)
+  }
 }
 
 impl<'a> TypedStruct<'a> for Entry<'a> {
@@ -77,12 +77,9 @@ pub struct EntryShared {
 }
 
 impl EntryShared {
-  pub fn new(
-    term: u64,
-    index: u64,
-    payload: &'_ [u8],
-  ) -> EntryShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(Entry::META.data_size, Entry::META.pointer_size);
+  pub fn new(term: u64, index: u64, payload: &'_ [u8]) -> EntryShared {
+    let mut data =
+      UntypedStructOwned::new_with_root_struct(Entry::META.data_size, Entry::META.pointer_size);
     Entry::TERM_META.set(&mut data, term);
     Entry::INDEX_META.set(&mut data, index);
     Entry::PAYLOAD_META.set(&mut data, payload);
@@ -113,36 +110,35 @@ pub struct Message<'a> {
 }
 
 impl<'a> Message<'a> {
-  const SRC_META: U64FieldMeta = U64FieldMeta {
-    name: "src",
-    offset: NumElements(0),
-  };
-  const DEST_META: U64FieldMeta = U64FieldMeta {
-    name: "dest",
-    offset: NumElements(1),
-  };
-  const PAYLOAD_META: UnionFieldMeta = UnionFieldMeta {
-    name: "payload",
-    offset: NumElements(8),
-    meta: &Payload::META,
-  };
+  const SRC_META: U64FieldMeta = U64FieldMeta { name: "src", offset: NumElements(0) };
+  const DEST_META: U64FieldMeta = U64FieldMeta { name: "dest", offset: NumElements(1) };
+  const PAYLOAD_META: UnionFieldMeta =
+    UnionFieldMeta { name: "payload", offset: NumElements(8), meta: &Payload::META };
 
   const META: StructMeta = StructMeta {
     name: "Message",
     data_size: NumWords(3),
     pointer_size: NumWords(1),
-    fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::SRC_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::DEST_META)),
-      FieldMeta::Union(Message::PAYLOAD_META),
-    ],
+    fields: || {
+      &[
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::SRC_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::DEST_META)),
+        FieldMeta::Union(Message::PAYLOAD_META),
+      ]
+    },
   };
 
   /// The node sending this rpc.
-  pub fn src(&self) -> u64 { Message::SRC_META.get(&self.data) }
+  pub fn src(&self) -> u64 {
+    Message::SRC_META.get(&self.data)
+  }
   /// The node to receive this rpc.
-  pub fn dest(&self) -> u64 { Message::DEST_META.get(&self.data) }
-  pub fn payload(&self) -> Result<Payload<'a>, Error> { Message::PAYLOAD_META.get(&self.data) }
+  pub fn dest(&self) -> u64 {
+    Message::DEST_META.get(&self.data)
+  }
+  pub fn payload(&self) -> Result<Payload<'a>, Error> {
+    Message::PAYLOAD_META.get(&self.data)
+  }
 }
 
 impl<'a> TypedStruct<'a> for Message<'a> {
@@ -180,12 +176,9 @@ pub struct MessageShared {
 }
 
 impl MessageShared {
-  pub fn new(
-    src: u64,
-    dest: u64,
-    payload: PayloadShared,
-  ) -> MessageShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(Message::META.data_size, Message::META.pointer_size);
+  pub fn new(src: u64, dest: u64, payload: PayloadShared) -> MessageShared {
+    let mut data =
+      UntypedStructOwned::new_with_root_struct(Message::META.data_size, Message::META.pointer_size);
     Message::SRC_META.set(&mut data, src);
     Message::DEST_META.set(&mut data, dest);
     Message::PAYLOAD_META.set(&mut data, payload);
@@ -215,35 +208,22 @@ pub struct AppendEntriesReq<'a> {
 }
 
 impl<'a> AppendEntriesReq<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
-    name: "term",
-    offset: NumElements(0),
-  };
-  const LEADER_ID_META: U64FieldMeta = U64FieldMeta {
-    name: "leader_id",
-    offset: NumElements(1),
-  };
-  const PREV_LOG_INDEX_META: U64FieldMeta = U64FieldMeta {
-    name: "prev_log_index",
-    offset: NumElements(2),
-  };
-  const PREV_LOG_TERM_META: U64FieldMeta = U64FieldMeta {
-    name: "prev_log_term",
-    offset: NumElements(3),
-  };
-  const LEADER_COMMIT_META: U64FieldMeta = U64FieldMeta {
-    name: "leader_commit",
-    offset: NumElements(4),
-  };
-  const READ_ID_META: U64FieldMeta = U64FieldMeta {
-    name: "read_id",
-    offset: NumElements(5),
-  };
+  const TERM_META: U64FieldMeta = U64FieldMeta { name: "term", offset: NumElements(0) };
+  const LEADER_ID_META: U64FieldMeta = U64FieldMeta { name: "leader_id", offset: NumElements(1) };
+  const PREV_LOG_INDEX_META: U64FieldMeta =
+    U64FieldMeta { name: "prev_log_index", offset: NumElements(2) };
+  const PREV_LOG_TERM_META: U64FieldMeta =
+    U64FieldMeta { name: "prev_log_term", offset: NumElements(3) };
+  const LEADER_COMMIT_META: U64FieldMeta =
+    U64FieldMeta { name: "leader_commit", offset: NumElements(4) };
+  const READ_ID_META: U64FieldMeta = U64FieldMeta { name: "read_id", offset: NumElements(5) };
   const ENTRIES_META: ListFieldMeta = ListFieldMeta {
     name: "entries",
     offset: NumElements(0),
     meta: &ListMeta {
-      value_type: ElementType::Pointer(PointerElementType::Struct(StructElementType {meta: &Entry::META}))
+      value_type: ElementType::Pointer(PointerElementType::Struct(StructElementType {
+        meta: &Entry::META,
+      })),
     },
   };
 
@@ -251,24 +231,40 @@ impl<'a> AppendEntriesReq<'a> {
     name: "AppendEntriesReq",
     data_size: NumWords(6),
     pointer_size: NumWords(1),
-    fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::LEADER_ID_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::PREV_LOG_INDEX_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::PREV_LOG_TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::LEADER_COMMIT_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::READ_ID_META)),
-      FieldMeta::Pointer(PointerFieldMeta::List(AppendEntriesReq::ENTRIES_META)),
-    ],
+    fields: || {
+      &[
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::TERM_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::LEADER_ID_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::PREV_LOG_INDEX_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::PREV_LOG_TERM_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::LEADER_COMMIT_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::READ_ID_META)),
+        FieldMeta::Pointer(PointerFieldMeta::List(AppendEntriesReq::ENTRIES_META)),
+      ]
+    },
   };
 
-  pub fn term(&self) -> u64 { AppendEntriesReq::TERM_META.get(&self.data) }
-  pub fn leader_id(&self) -> u64 { AppendEntriesReq::LEADER_ID_META.get(&self.data) }
-  pub fn prev_log_index(&self) -> u64 { AppendEntriesReq::PREV_LOG_INDEX_META.get(&self.data) }
-  pub fn prev_log_term(&self) -> u64 { AppendEntriesReq::PREV_LOG_TERM_META.get(&self.data) }
-  pub fn leader_commit(&self) -> u64 { AppendEntriesReq::LEADER_COMMIT_META.get(&self.data) }
-  pub fn read_id(&self) -> u64 { AppendEntriesReq::READ_ID_META.get(&self.data) }
-  pub fn entries(&self) -> Result<Vec<Entry<'a>>, Error> { AppendEntriesReq::ENTRIES_META.get(&self.data) }
+  pub fn term(&self) -> u64 {
+    AppendEntriesReq::TERM_META.get(&self.data)
+  }
+  pub fn leader_id(&self) -> u64 {
+    AppendEntriesReq::LEADER_ID_META.get(&self.data)
+  }
+  pub fn prev_log_index(&self) -> u64 {
+    AppendEntriesReq::PREV_LOG_INDEX_META.get(&self.data)
+  }
+  pub fn prev_log_term(&self) -> u64 {
+    AppendEntriesReq::PREV_LOG_TERM_META.get(&self.data)
+  }
+  pub fn leader_commit(&self) -> u64 {
+    AppendEntriesReq::LEADER_COMMIT_META.get(&self.data)
+  }
+  pub fn read_id(&self) -> u64 {
+    AppendEntriesReq::READ_ID_META.get(&self.data)
+  }
+  pub fn entries(&self) -> Result<Vec<Entry<'a>>, Error> {
+    AppendEntriesReq::ENTRIES_META.get(&self.data)
+  }
 }
 
 impl<'a> TypedStruct<'a> for AppendEntriesReq<'a> {
@@ -313,9 +309,12 @@ impl AppendEntriesReqShared {
     prev_log_term: u64,
     leader_commit: u64,
     read_id: u64,
-    entries: &'_ [&EntryShared],
+    entries: &'_ [EntryShared],
   ) -> AppendEntriesReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesReq::META.data_size, AppendEntriesReq::META.pointer_size);
+    let mut data = UntypedStructOwned::new_with_root_struct(
+      AppendEntriesReq::META.data_size,
+      AppendEntriesReq::META.pointer_size,
+    );
     AppendEntriesReq::TERM_META.set(&mut data, term);
     AppendEntriesReq::LEADER_ID_META.set(&mut data, leader_id);
     AppendEntriesReq::PREV_LOG_INDEX_META.set(&mut data, prev_log_index);
@@ -349,39 +348,37 @@ pub struct AppendEntriesRes<'a> {
 }
 
 impl<'a> AppendEntriesRes<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
-    name: "term",
-    offset: NumElements(0),
-  };
-  const SUCCESS_META: U64FieldMeta = U64FieldMeta {
-    name: "success",
-    offset: NumElements(1),
-  };
-  const INDEX_META: U64FieldMeta = U64FieldMeta {
-    name: "index",
-    offset: NumElements(2),
-  };
-  const READ_ID_META: U64FieldMeta = U64FieldMeta {
-    name: "read_id",
-    offset: NumElements(3),
-  };
+  const TERM_META: U64FieldMeta = U64FieldMeta { name: "term", offset: NumElements(0) };
+  const SUCCESS_META: U64FieldMeta = U64FieldMeta { name: "success", offset: NumElements(1) };
+  const INDEX_META: U64FieldMeta = U64FieldMeta { name: "index", offset: NumElements(2) };
+  const READ_ID_META: U64FieldMeta = U64FieldMeta { name: "read_id", offset: NumElements(3) };
 
   const META: StructMeta = StructMeta {
     name: "AppendEntriesRes",
     data_size: NumWords(4),
     pointer_size: NumWords(0),
-    fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::SUCCESS_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::INDEX_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::READ_ID_META)),
-    ],
+    fields: || {
+      &[
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::TERM_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::SUCCESS_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::INDEX_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::READ_ID_META)),
+      ]
+    },
   };
 
-  pub fn term(&self) -> u64 { AppendEntriesRes::TERM_META.get(&self.data) }
-  pub fn success(&self) -> u64 { AppendEntriesRes::SUCCESS_META.get(&self.data) }
-  pub fn index(&self) -> u64 { AppendEntriesRes::INDEX_META.get(&self.data) }
-  pub fn read_id(&self) -> u64 { AppendEntriesRes::READ_ID_META.get(&self.data) }
+  pub fn term(&self) -> u64 {
+    AppendEntriesRes::TERM_META.get(&self.data)
+  }
+  pub fn success(&self) -> u64 {
+    AppendEntriesRes::SUCCESS_META.get(&self.data)
+  }
+  pub fn index(&self) -> u64 {
+    AppendEntriesRes::INDEX_META.get(&self.data)
+  }
+  pub fn read_id(&self) -> u64 {
+    AppendEntriesRes::READ_ID_META.get(&self.data)
+  }
 }
 
 impl<'a> TypedStruct<'a> for AppendEntriesRes<'a> {
@@ -419,13 +416,11 @@ pub struct AppendEntriesResShared {
 }
 
 impl AppendEntriesResShared {
-  pub fn new(
-    term: u64,
-    success: u64,
-    index: u64,
-    read_id: u64,
-  ) -> AppendEntriesResShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesRes::META.data_size, AppendEntriesRes::META.pointer_size);
+  pub fn new(term: u64, success: u64, index: u64, read_id: u64) -> AppendEntriesResShared {
+    let mut data = UntypedStructOwned::new_with_root_struct(
+      AppendEntriesRes::META.data_size,
+      AppendEntriesRes::META.pointer_size,
+    );
     AppendEntriesRes::TERM_META.set(&mut data, term);
     AppendEntriesRes::SUCCESS_META.set(&mut data, success);
     AppendEntriesRes::INDEX_META.set(&mut data, index);
@@ -456,39 +451,40 @@ pub struct RequestVoteReq<'a> {
 }
 
 impl<'a> RequestVoteReq<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
-    name: "term",
-    offset: NumElements(0),
-  };
-  const CANDIDATE_ID_META: U64FieldMeta = U64FieldMeta {
-    name: "candidate_id",
-    offset: NumElements(1),
-  };
-  const LAST_LOG_INDEX_META: U64FieldMeta = U64FieldMeta {
-    name: "last_log_index",
-    offset: NumElements(2),
-  };
-  const LAST_LOG_TERM_META: U64FieldMeta = U64FieldMeta {
-    name: "last_log_term",
-    offset: NumElements(3),
-  };
+  const TERM_META: U64FieldMeta = U64FieldMeta { name: "term", offset: NumElements(0) };
+  const CANDIDATE_ID_META: U64FieldMeta =
+    U64FieldMeta { name: "candidate_id", offset: NumElements(1) };
+  const LAST_LOG_INDEX_META: U64FieldMeta =
+    U64FieldMeta { name: "last_log_index", offset: NumElements(2) };
+  const LAST_LOG_TERM_META: U64FieldMeta =
+    U64FieldMeta { name: "last_log_term", offset: NumElements(3) };
 
   const META: StructMeta = StructMeta {
     name: "RequestVoteReq",
     data_size: NumWords(4),
     pointer_size: NumWords(0),
-    fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::CANDIDATE_ID_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::LAST_LOG_INDEX_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::LAST_LOG_TERM_META)),
-    ],
+    fields: || {
+      &[
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::TERM_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::CANDIDATE_ID_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::LAST_LOG_INDEX_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::LAST_LOG_TERM_META)),
+      ]
+    },
   };
 
-  pub fn term(&self) -> u64 { RequestVoteReq::TERM_META.get(&self.data) }
-  pub fn candidate_id(&self) -> u64 { RequestVoteReq::CANDIDATE_ID_META.get(&self.data) }
-  pub fn last_log_index(&self) -> u64 { RequestVoteReq::LAST_LOG_INDEX_META.get(&self.data) }
-  pub fn last_log_term(&self) -> u64 { RequestVoteReq::LAST_LOG_TERM_META.get(&self.data) }
+  pub fn term(&self) -> u64 {
+    RequestVoteReq::TERM_META.get(&self.data)
+  }
+  pub fn candidate_id(&self) -> u64 {
+    RequestVoteReq::CANDIDATE_ID_META.get(&self.data)
+  }
+  pub fn last_log_index(&self) -> u64 {
+    RequestVoteReq::LAST_LOG_INDEX_META.get(&self.data)
+  }
+  pub fn last_log_term(&self) -> u64 {
+    RequestVoteReq::LAST_LOG_TERM_META.get(&self.data)
+  }
 }
 
 impl<'a> TypedStruct<'a> for RequestVoteReq<'a> {
@@ -532,7 +528,10 @@ impl RequestVoteReqShared {
     last_log_index: u64,
     last_log_term: u64,
   ) -> RequestVoteReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteReq::META.data_size, RequestVoteReq::META.pointer_size);
+    let mut data = UntypedStructOwned::new_with_root_struct(
+      RequestVoteReq::META.data_size,
+      RequestVoteReq::META.pointer_size,
+    );
     RequestVoteReq::TERM_META.set(&mut data, term);
     RequestVoteReq::CANDIDATE_ID_META.set(&mut data, candidate_id);
     RequestVoteReq::LAST_LOG_INDEX_META.set(&mut data, last_log_index);
@@ -563,27 +562,28 @@ pub struct RequestVoteRes<'a> {
 }
 
 impl<'a> RequestVoteRes<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
-    name: "term",
-    offset: NumElements(0),
-  };
-  const VOTE_GRANTED_META: U64FieldMeta = U64FieldMeta {
-    name: "vote_granted",
-    offset: NumElements(1),
-  };
+  const TERM_META: U64FieldMeta = U64FieldMeta { name: "term", offset: NumElements(0) };
+  const VOTE_GRANTED_META: U64FieldMeta =
+    U64FieldMeta { name: "vote_granted", offset: NumElements(1) };
 
   const META: StructMeta = StructMeta {
     name: "RequestVoteRes",
     data_size: NumWords(2),
     pointer_size: NumWords(0),
-    fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteRes::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteRes::VOTE_GRANTED_META)),
-    ],
+    fields: || {
+      &[
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteRes::TERM_META)),
+        FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteRes::VOTE_GRANTED_META)),
+      ]
+    },
   };
 
-  pub fn term(&self) -> u64 { RequestVoteRes::TERM_META.get(&self.data) }
-  pub fn vote_granted(&self) -> u64 { RequestVoteRes::VOTE_GRANTED_META.get(&self.data) }
+  pub fn term(&self) -> u64 {
+    RequestVoteRes::TERM_META.get(&self.data)
+  }
+  pub fn vote_granted(&self) -> u64 {
+    RequestVoteRes::VOTE_GRANTED_META.get(&self.data)
+  }
 }
 
 impl<'a> TypedStruct<'a> for RequestVoteRes<'a> {
@@ -621,11 +621,11 @@ pub struct RequestVoteResShared {
 }
 
 impl RequestVoteResShared {
-  pub fn new(
-    term: u64,
-    vote_granted: u64,
-  ) -> RequestVoteResShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteRes::META.data_size, RequestVoteRes::META.pointer_size);
+  pub fn new(term: u64, vote_granted: u64) -> RequestVoteResShared {
+    let mut data = UntypedStructOwned::new_with_root_struct(
+      RequestVoteRes::META.data_size,
+      RequestVoteRes::META.pointer_size,
+    );
     RequestVoteRes::TERM_META.set(&mut data, term);
     RequestVoteRes::VOTE_GRANTED_META.set(&mut data, vote_granted);
     RequestVoteResShared { data: data.into_shared() }
@@ -654,21 +654,18 @@ pub struct StartElectionReq<'a> {
 }
 
 impl<'a> StartElectionReq<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
-    name: "term",
-    offset: NumElements(0),
-  };
+  const TERM_META: U64FieldMeta = U64FieldMeta { name: "term", offset: NumElements(0) };
 
   const META: StructMeta = StructMeta {
     name: "StartElectionReq",
     data_size: NumWords(1),
     pointer_size: NumWords(0),
-    fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(StartElectionReq::TERM_META)),
-    ],
+    fields: || &[FieldMeta::Primitive(PrimitiveFieldMeta::U64(StartElectionReq::TERM_META))],
   };
 
-  pub fn term(&self) -> u64 { StartElectionReq::TERM_META.get(&self.data) }
+  pub fn term(&self) -> u64 {
+    StartElectionReq::TERM_META.get(&self.data)
+  }
 }
 
 impl<'a> TypedStruct<'a> for StartElectionReq<'a> {
@@ -706,10 +703,11 @@ pub struct StartElectionReqShared {
 }
 
 impl StartElectionReqShared {
-  pub fn new(
-    term: u64,
-  ) -> StartElectionReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(StartElectionReq::META.data_size, StartElectionReq::META.pointer_size);
+  pub fn new(term: u64) -> StartElectionReqShared {
+    let mut data = UntypedStructOwned::new_with_root_struct(
+      StartElectionReq::META.data_size,
+      StartElectionReq::META.pointer_size,
+    );
     StartElectionReq::TERM_META.set(&mut data, term);
     StartElectionReqShared { data: data.into_shared() }
   }
@@ -769,23 +767,23 @@ impl Payload<'_> {
   const META: UnionMeta = UnionMeta {
     name: "Payload",
     variants: &[
-      UnionVariantMeta{
+      UnionVariantMeta {
         discriminant: Discriminant(0),
         field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::APPEND_ENTRIES_REQ_META)),
       },
-      UnionVariantMeta{
+      UnionVariantMeta {
         discriminant: Discriminant(1),
         field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::APPEND_ENTRIES_RES_META)),
       },
-      UnionVariantMeta{
+      UnionVariantMeta {
         discriminant: Discriminant(2),
         field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::REQUEST_VOTE_REQ_META)),
       },
-      UnionVariantMeta{
+      UnionVariantMeta {
         discriminant: Discriminant(3),
         field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::REQUEST_VOTE_RES_META)),
       },
-      UnionVariantMeta{
+      UnionVariantMeta {
         discriminant: Discriminant(4),
         field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::START_ELECTION_REQ_META)),
       },
@@ -799,11 +797,21 @@ impl<'a> TypedUnion<'a> for Payload<'a> {
   }
   fn from_untyped_union(untyped: &UntypedUnion<'a>) -> Result<Self, Error> {
     match untyped.discriminant {
-      Discriminant(0) => Payload::APPEND_ENTRIES_REQ_META.get(&untyped.variant_data).map(|x| Payload::AppendEntriesReq(x)),
-      Discriminant(1) => Payload::APPEND_ENTRIES_RES_META.get(&untyped.variant_data).map(|x| Payload::AppendEntriesRes(x)),
-      Discriminant(2) => Payload::REQUEST_VOTE_REQ_META.get(&untyped.variant_data).map(|x| Payload::RequestVoteReq(x)),
-      Discriminant(3) => Payload::REQUEST_VOTE_RES_META.get(&untyped.variant_data).map(|x| Payload::RequestVoteRes(x)),
-      Discriminant(4) => Payload::START_ELECTION_REQ_META.get(&untyped.variant_data).map(|x| Payload::StartElectionReq(x)),
+      Discriminant(0) => Payload::APPEND_ENTRIES_REQ_META
+        .get(&untyped.variant_data)
+        .map(|x| Payload::AppendEntriesReq(x)),
+      Discriminant(1) => Payload::APPEND_ENTRIES_RES_META
+        .get(&untyped.variant_data)
+        .map(|x| Payload::AppendEntriesRes(x)),
+      Discriminant(2) => Payload::REQUEST_VOTE_REQ_META
+        .get(&untyped.variant_data)
+        .map(|x| Payload::RequestVoteReq(x)),
+      Discriminant(3) => Payload::REQUEST_VOTE_RES_META
+        .get(&untyped.variant_data)
+        .map(|x| Payload::RequestVoteRes(x)),
+      Discriminant(4) => Payload::START_ELECTION_REQ_META
+        .get(&untyped.variant_data)
+        .map(|x| Payload::StartElectionReq(x)),
       x => Err(Error::from(format!("unknown Payload discriminant: {:?}", x))),
     }
   }

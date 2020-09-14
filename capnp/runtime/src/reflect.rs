@@ -2,9 +2,12 @@
 
 use std::fmt;
 
-use crate::common::{Discriminant, ElementWidth, NumElements, NumWords};
+use crate::common::{Discriminant, NumElements, NumWords};
+use crate::decode::StructDecode;
+use crate::encode::StructEncode;
 use crate::error::Error;
-use crate::pointer::{ListLayout, Pointer, StructPointer};
+use crate::list::{ListMeta, TypedList, TypedListShared};
+use crate::pointer::Pointer;
 use crate::untyped::{
   UntypedList, UntypedStruct, UntypedStructOwned, UntypedStructShared, UntypedUnion,
 };
@@ -20,9 +23,6 @@ pub use cmp::*;
 
 pub mod fmt_debug;
 pub use fmt_debug::*;
-
-pub mod list;
-pub use list::*;
 
 pub struct StructMeta {
   pub name: &'static str,
@@ -43,7 +43,7 @@ impl fmt::Debug for StructMeta {
       .field("name", &self.name)
       .field("data_size", &self.data_size)
       .field("pointer_size", &self.pointer_size)
-      .field("fields", &"WIP")
+      .field("fields", &self.fields())
       .finish()
   }
 }
@@ -55,87 +55,6 @@ pub trait TypedStruct<'a> {
   // TODO: Move this
   fn as_element(&self) -> StructElement<'a> {
     StructElement(Self::meta(), self.as_untyped())
-  }
-}
-
-#[derive(Debug, PartialOrd, PartialEq)]
-pub struct ListMeta {
-  pub value_type: ElementType,
-}
-
-pub trait TypedList<'a>: Sized {
-  fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error>;
-}
-
-// TODO: Relate TypedListShared to TypedList.
-pub trait TypedListShared {
-  fn set(&self, data: &mut UntypedStructOwned, offset: NumElements);
-}
-
-impl<'a> TypedList<'a> for Vec<u8> {
-  fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error> {
-    let num_elements = match &untyped.pointer.layout {
-      ListLayout::Packed(NumElements(0), ElementWidth::Void) => {
-        // NB: NumElements(0), ElementWidth::Void is a null pointer.
-        return Ok(vec![]);
-      }
-      ListLayout::Packed(num_elements, ElementWidth::OneByte) => num_elements,
-      x => return Err(Error::from(format!("unsupported list layout for u8: {:?}", x))),
-    };
-    let list_elements_begin = untyped.pointer_end.clone() + untyped.pointer.off;
-    let mut ret = Vec::new();
-    for idx in 0..num_elements.0 {
-      let el = list_elements_begin.u8(NumElements(idx));
-      ret.push(el);
-    }
-    Ok(ret)
-  }
-}
-
-impl<'a> TypedList<'a> for Vec<u64> {
-  fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error> {
-    todo!()
-  }
-}
-
-// impl<'a> TypedList<'a> for Vec<StructElement<'a>> {
-//   fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error> {
-//     todo!()
-//   }
-// }
-
-impl<'a> TypedList<'a> for Vec<UntypedStruct<'a>> {
-  fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error> {
-    let pointer_declared_len = match &untyped.pointer.layout {
-      ListLayout::Composite(num_words) => *num_words,
-      x => return Err(Error::from(format!("unsupported list layout for TypedStruct: {:?}", x))),
-    };
-    let list_elements_begin = untyped.pointer_end.clone() + untyped.pointer.off;
-    let (tag, tag_end) = list_elements_begin.list_composite_tag()?;
-    let composite_len = (tag.data_size + tag.pointer_size) * tag.num_elements;
-    if composite_len != pointer_declared_len {
-      return Err(Error::from(format!(
-        "composite tag length ({:?}) doesn't agree with pointer ({:?})",
-        composite_len, pointer_declared_len
-      )));
-    }
-
-    let mut ret = Vec::with_capacity(tag.num_elements.0 as usize);
-    for idx in 0..tag.num_elements.0 {
-      let off = (tag.data_size + tag.pointer_size) * NumElements(idx);
-      let pointer =
-        StructPointer { off: off, data_size: tag.data_size, pointer_size: tag.pointer_size };
-      let untyped = UntypedStruct { pointer: pointer, pointer_end: tag_end.clone() };
-      ret.push(untyped);
-    }
-    Ok(ret)
-  }
-}
-
-impl<'a, T: TypedStruct<'a>> TypedList<'a> for Vec<T> {
-  fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error> {
-    Vec::<UntypedStruct<'a>>::from_untyped_list(untyped)
-      .map(|xs| xs.into_iter().map(|x| T::from_untyped_struct(x)).collect())
   }
 }
 
@@ -274,8 +193,7 @@ pub struct U64FieldMeta {
 
 impl U64FieldMeta {
   pub fn get(&self, data: &UntypedStruct<'_>) -> u64 {
-    let data_fields_begin = data.pointer_end.clone() + data.pointer.off;
-    data_fields_begin.u64(self.offset)
+    data.u64(self.offset)
   }
 
   pub fn get_element(&self, data: &UntypedStruct<'_>) -> PrimitiveElement {
@@ -367,17 +285,14 @@ impl StructFieldMeta {
     self.offset
   }
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
-    let pointer_fields_begin = data.pointer_end.clone() + data.pointer.off + data.pointer.data_size;
-    match pointer_fields_begin.pointer(self.offset) {
+    match data.pointer_raw(self.offset) {
       Pointer::Null => true,
       _ => false,
     }
   }
 
-  pub fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> Result<UntypedStruct<'a>, Error> {
-    let pointer_fields_begin = data.pointer_end.clone() + data.pointer.off + data.pointer.data_size;
-    let (pointer, pointer_end) = pointer_fields_begin.struct_pointer(self.offset)?;
-    Ok(UntypedStruct { pointer: pointer, pointer_end: pointer_end })
+  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> Result<UntypedStruct<'a>, Error> {
+    data.untyped_struct(self.offset)
   }
 
   pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<StructElement<'a>, Error> {
@@ -396,14 +311,19 @@ impl StructFieldMeta {
     }
   }
 
+  pub fn set_struct_element(&self, data: &mut UntypedStructOwned, value: &StructElementShared) {
+    let StructElementShared(meta, untyped) = value;
+    self.set_untyped(data, meta, Some(untyped));
+  }
+
   pub fn set_element(
     &self,
     data: &mut UntypedStructOwned,
     value: &ElementShared,
   ) -> Result<(), Error> {
     match value {
-      ElementShared::Pointer(PointerElementShared::Struct(StructElementShared(meta, untyped))) => {
-        self.set_untyped(data, meta, Some(untyped));
+      ElementShared::Pointer(PointerElementShared::Struct(value)) => {
+        self.set_struct_element(data, value);
         Ok(())
       }
       value => Err(Error::from(format!(
@@ -413,19 +333,14 @@ impl StructFieldMeta {
     }
   }
 
-  pub fn set_untyped(
+  fn set_untyped(
     &self,
     data: &mut UntypedStructOwned,
     value_meta: &'static StructMeta,
     value: Option<&UntypedStructShared>,
   ) {
     // TODO: Check that value_meta matches the expected one?
-    match value {
-      None => data.set_pointer(self.offset, Pointer::Null),
-      Some(value) => {
-        data.set_struct_element(self.offset, &StructElementShared(value_meta, value.clone()));
-      }
-    }
+    data.set_struct(self.offset, value)
   }
 }
 
@@ -444,17 +359,14 @@ impl ListFieldMeta {
     self.offset
   }
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
-    let pointer_fields_begin = data.pointer_end.clone() + data.pointer.off + data.pointer.data_size;
-    match pointer_fields_begin.pointer(self.offset) {
+    match data.pointer_raw(self.offset) {
       Pointer::Null => true,
       _ => false,
     }
   }
 
-  pub fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> Result<UntypedList<'a>, Error> {
-    let pointer_fields_begin = data.pointer_end.clone() + data.pointer.off + data.pointer.data_size;
-    let (pointer, pointer_end) = pointer_fields_begin.list_pointer(self.offset)?;
-    Ok(UntypedList { pointer: pointer, pointer_end: pointer_end })
+  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> Result<UntypedList<'a>, Error> {
+    data.untyped_list(self.offset)
   }
 
   pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<ListElement<'a>, Error> {
@@ -477,8 +389,7 @@ impl ListFieldMeta {
     match value {
       ElementShared::Pointer(PointerElementShared::ListDecoded(x)) => {
         // TODO: Check that the metas match?
-        data.set_list_decoded_element(self.offset, x);
-        Ok(())
+        data.set_list_decoded_element(self.offset, x)
       }
       value => {
         Err(Error::from(format!("set list unsupported_type: {:?}", value.as_ref().element_type())))
@@ -505,10 +416,8 @@ impl UnionFieldMeta {
     self.name
   }
 
-  pub fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> UntypedUnion<'a> {
-    let data_fields_begin = data.pointer_end.clone() + data.pointer.off;
-    let discriminant = Discriminant(data_fields_begin.u16(self.offset));
-    UntypedUnion { discriminant: discriminant, variant_data: data.clone() }
+  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> UntypedUnion<'a> {
+    data.untyped_union(self.offset)
   }
   pub fn get<'a, T: TypedUnion<'a>>(&self, data: &UntypedStruct<'a>) -> Result<T, Error> {
     T::from_untyped_union(&self.get_untyped(data))
