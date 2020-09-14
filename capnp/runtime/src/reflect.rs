@@ -2,11 +2,12 @@
 
 use std::fmt;
 
-use crate::common::{ElementWidth, NumElements, NumWords};
+use crate::common::{Discriminant, ElementWidth, NumElements, NumWords};
 use crate::error::Error;
 use crate::pointer::{ListLayout, Pointer, StructPointer};
-use crate::reflect::list::ListEncoder;
-use crate::untyped::{UntypedList, UntypedStruct, UntypedStructOwned, UntypedStructShared};
+use crate::untyped::{
+  UntypedList, UntypedStruct, UntypedStructOwned, UntypedStructShared, UntypedUnion,
+};
 
 mod element;
 pub use element::*;
@@ -66,6 +67,11 @@ pub trait TypedList<'a>: Sized {
   fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error>;
 }
 
+// TODO: Relate TypedListShared to TypedList.
+pub trait TypedListShared {
+  fn set(&self, data: &mut UntypedStructOwned, offset: NumElements);
+}
+
 impl<'a> TypedList<'a> for Vec<u8> {
   fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error> {
     let num_elements = match &untyped.pointer.layout {
@@ -79,7 +85,8 @@ impl<'a> TypedList<'a> for Vec<u8> {
     let list_elements_begin = untyped.pointer_end.clone() + untyped.pointer.off;
     let mut ret = Vec::new();
     for idx in 0..num_elements.0 {
-      ret.push(list_elements_begin.u8(NumElements(idx)));
+      let el = list_elements_begin.u8(NumElements(idx));
+      ret.push(el);
     }
     Ok(ret)
   }
@@ -138,9 +145,40 @@ pub trait TypedStructShared {
   fn as_untyped(&self) -> UntypedStructShared;
 }
 
+pub trait TypedUnion<'a>: Sized {
+  fn meta() -> &'static UnionMeta;
+  fn from_untyped_union(data: &UntypedUnion<'a>) -> Result<Self, Error>;
+}
+
+pub trait TypedUnionShared<'a, T: TypedUnion<'a>> {
+  fn as_ref(&'a self) -> T;
+  fn set(&self, data: &mut UntypedStructOwned, discriminant_offset: NumElements);
+}
+
+#[derive(Debug)]
+pub struct UnionVariantMeta {
+  pub discriminant: Discriminant,
+  pub field_meta: FieldMeta,
+}
+
+#[derive(Debug)]
+pub struct UnionMeta {
+  pub name: &'static str,
+  pub variants: &'static [UnionVariantMeta],
+}
+
+impl UnionMeta {
+  pub fn get(&self, value: Discriminant) -> Option<&UnionVariantMeta> {
+    // WIP this should be correct but feels sketchy
+    self.variants.get(value.0 as usize)
+  }
+}
+
+#[derive(Debug)]
 pub enum FieldMeta {
   Primitive(PrimitiveFieldMeta),
   Pointer(PointerFieldMeta),
+  Union(UnionFieldMeta),
 }
 
 impl FieldMeta {
@@ -148,6 +186,37 @@ impl FieldMeta {
     match self {
       FieldMeta::Primitive(x) => x.name(),
       FieldMeta::Pointer(x) => x.name(),
+      FieldMeta::Union(x) => x.name(),
+    }
+  }
+
+  // WIP this shouldn't be exposed. instead move set_element from SegmentOwned
+  // to UntypedStructOwned
+  pub fn offset(&self) -> NumElements {
+    match self {
+      FieldMeta::Primitive(x) => x.offset(),
+      FieldMeta::Pointer(x) => x.offset(),
+      FieldMeta::Union(x) => x.offset(),
+    }
+  }
+
+  pub fn element_type(&self) -> ElementType {
+    match self {
+      FieldMeta::Primitive(x) => ElementType::Primitive(x.element_type()),
+      FieldMeta::Pointer(x) => ElementType::Pointer(x.element_type()),
+      FieldMeta::Union(x) => ElementType::Union(x.element_type()),
+    }
+  }
+
+  pub fn set_element(
+    &self,
+    data: &mut UntypedStructOwned,
+    value: &ElementShared,
+  ) -> Result<(), Error> {
+    match self {
+      FieldMeta::Primitive(x) => x.set_element(data, value),
+      FieldMeta::Pointer(x) => x.set_element(data, value),
+      FieldMeta::Union(x) => x.set_element(data, value),
     }
   }
 
@@ -155,10 +224,12 @@ impl FieldMeta {
     match self {
       FieldMeta::Primitive(x) => Ok(Element::Primitive(x.get_element(data))),
       FieldMeta::Pointer(x) => x.get_element(data).map(|x| Element::Pointer(x)),
+      FieldMeta::Union(x) => x.get_element(data).map(|x| Element::Union(x)),
     }
   }
 }
 
+#[derive(Debug)]
 pub enum PrimitiveFieldMeta {
   U64(U64FieldMeta),
 }
@@ -169,6 +240,16 @@ impl PrimitiveFieldMeta {
       PrimitiveFieldMeta::U64(x) => x.name,
     }
   }
+  pub fn offset(&self) -> NumElements {
+    match self {
+      PrimitiveFieldMeta::U64(x) => x.offset,
+    }
+  }
+  pub fn element_type(&self) -> PrimitiveElementType {
+    match self {
+      PrimitiveFieldMeta::U64(x) => PrimitiveElementType::U64,
+    }
+  }
   pub fn get_element(&self, data: &UntypedStruct<'_>) -> PrimitiveElement {
     match self {
       PrimitiveFieldMeta::U64(x) => x.get_element(data),
@@ -177,7 +258,7 @@ impl PrimitiveFieldMeta {
   pub fn set_element(
     &self,
     data: &mut UntypedStructOwned,
-    value: &PrimitiveElement,
+    value: &ElementShared,
   ) -> Result<(), Error> {
     match self {
       PrimitiveFieldMeta::U64(x) => x.set_element(data, value),
@@ -185,6 +266,7 @@ impl PrimitiveFieldMeta {
   }
 }
 
+#[derive(Debug)]
 pub struct U64FieldMeta {
   pub name: &'static str,
   pub offset: NumElements,
@@ -207,18 +289,21 @@ impl U64FieldMeta {
   pub fn set_element(
     &self,
     data: &mut UntypedStructOwned,
-    value: &PrimitiveElement,
+    value: &ElementShared,
   ) -> Result<(), Error> {
     match value {
-      PrimitiveElement::U64(value) => {
+      ElementShared::Primitive(PrimitiveElement::U64(value)) => {
         self.set(data, *value);
         Ok(())
       }
-      value => Err(Error::from(format!("set u64 unsupported_type: {:?}", value.element_type()))),
+      value => {
+        Err(Error::from(format!("set u64 unsupported_type: {:?}", value.as_ref().element_type())))
+      }
     }
   }
 }
 
+#[derive(Debug)]
 pub enum PointerFieldMeta {
   Struct(StructFieldMeta),
   List(ListFieldMeta),
@@ -229,6 +314,18 @@ impl PointerFieldMeta {
     match self {
       PointerFieldMeta::Struct(x) => x.name,
       PointerFieldMeta::List(x) => x.name,
+    }
+  }
+  pub fn offset(&self) -> NumElements {
+    match self {
+      PointerFieldMeta::Struct(x) => x.offset(),
+      PointerFieldMeta::List(x) => x.offset(),
+    }
+  }
+  pub fn element_type(&self) -> PointerElementType {
+    match self {
+      PointerFieldMeta::Struct(x) => PointerElementType::Struct(x.element_type()),
+      PointerFieldMeta::List(x) => PointerElementType::List(x.element_type()),
     }
   }
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
@@ -246,7 +343,7 @@ impl PointerFieldMeta {
   pub fn set_element(
     &self,
     data: &mut UntypedStructOwned,
-    value: &PointerElementShared,
+    value: &ElementShared,
   ) -> Result<(), Error> {
     match self {
       PointerFieldMeta::Struct(x) => x.set_element(data, value),
@@ -255,6 +352,7 @@ impl PointerFieldMeta {
   }
 }
 
+#[derive(Debug)]
 pub struct StructFieldMeta {
   pub name: &'static str,
   pub offset: NumElements,
@@ -265,7 +363,9 @@ impl StructFieldMeta {
   pub fn element_type(&self) -> StructElementType {
     StructElementType { meta: self.meta }
   }
-
+  pub fn offset(&self) -> NumElements {
+    self.offset
+  }
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
     let pointer_fields_begin = data.pointer_end.clone() + data.pointer.off + data.pointer.data_size;
     match pointer_fields_begin.pointer(self.offset) {
@@ -284,11 +384,13 @@ impl StructFieldMeta {
     self.get_untyped(data).map(|untyped| StructElement(self.meta, untyped))
   }
 
+  // TODO: Spec allows returning default value in the case of an out-of-bounds
+  // pointer.
   pub fn get<'a, T: TypedStruct<'a>>(&self, data: &UntypedStruct<'a>) -> Result<T, Error> {
     self.get_untyped(data).map(|x| T::from_untyped_struct(x))
   }
 
-  pub fn set<T: TypedStructShared>(&self, data: &mut UntypedStructOwned, value: Option<T>) {
+  pub fn set<T: TypedStructShared>(&self, data: &mut UntypedStructOwned, value: Option<&T>) {
     if let Some(value) = value {
       self.set_untyped(data, T::meta(), Some(&value.as_untyped()));
     }
@@ -297,10 +399,10 @@ impl StructFieldMeta {
   pub fn set_element(
     &self,
     data: &mut UntypedStructOwned,
-    value: &PointerElementShared,
+    value: &ElementShared,
   ) -> Result<(), Error> {
     match value {
-      PointerElementShared::Struct(StructElementShared(meta, untyped)) => {
+      ElementShared::Pointer(PointerElementShared::Struct(StructElementShared(meta, untyped))) => {
         self.set_untyped(data, meta, Some(untyped));
         Ok(())
       }
@@ -321,17 +423,13 @@ impl StructFieldMeta {
     match value {
       None => data.set_pointer(self.offset, Pointer::Null),
       Some(value) => {
-        let offset = data.pointer_end.off + data.pointer.off + self.meta.data_size;
-        data.pointer_end.seg.set_struct_element(
-          offset,
-          self.offset,
-          &StructElementShared(value_meta, value.clone()),
-        );
+        data.set_struct_element(self.offset, &StructElementShared(value_meta, value.clone()));
       }
     }
   }
 }
 
+#[derive(Debug)]
 pub struct ListFieldMeta {
   pub name: &'static str,
   pub offset: NumElements,
@@ -342,7 +440,9 @@ impl ListFieldMeta {
   pub fn element_type(&self) -> ListElementType {
     ListElementType { meta: self.meta }
   }
-
+  pub fn offset(&self) -> NumElements {
+    self.offset
+  }
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
     let pointer_fields_begin = data.pointer_end.clone() + data.pointer.off + data.pointer.data_size;
     match pointer_fields_begin.pointer(self.offset) {
@@ -365,24 +465,84 @@ impl ListFieldMeta {
     self.get_untyped(data).and_then(|untyped| T::from_untyped_list(&untyped))
   }
 
-  pub fn set<T: ListEncoder>(&self, data: &mut UntypedStructOwned, value: T) {
-    todo!()
+  pub fn set<T: TypedListShared>(&self, data: &mut UntypedStructOwned, value: T) {
+    value.set(data, self.offset)
   }
 
   pub fn set_element(
     &self,
     data: &mut UntypedStructOwned,
-    value: &PointerElementShared,
+    value: &ElementShared,
   ) -> Result<(), Error> {
     match value {
-      PointerElementShared::ListDecoded(x) => {
+      ElementShared::Pointer(PointerElementShared::ListDecoded(x)) => {
         // TODO: Check that the metas match?
-        let offset = data.pointer_end.off + data.pointer.off + data.pointer.data_size;
-        data.pointer_end.seg.set_list_decoded_element(offset, self.offset, x);
+        data.set_list_decoded_element(self.offset, x);
         Ok(())
       }
       value => {
         Err(Error::from(format!("set list unsupported_type: {:?}", value.as_ref().element_type())))
+      }
+    }
+  }
+}
+
+#[derive(Debug)]
+pub struct UnionFieldMeta {
+  pub name: &'static str,
+  pub offset: NumElements,
+  pub meta: &'static UnionMeta,
+}
+
+impl UnionFieldMeta {
+  pub fn element_type(&self) -> UnionElementType {
+    UnionElementType { meta: self.meta }
+  }
+  pub fn offset(&self) -> NumElements {
+    self.offset
+  }
+  pub fn name(&self) -> &'static str {
+    self.name
+  }
+
+  pub fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> UntypedUnion<'a> {
+    let data_fields_begin = data.pointer_end.clone() + data.pointer.off;
+    let discriminant = Discriminant(data_fields_begin.u16(self.offset));
+    UntypedUnion { discriminant: discriminant, variant_data: data.clone() }
+  }
+  pub fn get<'a, T: TypedUnion<'a>>(&self, data: &UntypedStruct<'a>) -> Result<T, Error> {
+    T::from_untyped_union(&self.get_untyped(data))
+  }
+  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<UnionElement<'a>, Error> {
+    let untyped = self.get_untyped(data);
+    let variant_meta = self.meta.get(untyped.discriminant).expect("WIP");
+    let value = variant_meta.field_meta.get_element(data)?;
+    Ok(UnionElement(self.meta, variant_meta.discriminant, Box::new(value)))
+  }
+
+  pub fn set<'a, U: TypedUnion<'a>, S: TypedUnionShared<'a, U>>(
+    &self,
+    data: &mut UntypedStructOwned,
+    value: S,
+  ) {
+    value.set(data, self.offset);
+  }
+
+  pub fn set_element(
+    &self,
+    data: &mut UntypedStructOwned,
+    value: &ElementShared,
+  ) -> Result<(), Error> {
+    match value {
+      ElementShared::Union(x) => {
+        // TODO: Check that the metas match?
+        let UnionElementShared(_, discriminant, value) = x;
+        let variant_meta = self.meta.get(*discriminant).expect("WIP");
+        data.set_discriminant(self.offset, variant_meta.discriminant);
+        variant_meta.field_meta.set_element(data, value.as_ref())
+      }
+      value => {
+        Err(Error::from(format!("set union unsupported_type: {:?}", value.as_ref().element_type())))
       }
     }
   }

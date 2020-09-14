@@ -40,7 +40,7 @@ enum FieldTypeEnum {
   Primitive(PrimitiveField),
   List(ListField),
   Struct(StructField),
-  Enum(EnumField),
+  Union(UnionField),
   Wrapped(WrappedField),
 }
 
@@ -50,7 +50,7 @@ impl FieldTypeEnum {
       FieldTypeEnum::Primitive(x) => x,
       FieldTypeEnum::List(x) => x,
       FieldTypeEnum::Struct(x) => x,
-      FieldTypeEnum::Enum(x) => x,
+      FieldTypeEnum::Union(x) => x,
       FieldTypeEnum::Wrapped(x) => x,
     }
   }
@@ -65,7 +65,7 @@ trait FieldType {
   fn type_owned(&self) -> String;
   fn type_meta(&self) -> String;
   fn type_element(&self) -> String;
-  fn type_meta_class(&self) -> &'static str;
+  fn type_meta_class(&self, field_meta: String) -> String;
 }
 
 struct PrimitiveField {
@@ -97,8 +97,12 @@ impl FieldType for PrimitiveField {
   fn type_element(&self) -> String {
     format!("ElementType::Primitive(PrimitiveElementType::{})", self.type_.to_shouty_snake_case())
   }
-  fn type_meta_class(&self) -> &'static str {
-    "Primitive"
+  fn type_meta_class(&self, field_meta: String) -> String {
+    format!(
+      "FieldMeta::Primitive(PrimitiveFieldMeta::{}({}))",
+      self.type_.to_shouty_snake_case(),
+      field_meta
+    )
   }
 }
 
@@ -132,8 +136,8 @@ impl FieldType for WrappedField {
   fn type_element(&self) -> String {
     self.wrapped.ftype().type_meta()
   }
-  fn type_meta_class(&self) -> &'static str {
-    self.wrapped.ftype().type_meta_class()
+  fn type_meta_class(&self, field_meta: String) -> String {
+    self.wrapped.ftype().type_meta_class(field_meta)
   }
 }
 
@@ -154,7 +158,7 @@ impl FieldType for StructField {
   fn type_in(&self) -> String {
     // TODO: Figure out how to accept a non-shared version. This would require
     // recursively copying in all the data.
-    format!("{}Shared", self.type_)
+    format!("&{}Shared", self.type_)
   }
   fn type_in_option(&self) -> bool {
     true
@@ -171,8 +175,8 @@ impl FieldType for StructField {
       self.type_
     )
   }
-  fn type_meta_class(&self) -> &'static str {
-    "Pointer"
+  fn type_meta_class(&self, field_meta: String) -> String {
+    format!("FieldMeta::Pointer(PointerFieldMeta::Struct({}))", field_meta)
   }
 }
 
@@ -212,17 +216,17 @@ impl FieldType for ListField {
       self.wrapped.ftype().type_element()
     )
   }
-  fn type_meta_class(&self) -> &'static str {
-    "Pointer"
+  fn type_meta_class(&self, field_meta: String) -> String {
+    format!("FieldMeta::Pointer(PointerFieldMeta::List({}))", field_meta)
   }
 }
 
-struct EnumField {
+struct UnionField {
   name: String,
   union: Union,
 }
 
-impl FieldType for EnumField {
+impl FieldType for UnionField {
   fn type_param(&self) -> Option<String> {
     None
   }
@@ -233,7 +237,7 @@ impl FieldType for EnumField {
     true
   }
   fn type_in(&self) -> String {
-    format!("{}<'_>", self.name)
+    format!("{}Shared", self.name)
   }
   fn type_in_option(&self) -> bool {
     false
@@ -242,13 +246,13 @@ impl FieldType for EnumField {
     self.name.clone()
   }
   fn type_meta(&self) -> String {
-    "Enum".to_string()
+    "Union".to_string()
   }
   fn type_element(&self) -> String {
-    format!("EnumElementType")
+    format!("UnionElementType")
   }
-  fn type_meta_class(&self) -> &'static str {
-    "Enum"
+  fn type_meta_class(&self, field_meta: String) -> String {
+    format!("FieldMeta::Union({})", field_meta)
   }
 }
 
@@ -265,6 +269,27 @@ impl Struct {
     raw.to_camel_case()
   }
 
+  fn render_field_meta(w: &mut dyn Write, field: &Field) -> io::Result<()> {
+    write!(w, "  const {}_META: {}FieldMeta = {}FieldMeta {{\n", field.meta_name(), field.ftype().type_meta(), field.ftype().type_meta())?;
+    write!(w, "    name: \"{}\",\n", field.name)?;
+    write!(w, "    offset: NumElements({}),\n", field.offset)?;
+    match &field.type_ {
+      FieldTypeEnum::Struct(_) => {
+        write!(w, "    meta: &{}::META,\n", field.ftype().type_owned())?;
+      }
+      FieldTypeEnum::List(x) => {
+        write!(w, "    meta: &ListMeta {{\n")?;
+        write!(w, "      value_type: {}\n", x.wrapped.ftype().type_element())?;
+        write!(w, "    }},\n")?;
+      }
+      FieldTypeEnum::Union(x) => {
+        write!(w, "    meta: &{}::META,\n", x.name)?;
+      }
+      _ => {} // No-op
+    }
+    write!(w, "  }};\n")
+  }
+
   fn render(&self, w: &mut dyn io::Write) -> io::Result<()> {
     let struct_name = &self.name;
 
@@ -279,21 +304,7 @@ impl Struct {
     write!(w, "impl<'a> {}<'a> {{\n", struct_name)?;
 
     for field in self.fields.iter() {
-      write!(w, "  const {}_META: {}FieldMeta = {}FieldMeta {{\n", field.meta_name(), field.ftype().type_meta(), field.ftype().type_meta())?;
-      write!(w, "    name: \"{}\",\n", field.name)?;
-      write!(w, "    offset: NumElements({}),\n", field.offset)?;
-      match &field.type_ {
-        FieldTypeEnum::Struct(_) => {
-          write!(w, "    meta: &{}::META,\n", field.ftype().type_owned())?;
-        }
-        FieldTypeEnum::List(x) => {
-          write!(w, "    meta: &ListMeta {{\n")?;
-          write!(w, "      value_type: {}\n", x.wrapped.ftype().type_element())?;
-          write!(w, "    }},\n")?;
-        }
-        _ => {} // No-op
-      }
-      write!(w, "  }};\n")?;
+      Struct::render_field_meta(w, field)?;
     }
     write!(w, "\n")?;
 
@@ -303,8 +314,7 @@ impl Struct {
     write!(w, "    pointer_size: NumWords({}),\n", self.pointer_words)?;
     write!(w, "    fields: || &[\n")?;
     for field in self.fields.iter() {
-      write!(w, "      FieldMeta::{}({}FieldMeta::{}({}::{}_META)),\n",
-      field.ftype().type_meta_class(), field.ftype().type_meta_class(), field.ftype().type_meta(), struct_name, field.meta_name())?;
+      write!(w, "      {},\n", field.ftype().type_meta_class(format!("{}::{}_META", struct_name, field.meta_name())))?;
     }
     write!(w, "    ],\n")?;
     write!(w, "  }};\n\n")?;
@@ -409,7 +419,7 @@ struct Union {
   name: String,
   doc_comment: Option<String>,
   variants: Vec<UnionVariant>,
-  discriminant_offset: u64,
+  discriminant_offset: u32,
 }
 
 impl Union {
@@ -422,31 +432,84 @@ impl Union {
       write!(w, "/// {}\n", doc_comment.trim().replace("\n", " "))?;
     }
     write!(w, "#[derive(Clone)]\n")?;
-    write!(w, "pub enum {} {{\n", &self.name)?;
+    write!(w, "pub enum {}<'a> {{\n", &self.name)?;
     for variant in &self.variants {
-      write!(w, "  {}({}),\n", variant.name, variant.field.ftype().type_owned())?;
+      write!(w, "  {}({}),\n", variant.name, variant.field.ftype().type_out())?;
     }
     write!(w, "}}\n\n")?;
+
+    write!(w, "impl {}<'_> {{\n", &self.name)?;
+    for variant in &self.variants {
+      Struct::render_field_meta(w, &variant.field)?;
+    }
+    write!(w, "  const META: UnionMeta = UnionMeta {{\n")?;
+    write!(w, "    name: \"{}\",\n", &self.name)?;
+    write!(w, "    variants: &[\n")?;
+    for variant in self.variants.iter() {
+      write!(w, "      UnionVariantMeta{{\n")?;
+      write!(w, "        discriminant: Discriminant({}),\n", variant.discriminant)?;
+      write!(w, "        field_meta: {},\n",
+        variant.field.ftype().type_meta_class(format!("{}::{}_META", &self.name, variant.field.meta_name())))?;
+      write!(w, "      }},\n")?;
+    }
+    write!(w, "    ],\n")?;
+    write!(w, "  }};\n")?;
+    write!(w, "}}\n\n")?;
+
+    write!(w, "impl<'a> TypedUnion<'a> for {}<'a> {{\n", &self.name)?;
+    write!(w, "  fn meta() -> &'static UnionMeta {{\n")?;
+    write!(w, "    &{}::META\n",  &self.name)?;
+    write!(w, "  }}\n")?;
+    write!(w, "  fn from_untyped_union(untyped: &UntypedUnion<'a>) -> Result<Self, Error> {{\n")?;
+    write!(w, "    match untyped.discriminant {{\n")?;
+    for variant in self.variants.iter() {
+      // TODO: This only works for pointer types.
+      write!(w, "      Discriminant({}) => {}::{}_META.get(&untyped.variant_data).map(|x| {}::{}(x)),\n",
+        variant.discriminant, &self.name, variant.field.meta_name(), &self.name, variant.name)?;
+    }
+    write!(w, "      x => Err(Error::from(format!(\"unknown {} discriminant: {{:?}}\", x))),\n", &self.name)?;
+    write!(w, "    }}\n")?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n")?;
 
     if let Some(doc_comment) = &self.doc_comment {
       write!(w, "/// {}\n", doc_comment.trim().replace("\n", " "))?;
     }
-    write!(w, "#[derive(Clone)]\n")?;
-    write!(w, "pub enum {}Ref<'a> {{\n", &self.name)?;
+    write!(w, "pub enum {}Shared {{\n", &self.name)?;
     for variant in &self.variants {
-      write!(w, "  {}Ref({}),\n", variant.name, variant.field.ftype().type_out())?;
+      write!(w, "  {}({}Shared),\n", variant.name, variant.field.ftype().type_owned())?;
     }
     write!(w, "}}\n\n")?;
 
-    write!(w, "impl<'a> AsRef<'a, {}Ref<'a>> for {} {{\n", &self.name, &self.name)?;
-    write!(w, "  fn as_ref(&'a self) -> {}Ref<'a> {{\n", &self.name)?;
+    write!(w, "impl {}Shared {{\n", &self.name)?;
+    write!(w, "  fn as_ref<'a>(&'a self) -> {}<'a> {{\n", &self.name)?;
     write!(w, "    match self {{\n")?;
     for variant in &self.variants {
-      write!(w, "      {}::{}(x) => {}Ref::{}Ref(x.as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
+      write!(w, "      {}Shared::{}(x) => {}::{}(x.as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
     }
     write!(w, "    }}\n")?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n\n")?;
+
+    write!(w, "impl<'a> TypedUnionShared<'a, {}<'a>> for {}Shared {{\n", &self.name, &self.name)?;
+    write!(w, "  fn as_ref(&'a self) -> {}<'a> {{\n", &self.name)?;
+    write!(w, "    match self {{\n")?;
+    for variant in &self.variants {
+      write!(w, "      {}Shared::{}(x) => {}::{}(x.as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
+    }
+    write!(w, "    }}\n")?;
+    write!(w, "  }}\n")?;
+    write!(w, "  fn set(&self, data: &mut UntypedStructOwned, discriminant_offset: NumElements) {{\n")?;
+    write!(w, "    match self {{\n")?;
+    for variant in &self.variants {
+      write!(w, "      {}Shared::{}(x) => {{\n", &self.name, variant.name)?;
+      write!(w, "        data.set_discriminant(discriminant_offset, Discriminant({}));\n", variant.discriminant)?;
+      write!(w, "        {}::{}_META.set(data, Some(&*x));\n", &self.name, variant.field.meta_name())?;
+      write!(w, "      }}\n")?;
+    }
+    write!(w, "    }}\n")?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n")?;
 
     Ok(())
   }
@@ -497,7 +560,7 @@ impl<'a> Generator<'a> {
       match node.which()? {
         node::Which::Struct(struct_) => {
           if struct_.get_discriminant_count() > 0 {
-            // WIP self.union(node, struct_)?.render(w)?;
+            self.union(node, struct_)?.render(w)?;
           } else {
             self.struct_(node, struct_)?.render(w)?;
           }
@@ -574,7 +637,7 @@ impl<'a> Generator<'a> {
       name: name,
       doc_comment: doc_comment,
       variants: variants,
-      discriminant_offset: struct_.get_discriminant_offset() as u64 * 2,
+      discriminant_offset: struct_.get_discriminant_offset(),
     })
   }
 
@@ -648,11 +711,10 @@ impl<'a> Generator<'a> {
         };
         let union = self.union(node, struct_)?;
 
+        let offset = union.discriminant_offset;
         let type_ =
-          FieldTypeEnum::Enum(EnumField { name: type_name.to_camel_case(), union: union });
-        let offset = 0; // WIP
-        Field { name: name, doc_comment: doc_comment, type_: type_, offset: offset };
-        return Ok(None); // WIP
+          FieldTypeEnum::Union(UnionField { name: type_name.to_camel_case(), union: union });
+        Field { name: name, doc_comment: doc_comment, type_: type_, offset: offset }
       }
     };
 

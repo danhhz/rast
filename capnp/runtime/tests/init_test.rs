@@ -13,8 +13,8 @@ mod test {
     let message = TestAllTypesShared::new(
       123,
       &vec![4, 5, 6],
-      Some(TestAllTypesShared::new(789, &vec![], None, &vec![])),
-      &vec![TestAllTypesShared::new(10, &vec![], None, &vec![])],
+      Some(&TestAllTypesShared::new(789, &vec![], None, &vec![])),
+      &vec![&TestAllTypesShared::new(10, &vec![], None, &vec![])],
     );
     // WIP: Why are the null data fields printing? Am I encoding them that way?
     let expected = "(u_int64_field = 123, data_field = [4, 5, 6], struct_field = (u_int64_field = 789, data_field = []), struct_list = [(u_int64_field = 10, data_field = [])])";
@@ -24,18 +24,19 @@ mod test {
 
   #[test]
   fn init_rast() -> Result<(), Box<dyn error::Error>> {
-    let entry = EntryShared::new(7, 8, &vec![9, 10]);
-    assert_eq!(format!("{:?}", entry.as_ref()), "(term = 7, index = 8, payload = [9, 10])");
-    let message = AppendEntriesReqShared::new(
-      1,
-      2,
+    let entry = EntryShared::new(9, 10, &vec![11, 12]);
+    assert_eq!(format!("{:?}", entry.as_ref()), "(term = 9, index = 10, payload = [11, 12])");
+    let req = AppendEntriesReqShared::new(
       3,
       4,
       5,
       6,
-      &vec![entry, EntryShared::new(11, 12, &vec![13])],
+      7,
+      8,
+      &vec![&entry, &EntryShared::new(13, 14, &vec![15])],
     );
-    let expected = "(term = 1, leader_id = 2, prev_log_index = 3, prev_log_term = 4, leader_commit = 5, read_id = 6, entries = [(term = 7, index = 8, payload = [9, 10]), (term = 11, index = 12, payload = [13])])";
+    let message = MessageShared::new(1, 2, PayloadShared::AppendEntriesReq(req));
+    let expected = "(src = 1, dest = 2, payload = (append_entries_req = (term = 3, leader_id = 4, prev_log_index = 5, prev_log_term = 6, leader_commit = 7, read_id = 8, entries = [(term = 9, index = 10, payload = [11, 12]), (term = 13, index = 14, payload = [15])])))";
     assert_eq!(format!("{:?}", message.as_ref()), expected);
     Ok(())
   }

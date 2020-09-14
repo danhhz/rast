@@ -6,7 +6,7 @@ use crate::reflect::{
   ElementShared, ElementType, FieldMeta, ListDecodedElementShared, ListElementType,
   PointerElementShared, PointerElementType, PointerFieldMeta, PrimitiveElement,
   PrimitiveElementType, PrimitiveFieldMeta, StructElementShared, StructElementType, StructMeta,
-  TypedStructShared,
+  TypedStructShared, UnionElementShared, UnionElementType,
 };
 use crate::untyped::{UntypedStructOwned, UntypedStructShared};
 
@@ -19,6 +19,7 @@ impl RandElement<ElementShared> for ElementType {
     match self {
       ElementType::Primitive(x) => ElementShared::Primitive(x.gen(rng)),
       ElementType::Pointer(x) => ElementShared::Pointer(x.gen(rng)),
+      ElementType::Union(x) => ElementShared::Union(x.gen(rng)),
     }
   }
 }
@@ -53,6 +54,17 @@ impl RandElement<ListDecodedElementShared> for ListElementType {
   }
 }
 
+impl RandElement<UnionElementShared> for UnionElementType {
+  fn gen<R: Rng>(&self, rng: &mut R) -> UnionElementShared {
+    let variant_meta = &self.meta.variants[rng.gen_range(0, self.meta.variants.len())];
+    UnionElementShared(
+      self.meta,
+      variant_meta.discriminant,
+      Box::new(variant_meta.field_meta.element_type().gen(rng)),
+    )
+  }
+}
+
 fn gen_element_list<R: Rng>(rng: &mut R, value_type: &ElementType) -> Vec<ElementShared> {
   (0..rng.gen_range(0, 3)).map(|_| value_type.gen(rng)).collect()
 }
@@ -68,7 +80,6 @@ pub fn gen_untyped_struct<R: Rng>(rng: &mut R, meta: &'static StructMeta) -> Unt
         PointerFieldMeta::Struct(x) => {
           if rng.gen_bool(0.5) {
             let untyped = gen_untyped_struct(rng, x.meta);
-            // println!("generated {:?}", StructElementShared(x.meta, untyped.clone()).as_ref());
             x.set_untyped(&mut data, x.meta, Some(&untyped))
           }
         }
@@ -80,9 +91,13 @@ pub fn gen_untyped_struct<R: Rng>(rng: &mut R, meta: &'static StructMeta) -> Unt
             }
           }
           let l = ListElementType { meta: x.meta }.gen(rng);
-          x.set_element(&mut data, &PointerElementShared::ListDecoded(l)).expect("WIP");
+          x.set_element(&mut data, &ElementShared::Pointer(PointerElementShared::ListDecoded(l)))
+            .expect("WIP");
         }
       },
+      FieldMeta::Union(x) => {
+        x.set_element(&mut data, &ElementShared::Union(x.element_type().gen(rng))).expect("WIP");
+      }
     }
   }
   data.into_shared()

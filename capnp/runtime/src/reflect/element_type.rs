@@ -5,6 +5,7 @@ use crate::error::Error;
 use crate::reflect::TypedList;
 use crate::reflect::{
   Element, ListElement, ListMeta, PointerElement, PrimitiveElement, StructElement, StructMeta,
+  UnionMeta,
 };
 use crate::untyped::UntypedList;
 
@@ -13,6 +14,7 @@ use crate::untyped::UntypedList;
 pub enum ElementType {
   Primitive(PrimitiveElementType),
   Pointer(PointerElementType),
+  Union(UnionElementType),
 }
 
 impl ElementType {
@@ -20,6 +22,7 @@ impl ElementType {
     match self {
       ElementType::Primitive(x) => x.width(),
       ElementType::Pointer(x) => x.width(),
+      ElementType::Union(_) => todo!(),
     }
   }
 
@@ -31,6 +34,7 @@ impl ElementType {
       ElementType::Pointer(x) => {
         x.to_element_list(untyped).map(|xs| xs.into_iter().map(|x| Element::Pointer(x)).collect())
       }
+      ElementType::Union(_) => todo!(),
     }
   }
 }
@@ -91,4 +95,9 @@ pub struct StructElementType {
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct ListElementType {
   pub meta: &'static ListMeta,
+}
+
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct UnionElementType {
+  pub meta: &'static UnionMeta,
 }

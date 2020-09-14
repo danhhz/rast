@@ -85,7 +85,6 @@ impl<'a> SegmentPointer<'a> {
       Pointer::Struct(x) => {
         let sp = StructPointer { off: x.off, data_size: x.data_size, pointer_size: x.pointer_size };
         let sp_end = self.clone() + POINTER_WIDTH_WORDS * offset + POINTER_WIDTH_WORDS;
-        // println!("found struct pointer {:?}", &sp);
         Ok((sp, sp_end))
       }
       Pointer::Far(x) => {
@@ -96,7 +95,6 @@ impl<'a> SegmentPointer<'a> {
             self.seg.all_other().iter().map(|x| x.0).collect::<Vec<_>>()
           ))
         })?;
-        // println!("following far pointer for struct: {:?} {:?}", x, seg.buf());
         let far = SegmentPointer { seg: seg, off: x.off };
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -161,7 +159,6 @@ impl<'a> SegmentPointer<'a> {
       Pointer::Null => Ok((ListPointer::empty(), SegmentPointer::empty())),
       Pointer::List(lp) => {
         let lp_end = self.clone() + POINTER_WIDTH_WORDS * offset + POINTER_WIDTH_WORDS;
-        // println!("found list pointer {:?}", &lp);
         Ok((lp, lp_end))
       }
       Pointer::Far(x) => {
@@ -169,7 +166,6 @@ impl<'a> SegmentPointer<'a> {
           "encoding: far list pointer segment {:?} not found",
           x.seg
         )))?;
-        // println!("following far pointer for list: {:?} {:?}", x, seg.buf());
         let far = SegmentPointer { seg: seg, off: x.off };
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -257,6 +253,14 @@ pub struct SegmentPointerOwned {
 impl SegmentPointerOwned {
   pub fn into_shared(self) -> SegmentPointerShared {
     SegmentPointerShared { seg: self.seg.into_shared(), off: self.off }
+  }
+
+  pub fn set_u8(&mut self, offset: NumElements, value: u8) {
+    self.seg.set_u8(self.off, offset, value);
+  }
+
+  pub fn set_u16(&mut self, offset: NumElements, value: u16) {
+    self.seg.set_u16(self.off, offset, value);
   }
 
   pub fn set_u64(&mut self, offset: NumElements, value: u64) {

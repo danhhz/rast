@@ -1,9 +1,10 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+use crate::common::Discriminant;
 use crate::error::Error;
 use crate::reflect::{
   ElementType, ListElementType, ListMeta, PointerElementType, PrimitiveElementType,
-  StructElementType, StructMeta, TypedList,
+  StructElementType, StructMeta, TypedList, UnionElementType, UnionMeta,
 };
 use crate::untyped::{UntypedList, UntypedListShared, UntypedStruct, UntypedStructShared};
 
@@ -11,6 +12,7 @@ use crate::untyped::{UntypedList, UntypedListShared, UntypedStruct, UntypedStruc
 pub enum Element<'a> {
   Primitive(PrimitiveElement),
   Pointer(PointerElement<'a>),
+  Union(UnionElement<'a>),
 }
 
 impl<'a> Element<'a> {
@@ -18,6 +20,7 @@ impl<'a> Element<'a> {
     match self {
       Element::Primitive(x) => ElementType::Primitive(x.element_type()),
       Element::Pointer(x) => ElementType::Pointer(x.element_type()),
+      Element::Union(x) => ElementType::Union(x.element_type()),
     }
   }
 }
@@ -103,9 +106,19 @@ impl<'a> ListDecodedElement<'a> {
   }
 }
 
+pub struct UnionElement<'a>(pub &'static UnionMeta, pub Discriminant, pub Box<Element<'a>>);
+
+impl<'a> UnionElement<'a> {
+  pub fn element_type(&self) -> UnionElementType {
+    let UnionElement(meta, _, _) = self;
+    UnionElementType { meta: meta }
+  }
+}
+
 pub enum ElementShared {
   Primitive(PrimitiveElement),
   Pointer(PointerElementShared),
+  Union(UnionElementShared),
 }
 
 impl ElementShared {
@@ -113,6 +126,7 @@ impl ElementShared {
     match self {
       ElementShared::Primitive(x) => Element::Primitive(x.clone()),
       ElementShared::Pointer(x) => Element::Pointer(x.as_ref()),
+      ElementShared::Union(x) => Element::Union(x.as_ref()),
     }
   }
 }
@@ -157,6 +171,15 @@ impl ListDecodedElementShared {
   pub fn as_ref<'a>(&'a self) -> ListDecodedElement<'a> {
     let ListDecodedElementShared(meta, values) = self;
     ListDecodedElement(meta, values.iter().map(|v| v.as_ref()).collect())
+  }
+}
+
+pub struct UnionElementShared(pub &'static UnionMeta, pub Discriminant, pub Box<ElementShared>);
+
+impl UnionElementShared {
+  pub fn as_ref<'a>(&'a self) -> UnionElement<'a> {
+    let UnionElementShared(meta, discriminant, value) = self;
+    UnionElement(meta, *discriminant, Box::new(value.as_ref().as_ref()))
   }
 }
 

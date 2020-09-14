@@ -86,8 +86,8 @@ impl TestAllTypesShared {
   pub fn new(
     u_int64_field: u64,
     data_field: &'_ [u8],
-    struct_field: Option<TestAllTypesShared>,
-    struct_list: &'_ [TestAllTypesShared],
+    struct_field: Option<&TestAllTypesShared>,
+    struct_list: &'_ [&TestAllTypesShared],
   ) -> TestAllTypesShared {
     let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
     TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);

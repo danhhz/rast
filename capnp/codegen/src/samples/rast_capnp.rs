@@ -121,6 +121,11 @@ impl<'a> Message<'a> {
     name: "dest",
     offset: NumElements(1),
   };
+  const PAYLOAD_META: UnionFieldMeta = UnionFieldMeta {
+    name: "payload",
+    offset: NumElements(8),
+    meta: &Payload::META,
+  };
 
   const META: StructMeta = StructMeta {
     name: "Message",
@@ -129,6 +134,7 @@ impl<'a> Message<'a> {
     fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::SRC_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::DEST_META)),
+      FieldMeta::Union(Message::PAYLOAD_META),
     ],
   };
 
@@ -136,6 +142,7 @@ impl<'a> Message<'a> {
   pub fn src(&self) -> u64 { Message::SRC_META.get(&self.data) }
   /// The node to receive this rpc.
   pub fn dest(&self) -> u64 { Message::DEST_META.get(&self.data) }
+  pub fn payload(&self) -> Result<Payload<'a>, Error> { Message::PAYLOAD_META.get(&self.data) }
 }
 
 impl<'a> TypedStruct<'a> for Message<'a> {
@@ -176,10 +183,12 @@ impl MessageShared {
   pub fn new(
     src: u64,
     dest: u64,
+    payload: PayloadShared,
   ) -> MessageShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Message::META.data_size, Message::META.pointer_size);
     Message::SRC_META.set(&mut data, src);
     Message::DEST_META.set(&mut data, dest);
+    Message::PAYLOAD_META.set(&mut data, payload);
     MessageShared { data: data.into_shared() }
   }
 
@@ -304,7 +313,7 @@ impl AppendEntriesReqShared {
     prev_log_term: u64,
     leader_commit: u64,
     read_id: u64,
-    entries: &'_ [EntryShared],
+    entries: &'_ [&EntryShared],
   ) -> AppendEntriesReqShared {
     let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesReq::META.data_size, AppendEntriesReq::META.pointer_size);
     AppendEntriesReq::TERM_META.set(&mut data, term);
@@ -722,3 +731,135 @@ impl TypedStructShared for StartElectionReqShared {
   }
 }
 
+#[derive(Clone)]
+pub enum Payload<'a> {
+  AppendEntriesReq(AppendEntriesReq<'a>),
+  AppendEntriesRes(AppendEntriesRes<'a>),
+  RequestVoteReq(RequestVoteReq<'a>),
+  RequestVoteRes(RequestVoteRes<'a>),
+  StartElectionReq(StartElectionReq<'a>),
+}
+
+impl Payload<'_> {
+  const APPEND_ENTRIES_REQ_META: StructFieldMeta = StructFieldMeta {
+    name: "append_entries_req",
+    offset: NumElements(0),
+    meta: &AppendEntriesReq::META,
+  };
+  const APPEND_ENTRIES_RES_META: StructFieldMeta = StructFieldMeta {
+    name: "append_entries_res",
+    offset: NumElements(0),
+    meta: &AppendEntriesRes::META,
+  };
+  const REQUEST_VOTE_REQ_META: StructFieldMeta = StructFieldMeta {
+    name: "request_vote_req",
+    offset: NumElements(0),
+    meta: &RequestVoteReq::META,
+  };
+  const REQUEST_VOTE_RES_META: StructFieldMeta = StructFieldMeta {
+    name: "request_vote_res",
+    offset: NumElements(0),
+    meta: &RequestVoteRes::META,
+  };
+  const START_ELECTION_REQ_META: StructFieldMeta = StructFieldMeta {
+    name: "start_election_req",
+    offset: NumElements(0),
+    meta: &StartElectionReq::META,
+  };
+  const META: UnionMeta = UnionMeta {
+    name: "Payload",
+    variants: &[
+      UnionVariantMeta{
+        discriminant: Discriminant(0),
+        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::APPEND_ENTRIES_REQ_META)),
+      },
+      UnionVariantMeta{
+        discriminant: Discriminant(1),
+        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::APPEND_ENTRIES_RES_META)),
+      },
+      UnionVariantMeta{
+        discriminant: Discriminant(2),
+        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::REQUEST_VOTE_REQ_META)),
+      },
+      UnionVariantMeta{
+        discriminant: Discriminant(3),
+        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::REQUEST_VOTE_RES_META)),
+      },
+      UnionVariantMeta{
+        discriminant: Discriminant(4),
+        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::START_ELECTION_REQ_META)),
+      },
+    ],
+  };
+}
+
+impl<'a> TypedUnion<'a> for Payload<'a> {
+  fn meta() -> &'static UnionMeta {
+    &Payload::META
+  }
+  fn from_untyped_union(untyped: &UntypedUnion<'a>) -> Result<Self, Error> {
+    match untyped.discriminant {
+      Discriminant(0) => Payload::APPEND_ENTRIES_REQ_META.get(&untyped.variant_data).map(|x| Payload::AppendEntriesReq(x)),
+      Discriminant(1) => Payload::APPEND_ENTRIES_RES_META.get(&untyped.variant_data).map(|x| Payload::AppendEntriesRes(x)),
+      Discriminant(2) => Payload::REQUEST_VOTE_REQ_META.get(&untyped.variant_data).map(|x| Payload::RequestVoteReq(x)),
+      Discriminant(3) => Payload::REQUEST_VOTE_RES_META.get(&untyped.variant_data).map(|x| Payload::RequestVoteRes(x)),
+      Discriminant(4) => Payload::START_ELECTION_REQ_META.get(&untyped.variant_data).map(|x| Payload::StartElectionReq(x)),
+      x => Err(Error::from(format!("unknown Payload discriminant: {:?}", x))),
+    }
+  }
+}
+pub enum PayloadShared {
+  AppendEntriesReq(AppendEntriesReqShared),
+  AppendEntriesRes(AppendEntriesResShared),
+  RequestVoteReq(RequestVoteReqShared),
+  RequestVoteRes(RequestVoteResShared),
+  StartElectionReq(StartElectionReqShared),
+}
+
+impl PayloadShared {
+  fn as_ref<'a>(&'a self) -> Payload<'a> {
+    match self {
+      PayloadShared::AppendEntriesReq(x) => Payload::AppendEntriesReq(x.as_ref()),
+      PayloadShared::AppendEntriesRes(x) => Payload::AppendEntriesRes(x.as_ref()),
+      PayloadShared::RequestVoteReq(x) => Payload::RequestVoteReq(x.as_ref()),
+      PayloadShared::RequestVoteRes(x) => Payload::RequestVoteRes(x.as_ref()),
+      PayloadShared::StartElectionReq(x) => Payload::StartElectionReq(x.as_ref()),
+    }
+  }
+}
+
+impl<'a> TypedUnionShared<'a, Payload<'a>> for PayloadShared {
+  fn as_ref(&'a self) -> Payload<'a> {
+    match self {
+      PayloadShared::AppendEntriesReq(x) => Payload::AppendEntriesReq(x.as_ref()),
+      PayloadShared::AppendEntriesRes(x) => Payload::AppendEntriesRes(x.as_ref()),
+      PayloadShared::RequestVoteReq(x) => Payload::RequestVoteReq(x.as_ref()),
+      PayloadShared::RequestVoteRes(x) => Payload::RequestVoteRes(x.as_ref()),
+      PayloadShared::StartElectionReq(x) => Payload::StartElectionReq(x.as_ref()),
+    }
+  }
+  fn set(&self, data: &mut UntypedStructOwned, discriminant_offset: NumElements) {
+    match self {
+      PayloadShared::AppendEntriesReq(x) => {
+        data.set_discriminant(discriminant_offset, Discriminant(0));
+        Payload::APPEND_ENTRIES_REQ_META.set(data, Some(&*x));
+      }
+      PayloadShared::AppendEntriesRes(x) => {
+        data.set_discriminant(discriminant_offset, Discriminant(1));
+        Payload::APPEND_ENTRIES_RES_META.set(data, Some(&*x));
+      }
+      PayloadShared::RequestVoteReq(x) => {
+        data.set_discriminant(discriminant_offset, Discriminant(2));
+        Payload::REQUEST_VOTE_REQ_META.set(data, Some(&*x));
+      }
+      PayloadShared::RequestVoteRes(x) => {
+        data.set_discriminant(discriminant_offset, Discriminant(3));
+        Payload::REQUEST_VOTE_RES_META.set(data, Some(&*x));
+      }
+      PayloadShared::StartElectionReq(x) => {
+        data.set_discriminant(discriminant_offset, Discriminant(4));
+        Payload::START_ELECTION_REQ_META.set(data, Some(&*x));
+      }
+    }
+  }
+}

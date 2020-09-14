@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::reflect::element::{
   Element, ElementShared, ListDecodedElement, ListElement, PointerElement, PrimitiveElement,
-  StructElement,
+  StructElement, UnionElement,
 };
 use crate::reflect::FieldMeta;
 
@@ -28,6 +28,7 @@ impl<'a> fmt::Debug for Element<'a> {
     match self {
       Element::Primitive(x) => x.fmt(f),
       Element::Pointer(x) => x.fmt(f),
+      Element::Union(x) => x.fmt(f),
     }
   }
 }
@@ -75,7 +76,11 @@ impl<'a> fmt::Debug for ListElement<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let values = match self.to_element_list() {
       Ok(x) => x,
-      Err(_) => todo!(),
+      Err(err) => {
+        f.write_str("Err(")?;
+        err.fmt(f)?;
+        return f.write_str(")");
+      }
     };
 
     f.write_str("[")?;
@@ -95,5 +100,17 @@ impl<'a> fmt::Debug for ListDecodedElement<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let ListDecodedElement(_, values) = self;
     values.as_slice().fmt(f)
+  }
+}
+
+impl<'a> fmt::Debug for UnionElement<'a> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let UnionElement(meta, discriminant, value) = self;
+    let discriminant = meta.get(*discriminant).expect("WIP");
+    f.write_str("(")?;
+    f.write_str(discriminant.field_meta.name())?;
+    f.write_str(" = ")?;
+    value.fmt(f)?;
+    f.write_str(")")
   }
 }

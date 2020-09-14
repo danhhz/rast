@@ -11,20 +11,44 @@ use crate::pointer::{
 };
 use crate::reflect::{
   ElementShared, ElementType, ListDecodedElementShared, PointerElementShared, PointerElementType,
-  PrimitiveElementType, StructElementShared, StructElementType, TypedStructShared,
+  PrimitiveElement, PrimitiveElementType, StructElementShared, StructElementType, TypedListShared,
+  TypedStructShared,
 };
 use crate::segment::SegmentID;
 use crate::segment::SegmentOwned;
+use crate::untyped::UntypedStructOwned;
 
 pub trait ListEncoder {
   // TODO: Make the infallable ones return error type Infallible.
   fn encode(&self, seg: &mut SegmentOwned) -> Result<Pointer, Error>;
 }
 
+impl TypedListShared for &[u8] {
+  fn set(&self, data: &mut UntypedStructOwned, offset: NumElements) {
+    let pointer = data.append_list(offset, self);
+    data.set_pointer(offset, pointer);
+  }
+}
+
+impl TypedListShared for &[u64] {
+  fn set(&self, data: &mut UntypedStructOwned, offset: NumElements) {
+    let pointer = data.append_list(offset, self);
+    data.set_pointer(offset, pointer);
+  }
+}
+
+impl<T: TypedStructShared> TypedListShared for &[&T] {
+  fn set(&self, data: &mut UntypedStructOwned, offset: NumElements) {
+    let pointer = data.append_list(offset, self);
+    data.set_pointer(offset, pointer);
+  }
+}
+
 impl ListEncoder for &[u8] {
   fn encode(&self, seg: &mut SegmentOwned) -> Result<Pointer, Error> {
     let list_begin = seg.len_words_rounded_up();
     let list_len = self.len() * U8_WIDTH_BYTES;
+    // TODO: Segments should always stay word-sized.
     seg.buf.resize(list_begin.as_bytes() + list_len, 0);
     for (idx, el) in self.iter().enumerate() {
       seg.set_u8(list_begin, NumElements(idx as i32), *el);
@@ -66,6 +90,7 @@ fn encode_packed_primitive(
   let list_begin = seg.len_words_rounded_up();
   let list_len = element_width.list_len_bytes(data.len());
   seg.buf.resize(list_begin.as_bytes() + list_len, 0);
+
   for (idx, el) in data.iter().enumerate() {
     if el.as_ref().element_type() != element_type {
       return Err(Error::from(format!(
@@ -74,7 +99,18 @@ fn encode_packed_primitive(
         el.as_ref().element_type(),
       )));
     }
-    seg.set_element(list_begin, NumElements(idx as i32), el);
+    match el {
+      ElementShared::Primitive(x) => match x {
+        PrimitiveElement::U8(x) => seg.set_u8(list_begin, NumElements(idx as i32), *x),
+        PrimitiveElement::U64(x) => seg.set_u64(list_begin, NumElements(idx as i32), *x),
+      },
+      value => {
+        return Err(Error::from(format!(
+          "cannot encode packed list containing {:?}",
+          value.as_ref().element_type(),
+        )))
+      }
+    }
   }
   Ok(Pointer::List(ListPointer {
     off: list_begin,
@@ -176,7 +212,6 @@ fn encode_composite_struct(
   let pointer =
     Pointer::List(ListPointer { off: list_begin, layout: ListLayout::Composite(composite_len) });
 
-  // println!("created struct list pointer {:?}\n  {:?}", &pointer, seg.buf);
   Ok(pointer)
 }
 
@@ -195,6 +230,7 @@ impl ListEncoder for &[ElementShared] {
         PointerElementType::List(_) => todo!(),
         PointerElementType::Struct(x) => encode_composite_struct(seg, x, self),
       },
+      ElementType::Union(_) => todo!(),
     }
   }
 }
@@ -208,7 +244,7 @@ impl<'a> ListEncoder for ListDecodedElementShared {
 }
 
 // WIP: Dedup with encode_composite_struct
-impl<T: TypedStructShared> ListEncoder for &[T] {
+impl<T: TypedStructShared> ListEncoder for &[&T] {
   fn encode(&self, seg: &mut SegmentOwned) -> Result<Pointer, Error> {
     let composite_tag = if let Some(first) = self.first() {
       let untyped = first.as_untyped();
@@ -293,7 +329,6 @@ impl<T: TypedStructShared> ListEncoder for &[T] {
     let pointer =
       Pointer::List(ListPointer { off: list_begin, layout: ListLayout::Composite(composite_len) });
 
-    // println!("created struct list pointer {:?}\n  {:?}", &pointer, seg.buf);
     Ok(pointer)
   }
 }

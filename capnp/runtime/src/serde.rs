@@ -6,7 +6,7 @@ use serde::{Serialize, Serializer};
 
 use crate::reflect::{
   Element, FieldMeta, ListDecodedElement, ListElement, PointerElement, PrimitiveElement,
-  StructElement,
+  StructElement, UnionElement,
 };
 
 impl<'a> Serialize for Element<'a> {
@@ -14,6 +14,7 @@ impl<'a> Serialize for Element<'a> {
     match self {
       Element::Primitive(x) => x.serialize(serializer),
       Element::Pointer(x) => x.serialize(serializer),
+      Element::Union(x) => x.serialize(serializer),
     }
   }
 }
@@ -54,6 +55,10 @@ impl<'a> Serialize for StructElement<'a> {
             Ok(x) => state.serialize_field(field.name(), &x)?,
           }
         }
+        FieldMeta::Union(x) => match x.get_element(untyped) {
+          Err(_) => todo!(),
+          Ok(x) => state.serialize_field(field.name(), &x)?,
+        },
       }
     }
     state.end()
@@ -83,5 +88,18 @@ impl<'a> Serialize for ListDecodedElement<'a> {
       seq.serialize_element(&e)?;
     }
     seq.end()
+  }
+}
+
+impl<'a> Serialize for UnionElement<'a> {
+  fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    let UnionElement(meta, discriminant, value) = self;
+    let variant_meta = meta.get(*discriminant).expect("WIP");
+    serializer.serialize_newtype_variant(
+      meta.name,
+      u32::from(variant_meta.discriminant.0),
+      variant_meta.field_meta.name(),
+      value.as_ref(),
+    )
   }
 }

@@ -45,6 +45,9 @@ impl Mul<NumElements> for NumWords {
   }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Discriminant(pub u16);
+
 pub const U8_WIDTH_BYTES: usize = mem::size_of::<u8>();
 pub const U16_WIDTH_BYTES: usize = mem::size_of::<u16>();
 pub const U64_WIDTH_BYTES: usize = mem::size_of::<u64>();
@@ -74,5 +77,18 @@ impl ElementWidth {
       ElementWidth::EightBytesPointer => 8 * list_len,
       _ => todo!(),
     }
+  }
+}
+
+use std::fmt;
+
+pub struct PrettyBytes<'a>(pub &'a [u8]);
+
+impl<'a> fmt::Debug for PrettyBytes<'a> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    for (idx, chunk) in self.0.chunks(8).enumerate() {
+      write!(f, "{}: {:?}\n", idx * 8, chunk)?;
+    }
+    Ok(())
   }
 }
