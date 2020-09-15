@@ -18,19 +18,15 @@ Rast [Cap'n Proto]
 - [ ] Name this project
 - [ ] User-facing rustdoc
 - [x] Implement random encode/decode test
-- [ ] Support the remaining non-bool field types
 - [x] Encoding via constructor
-- [ ] Clean up codegen code structure
-- [ ] Port remaining capnp testdata tests
-- [ ] Rename FieldTypeEnum
 - [x] ListMeta
 - [x] Merge StructMeta/ListMeta and StructElementType/ListElementType
 - [x] Add context to error messages
 - [ ] Mark whether an error is user handleable?
 - [x] Bring back generated owned structs
+- [ ] Use in Rast superproject
 - [ ] Return a reference to underlying bytes for capnp bytes fields
 - [ ] Replace Vec in list return types with IntoIter
-- [ ] Escape field names so metas don't conflict
 - [ ] Bound size of rand value generation
 - [ ] README
 - [ ] Document how to run the golden tests
@@ -49,13 +45,17 @@ Rast [Cap'n Proto]
 - [ ] Developer-facing rustdoc
 - [ ] Add version check for generated code vs the runtime crate it gets
 - [ ] Use StringTree for generated code
-- [ ] Support for bool fields
+- [ ] Support the remaining capnp field types
 - [ ] Connect generated ref and owned structs with associated types
 - [ ] Implement canonicalization
 - [ ] Default values
 - [ ] Copy struct without knowing type
 - [ ] Packing
 - [ ] Match up API naming with the official capnp
+- [ ] Escape field names so metas don't conflict
+- [ ] Clean up codegen code structure
+- [ ] Port remaining capnp testdata tests
+- [ ] Rename FieldTypeEnum
 - [ ] Security: Pointer validation (tests)
 - [ ] Security: Amplification attack
 - [ ] Security: Stack overflow DoS attack
