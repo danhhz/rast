@@ -1,13 +1,11 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use crate::common::ElementWidth;
+use crate::element::{Element, ListElement, PointerElement, PrimitiveElement, StructElement};
 use crate::error::Error;
-use crate::reflect::TypedList;
-use crate::reflect::{
-  Element, ListElement, ListMeta, PointerElement, PrimitiveElement, StructElement, StructMeta,
-  UnionMeta,
-};
-use crate::untyped::UntypedList;
+use crate::list::{ListMeta, TypedList, UntypedList};
+use crate::r#struct::StructMeta;
+use crate::union::UnionMeta;
 
 // TODO: Rename these all to *Meta?
 #[derive(Debug, PartialOrd, PartialEq)]

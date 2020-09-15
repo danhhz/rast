@@ -51,12 +51,12 @@ pub struct Discriminant(pub u16);
 pub const U8_WIDTH_BYTES: usize = mem::size_of::<u8>();
 pub const U16_WIDTH_BYTES: usize = mem::size_of::<u16>();
 pub const U64_WIDTH_BYTES: usize = mem::size_of::<u64>();
-pub const DISCRIMINANT_WIDTH_BYTES: usize = U16_WIDTH_BYTES;
 
 pub const WORD_BYTES: usize = NumWords(1).as_bytes();
 pub const POINTER_WIDTH_WORDS: NumWords = NumWords(1);
 pub const POINTER_WIDTH_BYTES: usize = POINTER_WIDTH_WORDS.as_bytes();
-pub const COMPOSITE_TAG_WIDTH_BYTES: usize = U64_WIDTH_BYTES;
+pub const COMPOSITE_TAG_WIDTH_WORDS: NumWords = POINTER_WIDTH_WORDS;
+pub const COMPOSITE_TAG_WIDTH_BYTES: usize = COMPOSITE_TAG_WIDTH_WORDS.as_bytes();
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum ElementWidth {

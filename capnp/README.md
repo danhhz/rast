@@ -35,13 +35,13 @@ Rast [Cap'n Proto]
 - [ ] README
 - [ ] Document how to run the golden tests
 - [ ] Set up CI
-- [ ] Clean up runtime prelude
+- [x] Clean up runtime prelude
 - [ ] Audit pub usage
 - [ ] Audit TODO comments
 - [ ] Resolve WIP comments
 - [x] Remove dbg!
 - [x] Remove println!
-- [ ] Remove "pub use"
+- [x] Remove "pub use"
 - [ ] Test: Message evolution basics
 
 # v0.1.0

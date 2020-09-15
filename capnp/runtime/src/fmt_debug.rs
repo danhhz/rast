@@ -2,11 +2,23 @@
 
 use std::fmt;
 
-use crate::reflect::element::{
+use crate::element::{
   Element, ElementShared, ListDecodedElement, ListElement, PointerElement, PrimitiveElement,
   StructElement, UnionElement,
 };
-use crate::reflect::FieldMeta;
+use crate::field_meta::FieldMeta;
+use crate::r#struct::StructMeta;
+
+impl fmt::Debug for StructMeta {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.debug_struct("StructMeta")
+      .field("name", &self.name)
+      .field("data_size", &self.data_size)
+      .field("pointer_size", &self.pointer_size)
+      .field("fields", &self.fields())
+      .finish()
+  }
+}
 
 impl fmt::Debug for ElementShared {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

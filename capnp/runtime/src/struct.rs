@@ -4,15 +4,46 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::io::{self, Write};
 
-use crate::common::*;
-use crate::decode::{ListDecode, SegmentPointerDecode, StructDecode};
+use crate::common::{Discriminant, NumElements, NumWords, POINTER_WIDTH_WORDS};
+use crate::decode::{SegmentPointerDecode, StructDecode};
+use crate::element::StructElement;
 use crate::encode::StructEncode;
 use crate::error::Error;
-use crate::pointer::{ListPointer, StructPointer};
+use crate::field_meta::FieldMeta;
+use crate::pointer::StructPointer;
 use crate::segment::{Segment, SegmentID, SegmentOwned};
 use crate::segment_pointer::{
   SegmentPointer, SegmentPointerBorrowMut, SegmentPointerOwned, SegmentPointerShared,
 };
+
+pub struct StructMeta {
+  pub name: &'static str,
+  pub data_size: NumWords,
+  pub pointer_size: NumWords,
+  pub fields: fn() -> &'static [FieldMeta],
+}
+
+impl StructMeta {
+  pub fn fields(&self) -> &'static [FieldMeta] {
+    (self.fields)()
+  }
+}
+
+pub trait TypedStruct<'a> {
+  fn meta() -> &'static StructMeta;
+  fn from_untyped_struct(data: UntypedStruct<'a>) -> Self;
+  fn as_untyped(&self) -> UntypedStruct<'a>;
+  // TODO: Move this
+  fn as_element(&self) -> StructElement<'a> {
+    StructElement(Self::meta(), self.as_untyped())
+  }
+}
+
+pub trait TypedStructShared {
+  fn meta() -> &'static StructMeta;
+  fn from_untyped_struct(data: UntypedStructShared) -> Self;
+  fn as_untyped(&self) -> UntypedStructShared;
+}
 
 #[derive(Clone)]
 pub struct UntypedStruct<'a> {
@@ -146,40 +177,4 @@ impl StructEncode for UntypedStructOwned {
   fn pointer_end<'a>(&'a mut self) -> SegmentPointerBorrowMut<'a> {
     self.pointer_end.borrow_mut()
   }
-}
-
-pub struct UntypedList<'a> {
-  pointer: ListPointer,
-  pointer_end: SegmentPointer<'a>,
-}
-
-impl<'a> UntypedList<'a> {
-  pub fn new(pointer: ListPointer, pointer_end: SegmentPointer<'a>) -> Self {
-    UntypedList { pointer: pointer, pointer_end: pointer_end }
-  }
-}
-
-impl<'a> ListDecode<'a> for UntypedList<'a> {
-  fn pointer(&self) -> &ListPointer {
-    &self.pointer
-  }
-  fn pointer_end(&self) -> &SegmentPointer<'a> {
-    &self.pointer_end
-  }
-}
-
-pub struct UntypedListShared {
-  pub pointer: ListPointer,
-  pub pointer_end: SegmentPointerShared,
-}
-
-impl UntypedListShared {
-  pub fn as_ref<'a>(&'a self) -> UntypedList<'a> {
-    UntypedList { pointer: self.pointer.clone(), pointer_end: self.pointer_end.as_ref() }
-  }
-}
-
-pub struct UntypedUnion<'a> {
-  pub discriminant: Discriminant,
-  pub variant_data: UntypedStruct<'a>,
 }

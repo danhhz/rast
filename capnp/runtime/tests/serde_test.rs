@@ -28,10 +28,7 @@ mod test {
     f.read_to_end(&mut expected)?;
     let expected = String::from_utf8(expected)?;
 
-    let actual = serde_json::ser::to_string(&PointerElement::Struct(StructElement(
-      TestAllTypes::meta(),
-      message.as_untyped(),
-    )))?;
+    let actual = serde_json::ser::to_string(&message.as_element())?;
     assert_eq!(actual, expected);
     Ok(())
   }

@@ -1,12 +1,14 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use crate::common::Discriminant;
-use crate::error::Error;
-use crate::reflect::{
-  ElementType, ListElementType, ListMeta, PointerElementType, PrimitiveElementType,
-  StructElementType, StructMeta, TypedList, UnionElementType, UnionMeta,
+use crate::element_type::{
+  ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
+  UnionElementType,
 };
-use crate::untyped::{UntypedList, UntypedListShared, UntypedStruct, UntypedStructShared};
+use crate::error::Error;
+use crate::list::{ListMeta, TypedList, UntypedList, UntypedListShared};
+use crate::r#struct::{StructMeta, UntypedStruct, UntypedStructShared};
+use crate::union::UnionMeta;
 
 #[derive(PartialEq, PartialOrd)]
 pub enum Element<'a> {
@@ -36,8 +38,8 @@ pub enum PrimitiveElement {
 impl PrimitiveElement {
   pub fn element_type(&self) -> PrimitiveElementType {
     match self {
-      PrimitiveElement::U8(x) => PrimitiveElementType::U8,
-      PrimitiveElement::U64(x) => PrimitiveElementType::U8,
+      PrimitiveElement::U8(_) => PrimitiveElementType::U8,
+      PrimitiveElement::U64(_) => PrimitiveElementType::U8,
     }
   }
 }
@@ -84,8 +86,8 @@ impl<'a> ListElement<'a> {
   }
 
   pub fn from_untyped_list(
-    values: &ElementType,
-    untyped: &UntypedList<'a>,
+    _values: &ElementType,
+    _untyped: &UntypedList<'a>,
   ) -> Result<Vec<Self>, Error> {
     todo!()
   }

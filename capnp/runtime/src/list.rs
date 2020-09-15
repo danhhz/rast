@@ -2,11 +2,14 @@
 
 use crate::common::NumElements;
 use crate::decode::{ListDecode, SegmentPointerDecode};
+use crate::element_type::{ElementType, PrimitiveElementType};
 use crate::encode::{SegmentPointerEncode, StructEncode};
 use crate::error::Error;
-use crate::reflect::{ElementType, PrimitiveElementType, TypedStruct, TypedStructShared};
-use crate::segment_pointer::{SegmentPointer, SegmentPointerBorrowMut};
-use crate::untyped::{UntypedList, UntypedStruct, UntypedStructOwned, UntypedStructShared};
+use crate::pointer::ListPointer;
+use crate::r#struct::{
+  TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned, UntypedStructShared,
+};
+use crate::segment_pointer::{SegmentPointer, SegmentPointerBorrowMut, SegmentPointerShared};
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct ListMeta {
@@ -121,5 +124,36 @@ impl<'a, T: TypedStruct<'a>> TypedListElement<'a> for T {
 impl<T: TypedStructShared> TypedListElementShared for T {
   fn encoding() -> ListElementEncoding<T> {
     ListElementEncoding::Composite(|x| x.as_untyped())
+  }
+}
+
+pub struct UntypedList<'a> {
+  pointer: ListPointer,
+  pointer_end: SegmentPointer<'a>,
+}
+
+impl<'a> UntypedList<'a> {
+  pub fn new(pointer: ListPointer, pointer_end: SegmentPointer<'a>) -> Self {
+    UntypedList { pointer: pointer, pointer_end: pointer_end }
+  }
+}
+
+impl<'a> ListDecode<'a> for UntypedList<'a> {
+  fn pointer(&self) -> &ListPointer {
+    &self.pointer
+  }
+  fn pointer_end(&self) -> &SegmentPointer<'a> {
+    &self.pointer_end
+  }
+}
+
+pub struct UntypedListShared {
+  pub pointer: ListPointer,
+  pub pointer_end: SegmentPointerShared,
+}
+
+impl UntypedListShared {
+  pub fn as_ref<'a>(&'a self) -> UntypedList<'a> {
+    UntypedList { pointer: self.pointer.clone(), pointer_end: self.pointer_end.as_ref() }
   }
 }

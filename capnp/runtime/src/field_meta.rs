@@ -1,97 +1,24 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use std::fmt;
-
-use crate::common::{Discriminant, NumElements, NumWords};
+use crate::common::NumElements;
 use crate::decode::StructDecode;
+use crate::element::{
+  Element, ElementShared, ListElement, PointerElement, PointerElementShared, PrimitiveElement,
+  StructElement, StructElementShared, UnionElement, UnionElementShared,
+};
+use crate::element_type::{
+  ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
+  UnionElementType,
+};
 use crate::encode::StructEncode;
 use crate::error::Error;
-use crate::list::{ListMeta, TypedList, TypedListShared};
+use crate::list::{ListMeta, TypedList, TypedListShared, UntypedList};
 use crate::pointer::Pointer;
-use crate::untyped::{
-  UntypedList, UntypedStruct, UntypedStructOwned, UntypedStructShared, UntypedUnion,
+use crate::r#struct::{
+  StructMeta, TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned,
+  UntypedStructShared,
 };
-
-mod element;
-pub use element::*;
-
-mod element_type;
-pub use element_type::*;
-
-pub mod cmp;
-pub use cmp::*;
-
-pub mod fmt_debug;
-pub use fmt_debug::*;
-
-pub struct StructMeta {
-  pub name: &'static str,
-  pub data_size: NumWords,
-  pub pointer_size: NumWords,
-  pub fields: fn() -> &'static [FieldMeta],
-}
-
-impl StructMeta {
-  pub fn fields(&self) -> &'static [FieldMeta] {
-    (self.fields)()
-  }
-}
-
-impl fmt::Debug for StructMeta {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.debug_struct("StructMeta")
-      .field("name", &self.name)
-      .field("data_size", &self.data_size)
-      .field("pointer_size", &self.pointer_size)
-      .field("fields", &self.fields())
-      .finish()
-  }
-}
-
-pub trait TypedStruct<'a> {
-  fn meta() -> &'static StructMeta;
-  fn from_untyped_struct(data: UntypedStruct<'a>) -> Self;
-  fn as_untyped(&self) -> UntypedStruct<'a>;
-  // TODO: Move this
-  fn as_element(&self) -> StructElement<'a> {
-    StructElement(Self::meta(), self.as_untyped())
-  }
-}
-
-pub trait TypedStructShared {
-  fn meta() -> &'static StructMeta;
-  fn from_untyped_struct(data: UntypedStructShared) -> Self;
-  fn as_untyped(&self) -> UntypedStructShared;
-}
-
-pub trait TypedUnion<'a>: Sized {
-  fn meta() -> &'static UnionMeta;
-  fn from_untyped_union(data: &UntypedUnion<'a>) -> Result<Self, Error>;
-}
-
-pub trait TypedUnionShared<'a, T: TypedUnion<'a>> {
-  fn as_ref(&'a self) -> T;
-  fn set(&self, data: &mut UntypedStructOwned, discriminant_offset: NumElements);
-}
-
-#[derive(Debug)]
-pub struct UnionVariantMeta {
-  pub discriminant: Discriminant,
-  pub field_meta: FieldMeta,
-}
-
-#[derive(Debug)]
-pub struct UnionMeta {
-  pub name: &'static str,
-  pub variants: &'static [UnionVariantMeta],
-}
-
-impl UnionMeta {
-  pub fn get(&self, value: Discriminant) -> Option<&UnionVariantMeta> {
-    // WIP this should be correct but feels sketchy
-    self.variants.get(value.0 as usize)
-  }
-}
+use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UntypedUnion};
 
 #[derive(Debug)]
 pub enum FieldMeta {
@@ -166,7 +93,7 @@ impl PrimitiveFieldMeta {
   }
   pub fn element_type(&self) -> PrimitiveElementType {
     match self {
-      PrimitiveFieldMeta::U64(x) => PrimitiveElementType::U64,
+      PrimitiveFieldMeta::U64(_) => PrimitiveElementType::U64,
     }
   }
   pub fn get_element(&self, data: &UntypedStruct<'_>) -> PrimitiveElement {
@@ -336,10 +263,10 @@ impl StructFieldMeta {
   fn set_untyped(
     &self,
     data: &mut UntypedStructOwned,
-    value_meta: &'static StructMeta,
+    _value_meta: &'static StructMeta,
     value: Option<&UntypedStructShared>,
   ) {
-    // TODO: Check that value_meta matches the expected one?
+    // TODO: Check that _value_meta matches the expected one?
     data.set_struct(self.offset, value)
   }
 }

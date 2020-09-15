@@ -2,8 +2,10 @@
 
 use std::cmp::{self, Ordering};
 
-use crate::reflect::element::{ListDecodedElement, ListElement, StructElement, UnionElement};
-use crate::reflect::{FieldMeta, StructMeta, UnionMeta};
+use crate::element::{ListDecodedElement, ListElement, StructElement, UnionElement};
+use crate::field_meta::FieldMeta;
+use crate::r#struct::StructMeta;
+use crate::union::UnionMeta;
 
 impl<'a> cmp::PartialOrd for StructElement<'a> {
   // TODO: Reason about whether this meets the guarantees for cmp::Ord too.

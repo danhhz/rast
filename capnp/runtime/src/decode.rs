@@ -3,13 +3,14 @@
 use std::convert::TryInto;
 
 use crate::common::*;
+use crate::element_type::PrimitiveElementType;
 use crate::error::Error;
-use crate::list::{ListElementDecoding, TypedListElement};
+use crate::list::{ListElementDecoding, TypedListElement, UntypedList};
 use crate::pointer::*;
-use crate::reflect::PrimitiveElementType;
+use crate::r#struct::UntypedStruct;
 use crate::segment::{Segment, SegmentID};
 use crate::segment_pointer::SegmentPointer;
-use crate::untyped::{UntypedList, UntypedStruct, UntypedUnion};
+use crate::union::UntypedUnion;
 
 pub trait SegmentPointerDecode<'a>: Sized {
   fn empty() -> Self;
@@ -202,7 +203,7 @@ pub trait SegmentPointerDecode<'a>: Sized {
     let raw =
       self.u64_raw(NumElements(0)).ok_or(Error::from("encoding: expected composite tag"))?;
     let tag = ListCompositeTag::decode(raw)?;
-    let tag_end = self.add(POINTER_WIDTH_WORDS);
+    let tag_end = self.add(COMPOSITE_TAG_WIDTH_WORDS);
     Ok((tag, tag_end))
   }
 }

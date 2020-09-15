@@ -2,13 +2,16 @@
 
 use rand::Rng;
 
-use crate::reflect::{
-  ElementShared, ElementType, FieldMeta, ListDecodedElementShared, ListElementType,
-  PointerElementShared, PointerElementType, PointerFieldMeta, PrimitiveElement,
-  PrimitiveElementType, PrimitiveFieldMeta, StructElementShared, StructElementType, StructMeta,
-  TypedStructShared, UnionElementShared, UnionElementType,
+use crate::element::{
+  ElementShared, ListDecodedElementShared, PointerElementShared, PrimitiveElement,
+  StructElementShared, UnionElementShared,
 };
-use crate::untyped::{UntypedStructOwned, UntypedStructShared};
+use crate::element_type::{
+  ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
+  UnionElementType,
+};
+use crate::field_meta::{FieldMeta, PointerFieldMeta, PrimitiveFieldMeta};
+use crate::r#struct::{StructMeta, TypedStructShared, UntypedStructOwned, UntypedStructShared};
 
 trait RandElement<T> {
   fn gen<R: Rng>(&self, rng: &mut R) -> T;

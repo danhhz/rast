@@ -1,21 +1,22 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use crate::common::{
-  Discriminant, ElementWidth, NumElements, NumWords, POINTER_WIDTH_BYTES, POINTER_WIDTH_WORDS,
-  U16_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
+  Discriminant, ElementWidth, NumElements, NumWords, COMPOSITE_TAG_WIDTH_BYTES,
+  POINTER_WIDTH_BYTES, POINTER_WIDTH_WORDS, U16_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
 };
 use crate::decode::SegmentPointerDecode;
+use crate::element::{
+  ElementShared, ListDecodedElementShared, PointerElementShared, PrimitiveElement,
+  StructElementShared, UnionElementShared,
+};
+use crate::element_type::{ElementType, PrimitiveElementType};
 use crate::error::Error;
 use crate::list::{ListElementEncoding, TypedListElementShared};
 use crate::pointer::{
   FarPointer, LandingPadSize, ListCompositeTag, ListLayout, ListPointer, Pointer, StructPointer,
 };
-use crate::reflect::{
-  ElementShared, ElementType, ListDecodedElementShared, PointerElementShared, PrimitiveElement,
-  PrimitiveElementType, StructElementShared, UnionElementShared,
-};
+use crate::r#struct::UntypedStructShared;
 use crate::segment_pointer::SegmentPointerBorrowMut;
-use crate::untyped::UntypedStructShared;
 
 pub trait SegmentPointerEncode {
   fn buf_mut(&mut self) -> &mut [u8];
@@ -191,7 +192,7 @@ pub trait StructEncode {
 
     let list_begin = self.pointer_end().seg.len_words_rounded_up();
     let composite_begin = list_begin.as_bytes();
-    let composite_end = composite_begin + POINTER_WIDTH_BYTES;
+    let composite_end = composite_begin + COMPOSITE_TAG_WIDTH_BYTES;
     self.pointer_end().seg.ensure_len(composite_end);
     // NB: This range is guaranteed to exist because we just resized it.
     self.pointer_end().seg.buf_mut()[composite_begin..composite_end]
@@ -232,7 +233,6 @@ pub trait StructEncode {
       // Fill in the pointer bits with far pointers to the original pointers
       // (expect for null pointers, which are filled directly).
       let segment_id = self.pointer_end().seg.other_reference(x.pointer_end.seg.clone());
-      let pointers_begin = src_begin + x.pointer.data_size.as_bytes();
       for idx in 0..x.pointer.pointer_size.0 {
         // WIP: Hacks
         let pointer = x.pointer_end.as_ref().pointer(NumElements(x.pointer.data_size.0 + idx));
@@ -305,7 +305,7 @@ pub trait StructEncode {
     offset_e: NumElements,
     value: &ListDecodedElementShared,
   ) -> Result<(), Error> {
-    let ListDecodedElementShared(meta, value) = value;
+    let ListDecodedElementShared(_, value) = value;
     let element_type = match value.first() {
       // TODO: Support encoding distinction of unset vs empty lists?
       None => {
@@ -344,7 +344,7 @@ pub trait StructEncode {
     offset_e: NumElements,
     value: &UnionElementShared,
   ) -> Result<(), Error> {
-    let UnionElementShared(meta, discriminant, value) = value;
+    let UnionElementShared(meta, discriminant, _value) = value;
     let variant_meta = meta.get(*discriminant).expect("WIP");
     self.set_u16(offset_e, variant_meta.discriminant.0);
     // WIP this should be breaking stuff

@@ -1,13 +1,13 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use serde::ser::SerializeSeq;
-use serde::ser::SerializeStruct;
+use serde::ser::{SerializeSeq, SerializeStruct};
 use serde::{Serialize, Serializer};
 
-use crate::reflect::{
-  Element, FieldMeta, ListDecodedElement, ListElement, PointerElement, PrimitiveElement,
-  StructElement, UnionElement,
+use crate::element::{
+  Element, ListDecodedElement, ListElement, PointerElement, PrimitiveElement, StructElement,
+  UnionElement,
 };
+use crate::field_meta::FieldMeta;
 
 impl<'a> Serialize for Element<'a> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
