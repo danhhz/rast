@@ -25,14 +25,14 @@ Rast [Cap'n Proto]
 - [x] Bring back generated owned structs
 - [ ] Use in Rast superproject
 - [ ] Return a reference to underlying bytes for capnp bytes fields
-- [ ] Replace Vec in list return types with IntoIter
+- [ ] Accept Struct or &Struct in constructor (same for struct lists)
 - [x] Bound size of rand value generation
 - [ ] README
 - [ ] Document how to run the golden tests
 - [ ] Set up CI
 - [x] Clean up runtime prelude
 - [ ] Audit pub usage
-- [ ] Audit TODO comments
+- [x] Audit TODO comments
 - [ ] Resolve WIP comments
 - [x] Remove dbg!
 - [x] Remove println!
@@ -51,6 +51,7 @@ Rast [Cap'n Proto]
 - [ ] Default values
 - [ ] Copy struct without knowing type
 - [ ] Packing
+- [ ] Replace Vec in list in/out types with iterators
 - [ ] Match up API naming with the official capnp
 - [ ] Escape field names so metas don't conflict
 - [ ] Clean up codegen code structure

@@ -267,7 +267,7 @@ impl StructFieldMeta {
     _value_meta: &'static StructMeta,
     value: Option<&UntypedStructShared>,
   ) {
-    // TODO: Check that _value_meta matches the expected one?
+    // TODO: Check that the metas match?
     data.set_struct(self.offset, value)
   }
 }

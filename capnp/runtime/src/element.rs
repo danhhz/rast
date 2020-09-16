@@ -27,10 +27,9 @@ impl<'a> Element<'a> {
   }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum PrimitiveElement {
   // TODO: Break these out into U64Element, etc?
-  // TODO: Derive Copy?
   U8(u8),
   U64(u64),
 }
@@ -98,7 +97,6 @@ impl<'a> ListElement<'a> {
   }
 }
 
-// TODO: It'd be nice to make this Vec a slice instead.
 pub struct ListDecodedElement<'a>(pub &'static ListMeta, pub Vec<Element<'a>>);
 
 impl<'a> ListDecodedElement<'a> {
@@ -184,51 +182,3 @@ impl UnionElementShared {
     UnionElement(meta, *discriminant, Box::new(value.as_ref().as_ref()))
   }
 }
-
-// pub trait ToElement<'a> {
-//   // TODO: Make this take ownership of self?
-//   fn to_element(&'a self) -> Result<Element<'a>, Error>;
-// }
-
-// impl<'a> ToElement<'a> for u8 {
-//   // TODO: Make an infallable version of ToElement for primitives and use that
-//   // to implement ToElement?
-//   fn to_element(&'a self) -> Result<Element<'a>, Error> {
-//     Ok(Element::Primitive(PrimitiveElement::U8(*self)))
-//   }
-// }
-
-// impl<'a> ToElement<'a> for u64 {
-//   // TODO: Make an infallable version of ToElement for primitives and use that
-//   // to implement ToElement?
-//   fn to_element(&'a self) -> Result<Element<'a>, Error> {
-//     Ok(Element::Primitive(PrimitiveElement::U64(*self)))
-//   }
-// }
-
-// impl<'a, T: TypedStruct<'a>> ToElement<'a> for T {
-//   fn to_element(&'a self) -> Result<Element<'a>, Error> {
-//     Ok(Element::Pointer(PointerElement::Struct(StructElement(T::meta(), self.as_untyped()))))
-//   }
-// }
-
-// impl<'a, T: ToElement<'a>> ToElement<'a> for Vec<T> {
-//   fn to_element(&'a self) -> Result<Element<'a>, Error> {
-//     let list: Vec<&'a dyn ToElement<'a>> =
-//       self.iter().map(|x| x as &'a dyn ToElement<'a>).collect();
-//     Ok(Element::Pointer(PointerElement::List(ListElement(list))))
-//   }
-// }
-
-// pub trait ToElementList<'a> {
-//   fn to_element_list(&'a self) -> Result<Vec<&'a dyn ToElement<'a>>, Error>;
-// }
-
-// impl<'a, T: 'a + ToElement<'a>> ToElementList<'a> for Result<Vec<T>, Error> {
-//   fn to_element_list(&'a self) -> Result<Vec<&'a dyn ToElement<'a>>, Error> {
-//     match self {
-//       Err(err) => Err(err.clone()),
-//       Ok(xs) => Ok(xs.iter().map(|x| x as &'a dyn ToElement<'a>).collect()),
-//     }
-//   }
-// }

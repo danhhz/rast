@@ -94,7 +94,6 @@ pub trait SegmentPointerDecode<'a>: Sized {
             // TODO: Limit recursive call depth.
             // We already accounted for the offset in the BufPointer so pretend
             // we're reading a pointer at the very beginning of a struct's data.
-            // TODO: This is kinda hacky.
             far.struct_pointer(NumElements(0))
           }
           LandingPadSize::TwoWords => {
@@ -105,7 +104,6 @@ pub trait SegmentPointerDecode<'a>: Sized {
 
             // We already accounted for the offset in the BufPointer so pretend
             // we're reading a pointer at the very beginning of a struct's data.
-            // TODO: This is kinda hacky.
             let far_far = match far.pointer(NumElements(0)) {
               Pointer::Far(x) => Ok(x),
               x => Err(Error::Encoding(format!("expected far pointer got: {:?}", x))),
@@ -139,7 +137,7 @@ pub trait SegmentPointerDecode<'a>: Sized {
     }
   }
 
-  // TODO: Dedup this with fn struct_pointer
+  // WIP: Dedup this with fn struct_pointer
   fn list_pointer(&self, offset_e: NumElements) -> Result<(ListPointer, Self), Error> {
     match self.pointer(offset_e) {
       Pointer::Null => Ok((ListPointer::empty(), Self::empty())),
@@ -160,7 +158,6 @@ pub trait SegmentPointerDecode<'a>: Sized {
             // TODO: Limit recursive call depth.
             // We already accounted for the offset in the BufPointer so pretend
             // we're reading a pointer at the very beginning of a struct's data.
-            // TODO: This is kinda hacky.
             far.list_pointer(NumElements(0))
           }
           LandingPadSize::TwoWords => {
@@ -171,7 +168,6 @@ pub trait SegmentPointerDecode<'a>: Sized {
 
             // We already accounted for the offset in the BufPointer so pretend
             // we're reading a pointer at the very beginning of a struct's data.
-            // TODO: This is kinda hacky.
             let far_far = match far.pointer(NumElements(0)) {
               Pointer::Far(x) => Ok(x),
               x => Err(Error::Encoding(format!("expected far pointer got: {:?}", x))),

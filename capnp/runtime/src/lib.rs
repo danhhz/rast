@@ -42,7 +42,7 @@ pub mod prelude {
   };
   pub use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UnionVariantMeta, UntypedUnion};
 
-  // TODO: Remove these from prelude
+  // WIP: Remove these from prelude
   pub use crate::segment::{decode_stream_alternate, decode_stream_official};
   pub use crate::segment_pointer::SegmentPointer;
 }
