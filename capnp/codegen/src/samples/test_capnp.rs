@@ -43,8 +43,11 @@ impl<'a> TestAllTypes<'a> {
   };
 
   pub fn u_int64_field(&self) -> u64 { TestAllTypes::U_INT64_FIELD_META.get(&self.data) }
+
   pub fn data_field(&self) -> Result<Vec<u8>, Error> { TestAllTypes::DATA_FIELD_META.get(&self.data) }
+
   pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> { TestAllTypes::STRUCT_FIELD_META.get(&self.data) }
+
   pub fn struct_list(&self) -> Result<Vec<TestAllTypes<'a>>, Error> { TestAllTypes::STRUCT_LIST_META.get(&self.data) }
 }
 
@@ -78,6 +81,7 @@ impl<'a> std::cmp::PartialEq for TestAllTypes<'a> {
   }
 }
 
+#[derive(Clone)]
 pub struct TestAllTypesShared {
   data: UntypedStructShared,
 }
@@ -86,7 +90,7 @@ impl TestAllTypesShared {
   pub fn new(
     u_int64_field: u64,
     data_field: &'_ [u8],
-    struct_field: Option<&TestAllTypesShared>,
+    struct_field: Option<TestAllTypesShared>,
     struct_list: &'_ [TestAllTypesShared],
   ) -> TestAllTypesShared {
     let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
@@ -97,9 +101,6 @@ impl TestAllTypesShared {
     TestAllTypesShared { data: data.into_shared() }
   }
 
-  pub fn as_ref<'a>(&'a self) -> TestAllTypes<'a> {
-    TestAllTypes { data: self.data.as_ref() }
-  }
 }
 
 impl TypedStructShared for TestAllTypesShared {
@@ -114,3 +115,8 @@ impl TypedStructShared for TestAllTypesShared {
   }
 }
 
+impl<'a> CapnpAsRef<'a, TestAllTypes<'a>> for TestAllTypesShared {
+  fn capnp_as_ref(&'a self) -> TestAllTypes<'a> {
+    TestAllTypes { data: self.data.capnp_as_ref() }
+  }
+}

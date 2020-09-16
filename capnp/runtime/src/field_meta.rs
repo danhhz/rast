@@ -1,6 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use crate::common::NumElements;
+use crate::common::{CapnpAsRef, NumElements};
 use crate::decode::StructDecode;
 use crate::element::{
   Element, ElementShared, ListElement, PointerElement, PointerElementShared, PrimitiveElement,
@@ -12,7 +12,7 @@ use crate::element_type::{
 };
 use crate::encode::StructEncode;
 use crate::error::{Error, UnknownDiscriminant};
-use crate::list::{ListMeta, TypedList, TypedListShared, UntypedList};
+use crate::list::{ListMeta, TypedList, TypedListElementShared, UntypedList};
 use crate::pointer::Pointer;
 use crate::r#struct::{
   StructMeta, TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned,
@@ -143,7 +143,7 @@ impl U64FieldMeta {
       }
       value => Err(Error::Usage(format!(
         "U64FieldMeta::set_element unsupported_type: {:?}",
-        value.as_ref().element_type()
+        value.capnp_as_ref().element_type()
       ))),
     }
   }
@@ -233,7 +233,7 @@ impl StructFieldMeta {
     self.get_untyped(data).map(|x| T::from_untyped_struct(x))
   }
 
-  pub fn set<T: TypedStructShared>(&self, data: &mut UntypedStructOwned, value: Option<&T>) {
+  pub fn set<T: TypedStructShared>(&self, data: &mut UntypedStructOwned, value: Option<T>) {
     if let Some(value) = value {
       self.set_untyped(data, T::meta(), Some(&value.as_untyped()));
     }
@@ -256,7 +256,7 @@ impl StructFieldMeta {
       }
       value => Err(Error::Usage(format!(
         "StructFieldMeta::set_element unsupported_type: {:?}",
-        value.as_ref().element_type()
+        value.capnp_as_ref().element_type()
       ))),
     }
   }
@@ -305,8 +305,8 @@ impl ListFieldMeta {
     self.get_untyped(data).and_then(|untyped| T::from_untyped_list(&untyped))
   }
 
-  pub fn set<T: TypedListShared>(&self, data: &mut UntypedStructOwned, value: T) {
-    value.set(data, self.offset)
+  pub fn set<T: TypedListElementShared>(&self, data: &mut UntypedStructOwned, value: &[T]) {
+    data.set_list(self.offset, value)
   }
 
   pub fn set_element(
@@ -321,7 +321,7 @@ impl ListFieldMeta {
       }
       value => Err(Error::Usage(format!(
         "ListFieldMeta::set_element unsupported_type: {:?}",
-        value.as_ref().element_type()
+        value.capnp_as_ref().element_type()
       ))),
     }
   }
@@ -387,7 +387,7 @@ impl UnionFieldMeta {
       }
       value => Err(Error::Usage(format!(
         "UnionFieldMeta::set_element unsupported_type: {:?}",
-        value.as_ref().element_type()
+        value.capnp_as_ref().element_type()
       ))),
     }
   }

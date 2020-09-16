@@ -36,8 +36,10 @@ impl<'a> Entry<'a> {
 
   /// The term of the entry.
   pub fn term(&self) -> u64 { Entry::TERM_META.get(&self.data) }
+
   /// The index of the entry.
   pub fn index(&self) -> u64 { Entry::INDEX_META.get(&self.data) }
+
   /// The opaque user payload of the entry.
   pub fn payload(&self) -> Result<Vec<u8>, Error> { Entry::PAYLOAD_META.get(&self.data) }
 }
@@ -72,6 +74,7 @@ impl<'a> std::cmp::PartialEq for Entry<'a> {
   }
 }
 
+#[derive(Clone)]
 pub struct EntryShared {
   data: UntypedStructShared,
 }
@@ -89,9 +92,6 @@ impl EntryShared {
     EntryShared { data: data.into_shared() }
   }
 
-  pub fn as_ref<'a>(&'a self) -> Entry<'a> {
-    Entry { data: self.data.as_ref() }
-  }
 }
 
 impl TypedStructShared for EntryShared {
@@ -103,6 +103,12 @@ impl TypedStructShared for EntryShared {
   }
   fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpAsRef<'a, Entry<'a>> for EntryShared {
+  fn capnp_as_ref(&'a self) -> Entry<'a> {
+    Entry { data: self.data.capnp_as_ref() }
   }
 }
 
@@ -140,8 +146,10 @@ impl<'a> Message<'a> {
 
   /// The node sending this rpc.
   pub fn src(&self) -> u64 { Message::SRC_META.get(&self.data) }
+
   /// The node to receive this rpc.
   pub fn dest(&self) -> u64 { Message::DEST_META.get(&self.data) }
+
   pub fn payload(&self) -> Result<Result<Payload<'a>, UnknownDiscriminant>,Error> { Message::PAYLOAD_META.get(&self.data) }
 }
 
@@ -175,6 +183,7 @@ impl<'a> std::cmp::PartialEq for Message<'a> {
   }
 }
 
+#[derive(Clone)]
 pub struct MessageShared {
   data: UntypedStructShared,
 }
@@ -192,9 +201,6 @@ impl MessageShared {
     MessageShared { data: data.into_shared() }
   }
 
-  pub fn as_ref<'a>(&'a self) -> Message<'a> {
-    Message { data: self.data.as_ref() }
-  }
 }
 
 impl TypedStructShared for MessageShared {
@@ -206,6 +212,12 @@ impl TypedStructShared for MessageShared {
   }
   fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpAsRef<'a, Message<'a>> for MessageShared {
+  fn capnp_as_ref(&'a self) -> Message<'a> {
+    Message { data: self.data.capnp_as_ref() }
   }
 }
 
@@ -263,11 +275,17 @@ impl<'a> AppendEntriesReq<'a> {
   };
 
   pub fn term(&self) -> u64 { AppendEntriesReq::TERM_META.get(&self.data) }
+
   pub fn leader_id(&self) -> u64 { AppendEntriesReq::LEADER_ID_META.get(&self.data) }
+
   pub fn prev_log_index(&self) -> u64 { AppendEntriesReq::PREV_LOG_INDEX_META.get(&self.data) }
+
   pub fn prev_log_term(&self) -> u64 { AppendEntriesReq::PREV_LOG_TERM_META.get(&self.data) }
+
   pub fn leader_commit(&self) -> u64 { AppendEntriesReq::LEADER_COMMIT_META.get(&self.data) }
+
   pub fn read_id(&self) -> u64 { AppendEntriesReq::READ_ID_META.get(&self.data) }
+
   pub fn entries(&self) -> Result<Vec<Entry<'a>>, Error> { AppendEntriesReq::ENTRIES_META.get(&self.data) }
 }
 
@@ -301,6 +319,7 @@ impl<'a> std::cmp::PartialEq for AppendEntriesReq<'a> {
   }
 }
 
+#[derive(Clone)]
 pub struct AppendEntriesReqShared {
   data: UntypedStructShared,
 }
@@ -326,9 +345,6 @@ impl AppendEntriesReqShared {
     AppendEntriesReqShared { data: data.into_shared() }
   }
 
-  pub fn as_ref<'a>(&'a self) -> AppendEntriesReq<'a> {
-    AppendEntriesReq { data: self.data.as_ref() }
-  }
 }
 
 impl TypedStructShared for AppendEntriesReqShared {
@@ -340,6 +356,12 @@ impl TypedStructShared for AppendEntriesReqShared {
   }
   fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpAsRef<'a, AppendEntriesReq<'a>> for AppendEntriesReqShared {
+  fn capnp_as_ref(&'a self) -> AppendEntriesReq<'a> {
+    AppendEntriesReq { data: self.data.capnp_as_ref() }
   }
 }
 
@@ -379,8 +401,11 @@ impl<'a> AppendEntriesRes<'a> {
   };
 
   pub fn term(&self) -> u64 { AppendEntriesRes::TERM_META.get(&self.data) }
+
   pub fn success(&self) -> u64 { AppendEntriesRes::SUCCESS_META.get(&self.data) }
+
   pub fn index(&self) -> u64 { AppendEntriesRes::INDEX_META.get(&self.data) }
+
   pub fn read_id(&self) -> u64 { AppendEntriesRes::READ_ID_META.get(&self.data) }
 }
 
@@ -414,6 +439,7 @@ impl<'a> std::cmp::PartialEq for AppendEntriesRes<'a> {
   }
 }
 
+#[derive(Clone)]
 pub struct AppendEntriesResShared {
   data: UntypedStructShared,
 }
@@ -433,9 +459,6 @@ impl AppendEntriesResShared {
     AppendEntriesResShared { data: data.into_shared() }
   }
 
-  pub fn as_ref<'a>(&'a self) -> AppendEntriesRes<'a> {
-    AppendEntriesRes { data: self.data.as_ref() }
-  }
 }
 
 impl TypedStructShared for AppendEntriesResShared {
@@ -447,6 +470,12 @@ impl TypedStructShared for AppendEntriesResShared {
   }
   fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpAsRef<'a, AppendEntriesRes<'a>> for AppendEntriesResShared {
+  fn capnp_as_ref(&'a self) -> AppendEntriesRes<'a> {
+    AppendEntriesRes { data: self.data.capnp_as_ref() }
   }
 }
 
@@ -486,8 +515,11 @@ impl<'a> RequestVoteReq<'a> {
   };
 
   pub fn term(&self) -> u64 { RequestVoteReq::TERM_META.get(&self.data) }
+
   pub fn candidate_id(&self) -> u64 { RequestVoteReq::CANDIDATE_ID_META.get(&self.data) }
+
   pub fn last_log_index(&self) -> u64 { RequestVoteReq::LAST_LOG_INDEX_META.get(&self.data) }
+
   pub fn last_log_term(&self) -> u64 { RequestVoteReq::LAST_LOG_TERM_META.get(&self.data) }
 }
 
@@ -521,6 +553,7 @@ impl<'a> std::cmp::PartialEq for RequestVoteReq<'a> {
   }
 }
 
+#[derive(Clone)]
 pub struct RequestVoteReqShared {
   data: UntypedStructShared,
 }
@@ -540,9 +573,6 @@ impl RequestVoteReqShared {
     RequestVoteReqShared { data: data.into_shared() }
   }
 
-  pub fn as_ref<'a>(&'a self) -> RequestVoteReq<'a> {
-    RequestVoteReq { data: self.data.as_ref() }
-  }
 }
 
 impl TypedStructShared for RequestVoteReqShared {
@@ -554,6 +584,12 @@ impl TypedStructShared for RequestVoteReqShared {
   }
   fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpAsRef<'a, RequestVoteReq<'a>> for RequestVoteReqShared {
+  fn capnp_as_ref(&'a self) -> RequestVoteReq<'a> {
+    RequestVoteReq { data: self.data.capnp_as_ref() }
   }
 }
 
@@ -583,6 +619,7 @@ impl<'a> RequestVoteRes<'a> {
   };
 
   pub fn term(&self) -> u64 { RequestVoteRes::TERM_META.get(&self.data) }
+
   pub fn vote_granted(&self) -> u64 { RequestVoteRes::VOTE_GRANTED_META.get(&self.data) }
 }
 
@@ -616,6 +653,7 @@ impl<'a> std::cmp::PartialEq for RequestVoteRes<'a> {
   }
 }
 
+#[derive(Clone)]
 pub struct RequestVoteResShared {
   data: UntypedStructShared,
 }
@@ -631,9 +669,6 @@ impl RequestVoteResShared {
     RequestVoteResShared { data: data.into_shared() }
   }
 
-  pub fn as_ref<'a>(&'a self) -> RequestVoteRes<'a> {
-    RequestVoteRes { data: self.data.as_ref() }
-  }
 }
 
 impl TypedStructShared for RequestVoteResShared {
@@ -645,6 +680,12 @@ impl TypedStructShared for RequestVoteResShared {
   }
   fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpAsRef<'a, RequestVoteRes<'a>> for RequestVoteResShared {
+  fn capnp_as_ref(&'a self) -> RequestVoteRes<'a> {
+    RequestVoteRes { data: self.data.capnp_as_ref() }
   }
 }
 
@@ -701,6 +742,7 @@ impl<'a> std::cmp::PartialEq for StartElectionReq<'a> {
   }
 }
 
+#[derive(Clone)]
 pub struct StartElectionReqShared {
   data: UntypedStructShared,
 }
@@ -714,9 +756,6 @@ impl StartElectionReqShared {
     StartElectionReqShared { data: data.into_shared() }
   }
 
-  pub fn as_ref<'a>(&'a self) -> StartElectionReq<'a> {
-    StartElectionReq { data: self.data.as_ref() }
-  }
 }
 
 impl TypedStructShared for StartElectionReqShared {
@@ -728,6 +767,12 @@ impl TypedStructShared for StartElectionReqShared {
   }
   fn as_untyped(&self) -> UntypedStructShared {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpAsRef<'a, StartElectionReq<'a>> for StartElectionReqShared {
+  fn capnp_as_ref(&'a self) -> StartElectionReq<'a> {
+    StartElectionReq { data: self.data.capnp_as_ref() }
   }
 }
 
@@ -808,6 +853,8 @@ impl<'a> TypedUnion<'a> for Payload<'a> {
     }
   }
 }
+
+#[derive(Clone)]
 pub enum PayloadShared {
   AppendEntriesReq(AppendEntriesReqShared),
   AppendEntriesRes(AppendEntriesResShared),
@@ -816,50 +863,41 @@ pub enum PayloadShared {
   StartElectionReq(StartElectionReqShared),
 }
 
-impl PayloadShared {
-  fn as_ref<'a>(&'a self) -> Payload<'a> {
-    match self {
-      PayloadShared::AppendEntriesReq(x) => Payload::AppendEntriesReq(x.as_ref()),
-      PayloadShared::AppendEntriesRes(x) => Payload::AppendEntriesRes(x.as_ref()),
-      PayloadShared::RequestVoteReq(x) => Payload::RequestVoteReq(x.as_ref()),
-      PayloadShared::RequestVoteRes(x) => Payload::RequestVoteRes(x.as_ref()),
-      PayloadShared::StartElectionReq(x) => Payload::StartElectionReq(x.as_ref()),
-    }
-  }
-}
-
 impl<'a> TypedUnionShared<'a, Payload<'a>> for PayloadShared {
-  fn as_ref(&'a self) -> Payload<'a> {
-    match self {
-      PayloadShared::AppendEntriesReq(x) => Payload::AppendEntriesReq(x.as_ref()),
-      PayloadShared::AppendEntriesRes(x) => Payload::AppendEntriesRes(x.as_ref()),
-      PayloadShared::RequestVoteReq(x) => Payload::RequestVoteReq(x.as_ref()),
-      PayloadShared::RequestVoteRes(x) => Payload::RequestVoteRes(x.as_ref()),
-      PayloadShared::StartElectionReq(x) => Payload::StartElectionReq(x.as_ref()),
-    }
-  }
   fn set(&self, data: &mut UntypedStructOwned, discriminant_offset: NumElements) {
     match self {
       PayloadShared::AppendEntriesReq(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(0));
-        Payload::APPEND_ENTRIES_REQ_META.set(data, Some(&*x));
+        Payload::APPEND_ENTRIES_REQ_META.set(data, Some(x.clone()));
       }
       PayloadShared::AppendEntriesRes(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(1));
-        Payload::APPEND_ENTRIES_RES_META.set(data, Some(&*x));
+        Payload::APPEND_ENTRIES_RES_META.set(data, Some(x.clone()));
       }
       PayloadShared::RequestVoteReq(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(2));
-        Payload::REQUEST_VOTE_REQ_META.set(data, Some(&*x));
+        Payload::REQUEST_VOTE_REQ_META.set(data, Some(x.clone()));
       }
       PayloadShared::RequestVoteRes(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(3));
-        Payload::REQUEST_VOTE_RES_META.set(data, Some(&*x));
+        Payload::REQUEST_VOTE_RES_META.set(data, Some(x.clone()));
       }
       PayloadShared::StartElectionReq(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(4));
-        Payload::START_ELECTION_REQ_META.set(data, Some(&*x));
+        Payload::START_ELECTION_REQ_META.set(data, Some(x.clone()));
       }
+    }
+  }
+}
+
+impl<'a> CapnpAsRef<'a, Payload<'a>> for PayloadShared {
+  fn capnp_as_ref(&'a self) -> Payload<'a> {
+    match self {
+      PayloadShared::AppendEntriesReq(x) => Payload::AppendEntriesReq(x.capnp_as_ref()),
+      PayloadShared::AppendEntriesRes(x) => Payload::AppendEntriesRes(x.capnp_as_ref()),
+      PayloadShared::RequestVoteReq(x) => Payload::RequestVoteReq(x.capnp_as_ref()),
+      PayloadShared::RequestVoteRes(x) => Payload::RequestVoteRes(x.capnp_as_ref()),
+      PayloadShared::StartElectionReq(x) => Payload::StartElectionReq(x.capnp_as_ref()),
     }
   }
 }

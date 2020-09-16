@@ -1,6 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use crate::common::NumElements;
+use crate::common::{CapnpAsRef, NumElements};
 use crate::decode::{ListDecode, SegmentPointerDecode};
 use crate::element_type::{ElementType, PrimitiveElementType};
 use crate::encode::{SegmentPointerEncode, StructEncode};
@@ -154,8 +154,8 @@ pub struct UntypedListShared {
   pub pointer_end: SegmentPointerShared,
 }
 
-impl UntypedListShared {
-  pub fn as_ref<'a>(&'a self) -> UntypedList<'a> {
-    UntypedList { pointer: self.pointer.clone(), pointer_end: self.pointer_end.as_ref() }
+impl<'a> CapnpAsRef<'a, UntypedList<'a>> for UntypedListShared {
+  fn capnp_as_ref(&'a self) -> UntypedList<'a> {
+    UntypedList { pointer: self.pointer.clone(), pointer_end: self.pointer_end.capnp_as_ref() }
   }
 }

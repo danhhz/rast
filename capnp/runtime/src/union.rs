@@ -1,6 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use crate::common::{Discriminant, NumElements};
+use crate::common::{CapnpAsRef, Discriminant, NumElements};
 use crate::error::{Error, UnknownDiscriminant};
 use crate::field_meta::FieldMeta;
 use crate::r#struct::{UntypedStruct, UntypedStructOwned};
@@ -14,8 +14,7 @@ pub trait TypedUnion<'a>: Sized {
   ) -> Result<Result<Self, UnknownDiscriminant>, Error>;
 }
 
-pub trait TypedUnionShared<'a, T: TypedUnion<'a>> {
-  fn as_ref(&'a self) -> T;
+pub trait TypedUnionShared<'a, T: TypedUnion<'a>>: CapnpAsRef<'a, T> {
   fn set(&self, data: &mut UntypedStructOwned, discriminant_offset: NumElements);
 }
 

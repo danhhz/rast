@@ -80,15 +80,22 @@ impl ElementWidth {
   }
 }
 
-use std::fmt;
+pub trait CapnpAsRef<'a, T> {
+  fn capnp_as_ref(&'a self) -> T;
+}
 
-pub struct PrettyBytes<'a>(pub &'a [u8]);
+#[cfg(test)]
+pub mod test {
+  use std::fmt;
 
-impl<'a> fmt::Debug for PrettyBytes<'a> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    for (idx, chunk) in self.0.chunks(8).enumerate() {
-      write!(f, "{}: {:?}\n", idx * 8, chunk)?;
+  pub struct PrettyBytes<'a>(pub &'a [u8]);
+
+  impl<'a> fmt::Debug for PrettyBytes<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      for (idx, chunk) in self.0.chunks(8).enumerate() {
+        write!(f, "{}: {:?}\n", idx * 8, chunk)?;
+      }
+      Ok(())
     }
-    Ok(())
   }
 }

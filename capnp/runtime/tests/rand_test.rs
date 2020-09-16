@@ -18,10 +18,10 @@ mod test {
     let before: TestAllTypesShared =
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
-    before.as_ref().as_untyped().encode_as_root_alternate(&mut buf)?;
+    before.capnp_as_ref().as_untyped().encode_as_root_alternate(&mut buf)?;
     let seg = decode_stream_alternate(&buf)?;
     let after = TestAllTypes::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
-    assert_eq!(before.as_ref(), after);
+    assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }
 
@@ -30,10 +30,10 @@ mod test {
     let before: MessageShared =
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
-    before.as_ref().as_untyped().encode_as_root_alternate(&mut buf)?;
+    before.capnp_as_ref().as_untyped().encode_as_root_alternate(&mut buf)?;
     let seg = decode_stream_alternate(&buf)?;
     let after = Message::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
-    assert_eq!(before.as_ref(), after);
+    assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }
 }

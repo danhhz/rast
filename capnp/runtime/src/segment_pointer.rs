@@ -1,6 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use crate::common::NumWords;
+use crate::common::{CapnpAsRef, NumWords};
 use crate::decode::SegmentPointerDecode;
 use crate::encode::SegmentPointerEncode;
 use crate::segment::{Segment, SegmentID, SegmentOwned, SegmentShared};
@@ -47,9 +47,9 @@ pub struct SegmentPointerShared {
   pub off: NumWords,
 }
 
-impl SegmentPointerShared {
-  pub fn as_ref<'a>(&'a self) -> SegmentPointer<'a> {
-    SegmentPointer { seg: Segment::Borrowed(self.seg.as_ref()), off: self.off }
+impl<'a> CapnpAsRef<'a, SegmentPointer<'a>> for SegmentPointerShared {
+  fn capnp_as_ref(&'a self) -> SegmentPointer<'a> {
+    SegmentPointer { seg: Segment::Borrowed(self.seg.capnp_as_ref()), off: self.off }
   }
 }
 

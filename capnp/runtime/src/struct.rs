@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::io::{self, Write};
 
-use crate::common::{Discriminant, NumElements, NumWords, POINTER_WIDTH_WORDS};
+use crate::common::{CapnpAsRef, Discriminant, NumElements, NumWords, POINTER_WIDTH_WORDS};
 use crate::decode::{SegmentPointerDecode, StructDecode};
 use crate::element::StructElement;
 use crate::encode::StructEncode;
@@ -137,9 +137,9 @@ pub struct UntypedStructShared {
   pub pointer_end: SegmentPointerShared,
 }
 
-impl UntypedStructShared {
-  pub fn as_ref<'a>(&'a self) -> UntypedStruct<'a> {
-    UntypedStruct { pointer: self.pointer.clone(), pointer_end: self.pointer_end.as_ref() }
+impl<'a> CapnpAsRef<'a, UntypedStruct<'a>> for UntypedStructShared {
+  fn capnp_as_ref(&'a self) -> UntypedStruct<'a> {
+    UntypedStruct { pointer: self.pointer.clone(), pointer_end: self.pointer_end.capnp_as_ref() }
   }
 }
 

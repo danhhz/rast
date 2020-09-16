@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use crate::common::CapnpAsRef;
 use crate::element::{
   Element, ElementShared, ListDecodedElement, ListElement, PointerElement, PrimitiveElement,
   StructElement, UnionElement,
@@ -24,7 +25,7 @@ impl fmt::Debug for StructMeta {
 
 impl fmt::Debug for ElementShared {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    self.as_ref().fmt(f)
+    self.capnp_as_ref().fmt(f)
   }
 }
 

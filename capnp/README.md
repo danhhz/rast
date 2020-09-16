@@ -25,7 +25,6 @@ Rast [Cap'n Proto]
 - [x] Bring back generated owned structs
 - [ ] Use in Rast superproject
 - [ ] Return a reference to underlying bytes for capnp bytes fields
-- [ ] Accept Struct or &Struct in constructor (same for struct lists)
 - [x] Bound size of rand value generation
 - [ ] README
 - [ ] Document how to run the golden tests
@@ -52,6 +51,7 @@ Rast [Cap'n Proto]
 - [ ] Copy struct without knowing type
 - [ ] Packing
 - [ ] Replace Vec in list in/out types with iterators
+- [ ] Accept Struct or &Struct in constructor (same for struct lists)
 - [ ] Match up API naming with the official capnp
 - [ ] Escape field names so metas don't conflict
 - [ ] Clean up codegen code structure

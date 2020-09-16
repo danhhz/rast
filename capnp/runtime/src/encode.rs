@@ -1,7 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use crate::common::{
-  Discriminant, ElementWidth, NumElements, NumWords, COMPOSITE_TAG_WIDTH_BYTES,
+  CapnpAsRef, Discriminant, ElementWidth, NumElements, NumWords, COMPOSITE_TAG_WIDTH_BYTES,
   POINTER_WIDTH_BYTES, POINTER_WIDTH_WORDS, U16_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
 };
 use crate::decode::SegmentPointerDecode;
@@ -201,7 +201,7 @@ pub trait StructEncode {
     let one_struct_len = composite_tag.data_size + composite_tag.pointer_size;
     let len_before = self.pointer_end().seg.buf_mut().len();
     for x in value.iter() {
-      let x: UntypedStructShared = as_untyped(&*x);
+      let x: UntypedStructShared = as_untyped(x);
       if x.pointer.data_size != composite_tag.data_size {
         // TODO: I think we can handle this by padding them out with 0s to match
         // the largest data_size in the list. Definitely needs unit tests.
@@ -235,7 +235,8 @@ pub trait StructEncode {
       let segment_id = self.pointer_end().seg.other_reference(x.pointer_end.seg.clone());
       for idx in 0..x.pointer.pointer_size.0 {
         // WIP: Hacks
-        let pointer = x.pointer_end.as_ref().pointer(NumElements(x.pointer.data_size.0 + idx));
+        let pointer =
+          x.pointer_end.capnp_as_ref().pointer(NumElements(x.pointer.data_size.0 + idx));
         let far_pointer = match pointer {
           Pointer::Null => Pointer::Null,
           _ => Pointer::Far(FarPointer {
@@ -312,7 +313,7 @@ pub trait StructEncode {
         self.set_pointer(offset_e, Pointer::Null);
         return Ok(());
       }
-      Some(first) => first.as_ref().element_type(),
+      Some(first) => first.capnp_as_ref().element_type(),
     };
 
     match element_type {
@@ -325,7 +326,7 @@ pub trait StructEncode {
               return Err(Error::Usage(format!(
                 "cannot encode {:?} list containing {:?}",
                 element_type,
-                x.as_ref().element_type(),
+                x.capnp_as_ref().element_type(),
               )))
             }
           }
@@ -348,7 +349,7 @@ pub trait StructEncode {
               return Err(Error::Usage(format!(
                 "cannot encode {:?} list containing {:?}",
                 element_type,
-                x.as_ref().element_type(),
+                x.capnp_as_ref().element_type(),
               )))
             }
           }

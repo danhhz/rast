@@ -1,6 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use crate::common::Discriminant;
+use crate::common::{CapnpAsRef, Discriminant};
 use crate::element_type::{
   ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
   UnionElementType,
@@ -121,12 +121,12 @@ pub enum ElementShared {
   Union(UnionElementShared),
 }
 
-impl ElementShared {
-  pub fn as_ref<'a>(&'a self) -> Element<'a> {
+impl<'a> CapnpAsRef<'a, Element<'a>> for ElementShared {
+  fn capnp_as_ref(&'a self) -> Element<'a> {
     match self {
       ElementShared::Primitive(x) => Element::Primitive(x.clone()),
-      ElementShared::Pointer(x) => Element::Pointer(x.as_ref()),
-      ElementShared::Union(x) => Element::Union(x.as_ref()),
+      ElementShared::Pointer(x) => Element::Pointer(x.capnp_as_ref()),
+      ElementShared::Union(x) => Element::Union(x.capnp_as_ref()),
     }
   }
 }
@@ -137,48 +137,48 @@ pub enum PointerElementShared {
   ListDecoded(ListDecodedElementShared),
 }
 
-impl PointerElementShared {
-  pub fn as_ref<'a>(&'a self) -> PointerElement<'a> {
+impl<'a> CapnpAsRef<'a, PointerElement<'a>> for PointerElementShared {
+  fn capnp_as_ref(&'a self) -> PointerElement<'a> {
     match self {
-      PointerElementShared::Struct(x) => PointerElement::Struct(x.as_ref()),
-      PointerElementShared::List(x) => PointerElement::List(x.as_ref()),
-      PointerElementShared::ListDecoded(x) => PointerElement::ListDecoded(x.as_ref()),
+      PointerElementShared::Struct(x) => PointerElement::Struct(x.capnp_as_ref()),
+      PointerElementShared::List(x) => PointerElement::List(x.capnp_as_ref()),
+      PointerElementShared::ListDecoded(x) => PointerElement::ListDecoded(x.capnp_as_ref()),
     }
   }
 }
 
 pub struct StructElementShared(pub &'static StructMeta, pub UntypedStructShared);
 
-impl StructElementShared {
-  pub fn as_ref<'a>(&'a self) -> StructElement<'a> {
+impl<'a> CapnpAsRef<'a, StructElement<'a>> for StructElementShared {
+  fn capnp_as_ref(&'a self) -> StructElement<'a> {
     let StructElementShared(meta, untyped) = self;
-    StructElement(meta, untyped.as_ref())
+    StructElement(meta, untyped.capnp_as_ref())
   }
 }
 
 pub struct ListElementShared(pub &'static ListMeta, pub UntypedListShared);
 
-impl ListElementShared {
-  pub fn as_ref<'a>(&'a self) -> ListElement<'a> {
+impl<'a> CapnpAsRef<'a, ListElement<'a>> for ListElementShared {
+  fn capnp_as_ref(&'a self) -> ListElement<'a> {
     let ListElementShared(meta, untyped) = self;
-    ListElement(meta, untyped.as_ref())
+    ListElement(meta, untyped.capnp_as_ref())
   }
 }
 
 pub struct ListDecodedElementShared(pub &'static ListMeta, pub Vec<ElementShared>);
 
-impl ListDecodedElementShared {
-  pub fn as_ref<'a>(&'a self) -> ListDecodedElement<'a> {
+impl<'a> CapnpAsRef<'a, ListDecodedElement<'a>> for ListDecodedElementShared {
+  fn capnp_as_ref(&'a self) -> ListDecodedElement<'a> {
     let ListDecodedElementShared(meta, values) = self;
-    ListDecodedElement(meta, values.iter().map(|v| v.as_ref()).collect())
+    ListDecodedElement(meta, values.iter().map(|v| v.capnp_as_ref()).collect())
   }
 }
 
 pub struct UnionElementShared(pub &'static UnionMeta, pub Discriminant, pub Box<ElementShared>);
 
-impl UnionElementShared {
-  pub fn as_ref<'a>(&'a self) -> UnionElement<'a> {
+impl<'a> CapnpAsRef<'a, UnionElement<'a>> for UnionElementShared {
+  fn capnp_as_ref(&'a self) -> UnionElement<'a> {
     let UnionElementShared(meta, discriminant, value) = self;
-    UnionElement(meta, *discriminant, Box::new(value.as_ref().as_ref()))
+    UnionElement(meta, *discriminant, Box::new(value.as_ref().capnp_as_ref()))
   }
 }

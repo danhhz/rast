@@ -25,7 +25,7 @@ mod r#struct;
 mod union;
 
 pub mod prelude {
-  pub use super::common::{Discriminant, NumElements, NumWords};
+  pub use super::common::{CapnpAsRef, Discriminant, NumElements, NumWords};
   pub use crate::element_type::{
     ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
     UnionElementType,

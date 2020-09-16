@@ -7,7 +7,7 @@ use std::hash::Hasher;
 use std::iter::Iterator;
 use std::rc::Rc;
 
-use crate::common::{NumWords, WORD_BYTES};
+use crate::common::{CapnpAsRef, NumWords, WORD_BYTES};
 use crate::error::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -63,20 +63,22 @@ pub struct SegmentShared {
 }
 
 impl SegmentShared {
-  pub fn as_ref<'a>(&'a self) -> SegmentBorrowed<'a> {
-    let mut other: HashMap<SegmentID, &'a [u8]> = HashMap::with_capacity(self.other.len());
-    for (k, v) in self.other.iter() {
-      other.insert(*k, &v.buf);
-    }
-    SegmentBorrowed { buf: &self.buf, other: Some(Rc::new(other)) }
-  }
-
   pub fn buf(&self) -> &[u8] {
     &self.buf
   }
 
   pub fn all_other<'a>(&'a self) -> Vec<(SegmentID, SegmentShared)> {
     self.other.iter().map(|(id, s)| (*id, s.clone())).collect()
+  }
+}
+
+impl<'a> CapnpAsRef<'a, SegmentBorrowed<'a>> for SegmentShared {
+  fn capnp_as_ref(&'a self) -> SegmentBorrowed<'a> {
+    let mut other: HashMap<SegmentID, &'a [u8]> = HashMap::with_capacity(self.other.len());
+    for (k, v) in self.other.iter() {
+      other.insert(*k, &v.buf);
+    }
+    SegmentBorrowed { buf: &self.buf, other: Some(Rc::new(other)) }
   }
 }
 

@@ -158,7 +158,7 @@ impl FieldType for StructField {
   fn type_in(&self) -> String {
     // TODO: Figure out how to accept a non-shared version. This would require
     // recursively copying in all the data.
-    format!("&{}Shared", self.type_)
+    format!("{}Shared", self.type_)
   }
   fn type_in_option(&self) -> bool {
     true
@@ -293,15 +293,16 @@ impl Struct {
   fn render(&self, w: &mut dyn io::Write) -> io::Result<()> {
     let struct_name = &self.name;
 
+    write!(w, "\n")?;
     if let Some(doc_comment) = &self.doc_comment {
       write!(w, "/// {}\n", doc_comment)?;
     }
     write!(w, "#[derive(Clone)]\n")?;
     write!(w, "pub struct {}<'a> {{\n", struct_name)?;
     write!(w, "  data: UntypedStruct<'a>,\n")?;
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl<'a> {}<'a> {{\n", struct_name)?;
+    write!(w, "\nimpl<'a> {}<'a> {{\n", struct_name)?;
 
     for field in self.fields.iter() {
       Struct::render_field_meta(w, field)?;
@@ -317,9 +318,10 @@ impl Struct {
       write!(w, "      {},\n", field.ftype().type_meta_class(format!("{}::{}_META", struct_name, field.meta_name())))?;
     }
     write!(w, "    ],\n")?;
-    write!(w, "  }};\n\n")?;
+    write!(w, "  }};\n")?;
 
     for field in self.fields.iter() {
+      write!(w, "\n")?;
       if let Some(doc_comment) = &field.doc_comment {
         write!(w, "  /// {}\n", doc_comment)?;
       }
@@ -335,9 +337,9 @@ impl Struct {
       struct_name, field.meta_name())?;
     }
 
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl<'a> TypedStruct<'a> for {}<'a> {{\n", struct_name)?;
+    write!(w, "\nimpl<'a> TypedStruct<'a> for {}<'a> {{\n", struct_name)?;
     write!(w, "  fn meta() -> &'static StructMeta {{\n")?;
     write!(w, "    &{}::META\n", struct_name)?;
     write!(w, "  }}\n")?;
@@ -347,31 +349,32 @@ impl Struct {
     write!(w, "  fn as_untyped(&self) -> UntypedStruct<'a> {{\n")?;
     write!(w, "    self.data.clone()\n")?;
     write!(w, "  }}\n")?;
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl<'a> std::fmt::Debug for {}<'a> {{\n", struct_name)?;
+    write!(w, "\nimpl<'a> std::fmt::Debug for {}<'a> {{\n", struct_name)?;
     write!(w, "  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {{\n")?;
     write!(w, "    self.as_element().fmt(f)\n")?;
     write!(w, "  }}\n")?;
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl<'a> std::cmp::PartialOrd for {}<'a> {{\n", struct_name)?;
+    write!(w, "\nimpl<'a> std::cmp::PartialOrd for {}<'a> {{\n", struct_name)?;
     write!(w, "  fn partial_cmp(&self, other: &{}<'a>) -> Option<std::cmp::Ordering> {{\n", struct_name)?;
     write!(w, "    self.as_element().partial_cmp(&other.as_element())\n")?;
     write!(w, "  }}\n")?;
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl<'a> std::cmp::PartialEq for {}<'a> {{\n", struct_name)?;
+    write!(w, "\nimpl<'a> std::cmp::PartialEq for {}<'a> {{\n", struct_name)?;
     write!(w, "  fn eq(&self, other: &{}<'a>) -> bool {{\n", struct_name)?;
     write!(w, "    self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)\n")?;
     write!(w, "  }}\n")?;
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
+    write!(w, "\n#[derive(Clone)]\n")?;
     write!(w, "pub struct {}Shared {{\n", struct_name)?;
     write!(w, "  data: UntypedStructShared,\n")?;
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl {}Shared {{\n", struct_name)?;
+    write!(w, "\nimpl {}Shared {{\n", struct_name)?;
 
     write!(w, "  pub fn new(\n")?;
     for field in self.fields.iter() {
@@ -388,14 +391,9 @@ impl Struct {
     }
     write!(w, "    {}Shared {{ data: data.into_shared() }}\n", struct_name)?;
     write!(w, "  }}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "  pub fn as_ref<'a>(&'a self) -> {}<'a> {{\n", struct_name)?;
-    write!(w, "    {} {{ data: self.data.as_ref() }}\n", struct_name)?;
-    write!(w, "  }}\n")?;
-
-    write!(w, "}}\n\n")?;
-
-    write!(w, "impl TypedStructShared for {}Shared {{\n", struct_name)?;
+    write!(w, "\nimpl TypedStructShared for {}Shared {{\n", struct_name)?;
     write!(w, "  fn meta() -> &'static StructMeta {{\n")?;
     write!(w, "    &{}::META\n", struct_name)?;
     write!(w, "  }}\n")?;
@@ -405,7 +403,13 @@ impl Struct {
     write!(w, "  fn as_untyped(&self) -> UntypedStructShared {{\n")?;
     write!(w, "    self.data.clone()\n")?;
     write!(w, "  }}\n")?;
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
+
+    write!(w, "\nimpl<'a> CapnpAsRef<'a, {}<'a>> for {}Shared {{\n", struct_name, struct_name)?;
+    write!(w, "  fn capnp_as_ref(&'a self) -> {}<'a> {{\n", struct_name)?;
+    write!(w, "    {} {{ data: self.data.capnp_as_ref() }}\n", struct_name)?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n")?;
 
     Ok(())
   }
@@ -430,6 +434,7 @@ impl Union {
   }
 
   fn render(&self, w: &mut dyn Write) -> io::Result<()> {
+    write!(w, "\n")?;
     if let Some(doc_comment) = &self.doc_comment {
       write!(w, "/// {}\n", doc_comment.trim().replace("\n", " "))?;
     }
@@ -438,9 +443,9 @@ impl Union {
     for variant in &self.variants {
       write!(w, "  {}({}),\n", variant.name, variant.field.ftype().type_out())?;
     }
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl {}<'_> {{\n", &self.name)?;
+    write!(w, "\nimpl {}<'_> {{\n", &self.name)?;
     for variant in &self.variants {
       Struct::render_field_meta(w, &variant.field)?;
     }
@@ -456,9 +461,9 @@ impl Union {
     }
     write!(w, "    ],\n")?;
     write!(w, "  }};\n")?;
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl<'a> TypedUnion<'a> for {}<'a> {{\n", &self.name)?;
+    write!(w, "\nimpl<'a> TypedUnion<'a> for {}<'a> {{\n", &self.name)?;
     write!(w, "  fn meta() -> &'static UnionMeta {{\n")?;
     write!(w, "    &{}::META\n",  &self.name)?;
     write!(w, "  }}\n")?;
@@ -474,40 +479,35 @@ impl Union {
     write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
+    write!(w, "\n")?;
     if let Some(doc_comment) = &self.doc_comment {
       write!(w, "/// {}\n", doc_comment.trim().replace("\n", " "))?;
     }
+    write!(w, "#[derive(Clone)]\n")?;
     write!(w, "pub enum {}Shared {{\n", &self.name)?;
     for variant in &self.variants {
       write!(w, "  {}({}Shared),\n", variant.name, variant.field.ftype().type_owned())?;
     }
-    write!(w, "}}\n\n")?;
+    write!(w, "}}\n")?;
 
-    write!(w, "impl {}Shared {{\n", &self.name)?;
-    write!(w, "  fn as_ref<'a>(&'a self) -> {}<'a> {{\n", &self.name)?;
-    write!(w, "    match self {{\n")?;
-    for variant in &self.variants {
-      write!(w, "      {}Shared::{}(x) => {}::{}(x.as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
-    }
-    write!(w, "    }}\n")?;
-    write!(w, "  }}\n")?;
-    write!(w, "}}\n\n")?;
-
-    write!(w, "impl<'a> TypedUnionShared<'a, {}<'a>> for {}Shared {{\n", &self.name, &self.name)?;
-    write!(w, "  fn as_ref(&'a self) -> {}<'a> {{\n", &self.name)?;
-    write!(w, "    match self {{\n")?;
-    for variant in &self.variants {
-      write!(w, "      {}Shared::{}(x) => {}::{}(x.as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
-    }
-    write!(w, "    }}\n")?;
-    write!(w, "  }}\n")?;
+    write!(w, "\nimpl<'a> TypedUnionShared<'a, {}<'a>> for {}Shared {{\n", &self.name, &self.name)?;
     write!(w, "  fn set(&self, data: &mut UntypedStructOwned, discriminant_offset: NumElements) {{\n")?;
     write!(w, "    match self {{\n")?;
     for variant in &self.variants {
       write!(w, "      {}Shared::{}(x) => {{\n", &self.name, variant.name)?;
       write!(w, "        data.set_discriminant(discriminant_offset, Discriminant({}));\n", variant.discriminant)?;
-      write!(w, "        {}::{}_META.set(data, Some(&*x));\n", &self.name, variant.field.meta_name())?;
+      write!(w, "        {}::{}_META.set(data, Some(x.clone()));\n", &self.name, variant.field.meta_name())?;
       write!(w, "      }}\n")?;
+    }
+    write!(w, "    }}\n")?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n")?;
+
+    write!(w, "\nimpl<'a> CapnpAsRef<'a, {}<'a>> for {}Shared {{\n", &self.name, &self.name)?;
+    write!(w, "  fn capnp_as_ref(&'a self) -> {}<'a> {{\n", &self.name)?;
+    write!(w, "    match self {{\n")?;
+    for variant in &self.variants {
+      write!(w, "      {}Shared::{}(x) => {}::{}(x.capnp_as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
     }
     write!(w, "    }}\n")?;
     write!(w, "  }}\n")?;
@@ -726,7 +726,7 @@ impl<'a> Generator<'a> {
   }
 
   fn render_preamble(w: &mut dyn Write) -> io::Result<()> {
-    write!(w, "use capnp_runtime::prelude::*;\n\n")?;
+    write!(w, "use capnp_runtime::prelude::*;\n")?;
     Ok(())
   }
 }
