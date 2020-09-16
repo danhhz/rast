@@ -15,7 +15,9 @@ impl fmt::Debug for StructMeta {
       .field("name", &self.name)
       .field("data_size", &self.data_size)
       .field("pointer_size", &self.pointer_size)
-      .field("fields", &self.fields())
+      // NB: Can't just print out the fields here or we'll get infinite
+      // recursion in self-referencing struct types.
+      .field("fields", &"WIP")
       .finish()
   }
 }

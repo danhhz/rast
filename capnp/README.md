@@ -26,7 +26,7 @@ Rast [Cap'n Proto]
 - [ ] Use in Rast superproject
 - [ ] Return a reference to underlying bytes for capnp bytes fields
 - [ ] Replace Vec in list return types with IntoIter
-- [ ] Bound size of rand value generation
+- [x] Bound size of rand value generation
 - [ ] README
 - [ ] Document how to run the golden tests
 - [ ] Set up CI

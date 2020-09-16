@@ -1,5 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+use std::cmp;
+
 use rand::Rng;
 
 use crate::element::{
@@ -13,99 +15,106 @@ use crate::element_type::{
 use crate::field_meta::{FieldMeta, PointerFieldMeta, PrimitiveFieldMeta};
 use crate::r#struct::{StructMeta, TypedStructShared, UntypedStructOwned, UntypedStructShared};
 
-trait RandElement<T> {
-  fn gen<R: Rng>(&self, rng: &mut R) -> T;
+pub struct Rand<'a, R: Rng> {
+  rng: &'a mut R,
+
+  /// An upper bound on recursive calls into struct generation.
+  max_struct_recursion: usize,
 }
 
-impl RandElement<ElementShared> for ElementType {
-  fn gen<R: Rng>(&self, rng: &mut R) -> ElementShared {
-    match self {
-      ElementType::Primitive(x) => ElementShared::Primitive(x.gen(rng)),
-      ElementType::Pointer(x) => ElementShared::Pointer(x.gen(rng)),
-      ElementType::Union(x) => ElementShared::Union(x.gen(rng)),
-    }
+impl<'a, R: Rng> Rand<'a, R> {
+  pub fn new(rng: &'a mut R, max_struct_recursion: usize) -> Self {
+    Rand { rng: rng, max_struct_recursion: max_struct_recursion }
   }
-}
 
-impl RandElement<PrimitiveElement> for PrimitiveElementType {
-  fn gen<R: Rng>(&self, rng: &mut R) -> PrimitiveElement {
-    match self {
-      PrimitiveElementType::U8 => PrimitiveElement::U8(rng.gen()),
-      PrimitiveElementType::U64 => PrimitiveElement::U64(rng.gen()),
-    }
+  pub fn gen_typed_struct<T: TypedStructShared>(&mut self) -> T {
+    T::from_untyped_struct(self.gen_untyped_struct(T::meta()))
   }
-}
 
-impl RandElement<PointerElementShared> for PointerElementType {
-  fn gen<R: Rng>(&self, rng: &mut R) -> PointerElementShared {
-    match self {
-      PointerElementType::Struct(x) => PointerElementShared::Struct(x.gen(rng)),
-      PointerElementType::List(x) => PointerElementShared::ListDecoded(x.gen(rng)),
-    }
-  }
-}
-
-impl RandElement<StructElementShared> for StructElementType {
-  fn gen<R: Rng>(&self, rng: &mut R) -> StructElementShared {
-    StructElementShared(self.meta, gen_untyped_struct(rng, self.meta))
-  }
-}
-
-impl RandElement<ListDecodedElementShared> for ListElementType {
-  fn gen<R: Rng>(&self, rng: &mut R) -> ListDecodedElementShared {
-    ListDecodedElementShared(self.meta, gen_element_list(rng, &self.meta.value_type))
-  }
-}
-
-impl RandElement<UnionElementShared> for UnionElementType {
-  fn gen<R: Rng>(&self, rng: &mut R) -> UnionElementShared {
-    let variant_meta = &self.meta.variants[rng.gen_range(0, self.meta.variants.len())];
-    UnionElementShared(
-      self.meta,
-      variant_meta.discriminant,
-      Box::new(variant_meta.field_meta.element_type().gen(rng)),
-    )
-  }
-}
-
-fn gen_element_list<R: Rng>(rng: &mut R, value_type: &ElementType) -> Vec<ElementShared> {
-  (0..rng.gen_range(0, 3)).map(|_| value_type.gen(rng)).collect()
-}
-
-pub fn gen_untyped_struct<R: Rng>(rng: &mut R, meta: &'static StructMeta) -> UntypedStructShared {
-  let mut data = UntypedStructOwned::new_with_root_struct(meta.data_size, meta.pointer_size);
-  for field_meta in meta.fields() {
-    match field_meta {
-      FieldMeta::Primitive(x) => match x {
-        PrimitiveFieldMeta::U64(x) => x.set(&mut data, rng.gen()),
-      },
-      FieldMeta::Pointer(x) => match x {
-        PointerFieldMeta::Struct(x) => {
-          if rng.gen_bool(0.5) {
-            let untyped = gen_untyped_struct(rng, x.meta);
-            x.set_struct_element(&mut data, &StructElementShared(x.meta, untyped))
-          }
-        }
-        PointerFieldMeta::List(x) => {
-          // Keep a limit on the recursion
-          if let ElementType::Pointer(PointerElementType::Struct(_)) = x.meta.value_type {
-            if rng.gen_bool(0.5) {
+  fn gen_untyped_struct(&mut self, meta: &'static StructMeta) -> UntypedStructShared {
+    let mut data = UntypedStructOwned::new_with_root_struct(meta.data_size, meta.pointer_size);
+    for field_meta in meta.fields() {
+      match field_meta {
+        FieldMeta::Primitive(x) => match x {
+          PrimitiveFieldMeta::U64(x) => x.set(&mut data, self.rng.gen()),
+        },
+        FieldMeta::Pointer(x) => match x {
+          PointerFieldMeta::Struct(x) => {
+            if self.rng.gen_bool(0.5) || self.max_struct_recursion == 0 {
               continue;
             }
+            self.max_struct_recursion -= 1;
+            let untyped = self.gen_untyped_struct(x.meta);
+            x.set_struct_element(&mut data, &StructElementShared(x.meta, untyped))
           }
-          let l = ListElementType { meta: x.meta }.gen(rng);
-          x.set_element(&mut data, &ElementShared::Pointer(PointerElementShared::ListDecoded(l)))
-            .expect("WIP");
+          PointerFieldMeta::List(x) => {
+            let l = self.gen_list_element(&ListElementType { meta: x.meta });
+            x.set_element(&mut data, &ElementShared::Pointer(PointerElementShared::ListDecoded(l)))
+              .expect("WIP");
+          }
+        },
+        FieldMeta::Union(x) => {
+          x.set_element(
+            &mut data,
+            &ElementShared::Union(self.gen_union_element(&x.element_type())),
+          )
+          .expect("WIP");
         }
-      },
-      FieldMeta::Union(x) => {
-        x.set_element(&mut data, &ElementShared::Union(x.element_type().gen(rng))).expect("WIP");
       }
     }
+    data.into_shared()
   }
-  data.into_shared()
-}
 
-pub fn gen_typed<T: TypedStructShared, R: Rng>(rng: &mut R) -> T {
-  T::from_untyped_struct(gen_untyped_struct(rng, T::meta()))
+  fn gen_element(&mut self, element_type: &ElementType) -> ElementShared {
+    match element_type {
+      ElementType::Primitive(x) => ElementShared::Primitive(self.gen_primitive_element(x)),
+      ElementType::Pointer(x) => ElementShared::Pointer(self.gen_pointer_element(x)),
+      ElementType::Union(x) => ElementShared::Union(self.gen_union_element(x)),
+    }
+  }
+
+  fn gen_primitive_element(&mut self, element_type: &PrimitiveElementType) -> PrimitiveElement {
+    match element_type {
+      PrimitiveElementType::U8 => PrimitiveElement::U8(self.rng.gen()),
+      PrimitiveElementType::U64 => PrimitiveElement::U64(self.rng.gen()),
+    }
+  }
+
+  fn gen_pointer_element(&mut self, element_type: &PointerElementType) -> PointerElementShared {
+    match element_type {
+      PointerElementType::Struct(x) => PointerElementShared::Struct(self.gen_struct_element(x)),
+      PointerElementType::List(x) => PointerElementShared::ListDecoded(self.gen_list_element(x)),
+    }
+  }
+
+  fn gen_struct_element(&mut self, element_type: &StructElementType) -> StructElementShared {
+    StructElementShared(element_type.meta, self.gen_untyped_struct(element_type.meta))
+  }
+
+  fn gen_list_element(&mut self, element_type: &ListElementType) -> ListDecodedElementShared {
+    ListDecodedElementShared(
+      element_type.meta,
+      self.gen_element_list(&element_type.meta.value_type),
+    )
+  }
+
+  fn gen_element_list(&mut self, value_type: &ElementType) -> Vec<ElementShared> {
+    // TODO: Use a Poisson (or user-selectable) distribution for this.
+    let mut len = self.rng.gen_range(0, 3);
+    if let ElementType::Pointer(PointerElementType::Struct(_)) = value_type {
+      len = cmp::min(len, self.max_struct_recursion);
+      self.max_struct_recursion -= len;
+    }
+    (0..len).map(|_| self.gen_element(value_type)).collect()
+  }
+
+  fn gen_union_element(&mut self, element_type: &UnionElementType) -> UnionElementShared {
+    let variant_meta =
+      &element_type.meta.variants[self.rng.gen_range(0, element_type.meta.variants.len())];
+    UnionElementShared(
+      element_type.meta,
+      variant_meta.discriminant,
+      Box::new(self.gen_element(&variant_meta.field_meta.element_type())),
+    )
+  }
 }

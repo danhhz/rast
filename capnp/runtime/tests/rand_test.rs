@@ -15,7 +15,8 @@ mod test {
 
   #[test]
   fn rand_roundtrip_testalltypes() -> Result<(), Box<dyn Error>> {
-    let before: TestAllTypesShared = capnp_runtime::rand::gen_typed(&mut rand::thread_rng());
+    let before: TestAllTypesShared =
+      capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
     before.as_ref().as_untyped().encode_as_root_alternate(&mut buf)?;
     let seg = decode_stream_alternate(&buf)?;
@@ -26,7 +27,8 @@ mod test {
 
   #[test]
   fn rand_roundtrip_rast() -> Result<(), Box<dyn Error>> {
-    let before: MessageShared = capnp_runtime::rand::gen_typed(&mut rand::thread_rng());
+    let before: MessageShared =
+      capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
     before.as_ref().as_untyped().encode_as_root_alternate(&mut buf)?;
     let seg = decode_stream_alternate(&buf)?;

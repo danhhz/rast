@@ -9,7 +9,7 @@ use crate::element::{
   ElementShared, ListDecodedElementShared, PointerElementShared, PrimitiveElement,
   StructElementShared, UnionElementShared,
 };
-use crate::element_type::{ElementType, PrimitiveElementType};
+use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
 use crate::error::Error;
 use crate::list::{ListElementEncoding, TypedListElementShared};
 use crate::pointer::{
@@ -333,6 +333,29 @@ pub trait StructEncode {
         self.set_list(offset_e, &typed_value);
         Ok(())
       }
+      ElementType::Pointer(PointerElementType::Struct(_)) => {
+        let mut typed_value = Vec::with_capacity(value.len());
+        for x in value.iter() {
+          match x {
+            ElementShared::Pointer(PointerElementShared::Struct(StructElementShared(
+              _,
+              untyped,
+            ))) => {
+              // TODO: Check that the metas match.
+              typed_value.push(untyped)
+            }
+            x => {
+              return Err(Error::from(format!(
+                "cannot encode {:?} list containing {:?}",
+                element_type,
+                x.as_ref().element_type(),
+              )))
+            }
+          }
+        }
+        self.set_list(offset_e, &typed_value);
+        Ok(())
+      }
       element_type => {
         Err(Error::from(format!("TODO: set_list_decoded_element for {:?}", element_type)))
       }
@@ -347,7 +370,9 @@ pub trait StructEncode {
     let UnionElementShared(meta, discriminant, _value) = value;
     let variant_meta = meta.get(*discriminant).expect("WIP");
     self.set_u16(offset_e, variant_meta.discriminant.0);
-    // WIP this should be breaking stuff
+    // TODO: I don't want to expose the *Encode trait on FieldMeta so
+    // set_element currently requires an UntypedStructOwned, but we don't have
+    // one here. Test that catches this.
     // variant_meta.field_meta.set_element(self, value.as_ref()).expect("WIP");
     Ok(())
   }
