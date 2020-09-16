@@ -9,7 +9,7 @@ pub struct NumElements(pub i32);
 
 #[cfg(target_pointer_width = "64")]
 impl NumElements {
-  pub const fn as_bytes(&self, width: usize) -> usize {
+  pub const fn as_bytes(self, width: usize) -> usize {
     self.0 as usize * width
   }
 }
@@ -19,7 +19,7 @@ pub struct NumWords(pub i32);
 
 #[cfg(target_pointer_width = "64")]
 impl NumWords {
-  pub const fn as_bytes(&self) -> usize {
+  pub const fn as_bytes(self) -> usize {
     self.0 as usize * 8
   }
 }

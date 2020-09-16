@@ -201,7 +201,7 @@ pub trait StructEncode {
     let one_struct_len = composite_tag.data_size + composite_tag.pointer_size;
     let len_before = self.pointer_end().seg.buf_mut().len();
     for x in value.iter() {
-      let x: UntypedStructShared = as_untyped(x.clone());
+      let x: UntypedStructShared = as_untyped(&*x);
       if x.pointer.data_size != composite_tag.data_size {
         // TODO: I think we can handle this by padding them out with 0s to match
         // the largest data_size in the list. Definitely needs unit tests.

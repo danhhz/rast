@@ -59,6 +59,7 @@ fn decode_u8_list_element(list_data_begin: &SegmentPointer<'_>, offset_e: NumEle
   list_data_begin.u8(offset_e)
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn encode_u8_list_element(
   list_data_begin: &mut SegmentPointerBorrowMut<'_>,
   offset_e: NumElements,
@@ -83,6 +84,7 @@ fn decode_u64_list_element(list_data_begin: &SegmentPointer<'_>, offset_e: NumEl
   list_data_begin.u64(offset_e)
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn encode_u64_list_element(
   list_data_begin: &mut SegmentPointerBorrowMut<'_>,
   offset_e: NumElements,

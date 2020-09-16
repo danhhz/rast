@@ -2,11 +2,16 @@
 
 use std::convert::TryInto;
 
-use crate::common::*;
+use crate::common::{
+  Discriminant, ElementWidth, NumElements, NumWords, COMPOSITE_TAG_WIDTH_WORDS,
+  POINTER_WIDTH_WORDS, U16_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
+};
 use crate::element_type::PrimitiveElementType;
 use crate::error::Error;
 use crate::list::{ListElementDecoding, TypedListElement, UntypedList};
-use crate::pointer::*;
+use crate::pointer::{
+  LandingPadSize, ListCompositeTag, ListLayout, ListPointer, Pointer, StructPointer,
+};
 use crate::r#struct::UntypedStruct;
 use crate::segment::{Segment, SegmentID};
 use crate::segment_pointer::SegmentPointer;
@@ -117,10 +122,9 @@ pub trait SegmentPointerDecode<'a>: Sized {
             // pointer to the target object would look, except that the offset is
             // always zero.
             let (sp_template, _) = far.struct_pointer(NumElements(1))?;
-            let seg = far.other(far_far.seg).ok_or(Error::from(format!(
-              "encoding: far far pointer segment {:?} not found",
-              far_far.seg
-            )))?;
+            let seg = far.other(far_far.seg).ok_or_else(|| {
+              Error::from(format!("encoding: far far pointer segment {:?} not found", far_far.seg))
+            })?;
             let sp_end = Self::from_root(seg);
             let sp = StructPointer {
               off: far_far.off,
@@ -144,10 +148,9 @@ pub trait SegmentPointerDecode<'a>: Sized {
         Ok((lp, lp_end))
       }
       Pointer::Far(x) => {
-        let seg = self.other(x.seg).ok_or(Error::from(format!(
-          "encoding: far list pointer segment {:?} not found",
-          x.seg
-        )))?;
+        let seg = self.other(x.seg).ok_or_else(|| {
+          Error::from(format!("encoding: far list pointer segment {:?} not found", x.seg))
+        })?;
         let far = Self::from_root(seg).add(x.off);
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -185,10 +188,9 @@ pub trait SegmentPointerDecode<'a>: Sized {
             // pointer to the target object would look, except that the offset is
             // always zero.
             let (lp_template, _) = far.list_pointer(NumElements(1))?;
-            let seg = far.other(far_far.seg).ok_or(Error::from(format!(
-              "encoding: far far pointer segment {:?} not found",
-              far_far.seg
-            )))?;
+            let seg = far.other(far_far.seg).ok_or_else(|| {
+              Error::from(format!("encoding: far far pointer segment {:?} not found", far_far.seg))
+            })?;
             let lp_end = Self::from_root(seg);
             let lp = ListPointer { off: far_far.off, layout: lp_template.layout };
             Ok((lp, lp_end))
@@ -200,8 +202,9 @@ pub trait SegmentPointerDecode<'a>: Sized {
   }
 
   fn list_composite_tag(&self) -> Result<(ListCompositeTag, Self), Error> {
-    let raw =
-      self.u64_raw(NumElements(0)).ok_or(Error::from("encoding: expected composite tag"))?;
+    let raw = self
+      .u64_raw(NumElements(0))
+      .ok_or_else(|| Error::from("encoding: expected composite tag"))?;
     let tag = ListCompositeTag::decode(raw)?;
     let tag_end = self.add(COMPOSITE_TAG_WIDTH_WORDS);
     Ok((tag, tag_end))

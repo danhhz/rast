@@ -1,5 +1,13 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+#![warn(unsafe_code)]
+#![warn(
+  clippy::correctness,
+  clippy::perf,
+  clippy::wildcard_imports,
+  clippy::trivially_copy_pass_by_ref
+)]
+
 mod cmp;
 mod common;
 mod decode;

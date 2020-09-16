@@ -1,6 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use crate::common::*;
+use crate::common::NumWords;
 use crate::decode::SegmentPointerDecode;
 use crate::encode::SegmentPointerEncode;
 use crate::segment::{Segment, SegmentID, SegmentOwned, SegmentShared};
