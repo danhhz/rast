@@ -322,7 +322,7 @@ pub trait StructEncode {
           match x {
             ElementShared::Primitive(PrimitiveElement::U8(x)) => typed_value.push(*x),
             x => {
-              return Err(Error::from(format!(
+              return Err(Error::Usage(format!(
                 "cannot encode {:?} list containing {:?}",
                 element_type,
                 x.as_ref().element_type(),
@@ -345,7 +345,7 @@ pub trait StructEncode {
               typed_value.push(untyped)
             }
             x => {
-              return Err(Error::from(format!(
+              return Err(Error::Usage(format!(
                 "cannot encode {:?} list containing {:?}",
                 element_type,
                 x.as_ref().element_type(),
@@ -356,9 +356,7 @@ pub trait StructEncode {
         self.set_list(offset_e, &typed_value);
         Ok(())
       }
-      element_type => {
-        Err(Error::from(format!("TODO: set_list_decoded_element for {:?}", element_type)))
-      }
+      element_type => Err(Error::TODO(format!("set_list_decoded_element for {:?}", element_type))),
     }
   }
 

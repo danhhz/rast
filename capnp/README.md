@@ -21,7 +21,7 @@ Rast [Cap'n Proto]
 - [x] ListMeta
 - [x] Merge StructMeta/ListMeta and StructElementType/ListElementType
 - [x] Add context to error messages
-- [ ] Mark whether an error is user handleable?
+- [x] Mark whether an error is user handleable
 - [x] Bring back generated owned structs
 - [ ] Use in Rast superproject
 - [ ] Return a reference to underlying bytes for capnp bytes fields

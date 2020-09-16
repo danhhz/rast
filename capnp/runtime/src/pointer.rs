@@ -193,7 +193,7 @@ impl ListCompositeTag {
     // offset (B) instead indicates the number of elements in the list.
     let sp = match Pointer::decode(buf) {
       Pointer::Struct(sp) => sp,
-      x => return Err(Error::from(format!("expected composite tag got: {:?}", x))),
+      x => return Err(Error::Encoding(format!("expected composite tag got: {:?}", x))),
     };
     Ok(ListCompositeTag {
       num_elements: NumElements(sp.off.0),

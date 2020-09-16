@@ -324,7 +324,9 @@ impl Struct {
         write!(w, "  /// {}\n", doc_comment)?;
       }
       write!(w, "  pub fn {}(&self) -> ", field.name)?;
-      if field.ftype().type_out_result() {
+      if let FieldTypeEnum::Union(_) = field.type_ {
+        write!(w, "Result<Result<{}, UnknownDiscriminant>,Error>",field.ftype().type_out())?;
+      } else if field.ftype().type_out_result() {
         write!(w, "Result<{}, Error>",field.ftype().type_out())?;
       } else {
         write!(w, "{}",field.ftype().type_out())?;
@@ -460,14 +462,14 @@ impl Union {
     write!(w, "  fn meta() -> &'static UnionMeta {{\n")?;
     write!(w, "    &{}::META\n",  &self.name)?;
     write!(w, "  }}\n")?;
-    write!(w, "  fn from_untyped_union(untyped: &UntypedUnion<'a>) -> Result<Self, Error> {{\n")?;
+    write!(w, "  fn from_untyped_union(untyped: &UntypedUnion<'a>) -> Result<Result<Self, UnknownDiscriminant>, Error> {{\n")?;
     write!(w, "    match untyped.discriminant {{\n")?;
     for variant in self.variants.iter() {
       // TODO: This only works for pointer types.
-      write!(w, "      Discriminant({}) => {}::{}_META.get(&untyped.variant_data).map(|x| {}::{}(x)),\n",
+      write!(w, "      Discriminant({}) => {}::{}_META.get(&untyped.variant_data).map(|x| Ok({}::{}(x))),\n",
         variant.discriminant, &self.name, variant.field.meta_name(), &self.name, variant.name)?;
     }
-    write!(w, "      x => Err(Error::from(format!(\"unknown {} discriminant: {{:?}}\", x))),\n", &self.name)?;
+    write!(w, "      x => Ok(Err(UnknownDiscriminant(x, Payload::META.name))),\n")?;
     write!(w, "    }}\n")?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n")?;

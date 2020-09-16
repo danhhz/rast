@@ -11,7 +11,7 @@ use crate::element_type::{
   UnionElementType,
 };
 use crate::encode::StructEncode;
-use crate::error::Error;
+use crate::error::{Error, UnknownDiscriminant};
 use crate::list::{ListMeta, TypedList, TypedListShared, UntypedList};
 use crate::pointer::Pointer;
 use crate::r#struct::{
@@ -141,9 +141,10 @@ impl U64FieldMeta {
         self.set(data, *value);
         Ok(())
       }
-      value => {
-        Err(Error::from(format!("set u64 unsupported_type: {:?}", value.as_ref().element_type())))
-      }
+      value => Err(Error::Usage(format!(
+        "U64FieldMeta::set_element unsupported_type: {:?}",
+        value.as_ref().element_type()
+      ))),
     }
   }
 }
@@ -253,8 +254,8 @@ impl StructFieldMeta {
         self.set_struct_element(data, value);
         Ok(())
       }
-      value => Err(Error::from(format!(
-        "set struct unsupported_type: {:?}",
+      value => Err(Error::Usage(format!(
+        "StructFieldMeta::set_element unsupported_type: {:?}",
         value.as_ref().element_type()
       ))),
     }
@@ -318,9 +319,10 @@ impl ListFieldMeta {
         // TODO: Check that the metas match?
         data.set_list_decoded_element(self.offset, x)
       }
-      value => {
-        Err(Error::from(format!("set list unsupported_type: {:?}", value.as_ref().element_type())))
-      }
+      value => Err(Error::Usage(format!(
+        "ListFieldMeta::set_element unsupported_type: {:?}",
+        value.as_ref().element_type()
+      ))),
     }
   }
 }
@@ -346,7 +348,13 @@ impl UnionFieldMeta {
   fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> UntypedUnion<'a> {
     data.untyped_union(self.offset)
   }
-  pub fn get<'a, T: TypedUnion<'a>>(&self, data: &UntypedStruct<'a>) -> Result<T, Error> {
+
+  // NB: Double Result is intentional for better error handling. See
+  // https://sled.rs/errors.html
+  pub fn get<'a, T: TypedUnion<'a>>(
+    &self,
+    data: &UntypedStruct<'a>,
+  ) -> Result<Result<T, UnknownDiscriminant>, Error> {
     T::from_untyped_union(&self.get_untyped(data))
   }
   pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<UnionElement<'a>, Error> {
@@ -377,9 +385,10 @@ impl UnionFieldMeta {
         data.set_discriminant(self.offset, variant_meta.discriminant);
         variant_meta.field_meta.set_element(data, value.as_ref())
       }
-      value => {
-        Err(Error::from(format!("set union unsupported_type: {:?}", value.as_ref().element_type())))
-      }
+      value => Err(Error::Usage(format!(
+        "UnionFieldMeta::set_element unsupported_type: {:?}",
+        value.as_ref().element_type()
+      ))),
     }
   }
 }

@@ -142,7 +142,7 @@ impl<'a> Message<'a> {
   pub fn src(&self) -> u64 { Message::SRC_META.get(&self.data) }
   /// The node to receive this rpc.
   pub fn dest(&self) -> u64 { Message::DEST_META.get(&self.data) }
-  pub fn payload(&self) -> Result<Payload<'a>, Error> { Message::PAYLOAD_META.get(&self.data) }
+  pub fn payload(&self) -> Result<Result<Payload<'a>, UnknownDiscriminant>,Error> { Message::PAYLOAD_META.get(&self.data) }
 }
 
 impl<'a> TypedStruct<'a> for Message<'a> {
@@ -797,14 +797,14 @@ impl<'a> TypedUnion<'a> for Payload<'a> {
   fn meta() -> &'static UnionMeta {
     &Payload::META
   }
-  fn from_untyped_union(untyped: &UntypedUnion<'a>) -> Result<Self, Error> {
+  fn from_untyped_union(untyped: &UntypedUnion<'a>) -> Result<Result<Self, UnknownDiscriminant>, Error> {
     match untyped.discriminant {
-      Discriminant(0) => Payload::APPEND_ENTRIES_REQ_META.get(&untyped.variant_data).map(|x| Payload::AppendEntriesReq(x)),
-      Discriminant(1) => Payload::APPEND_ENTRIES_RES_META.get(&untyped.variant_data).map(|x| Payload::AppendEntriesRes(x)),
-      Discriminant(2) => Payload::REQUEST_VOTE_REQ_META.get(&untyped.variant_data).map(|x| Payload::RequestVoteReq(x)),
-      Discriminant(3) => Payload::REQUEST_VOTE_RES_META.get(&untyped.variant_data).map(|x| Payload::RequestVoteRes(x)),
-      Discriminant(4) => Payload::START_ELECTION_REQ_META.get(&untyped.variant_data).map(|x| Payload::StartElectionReq(x)),
-      x => Err(Error::from(format!("unknown Payload discriminant: {:?}", x))),
+      Discriminant(0) => Payload::APPEND_ENTRIES_REQ_META.get(&untyped.variant_data).map(|x| Ok(Payload::AppendEntriesReq(x))),
+      Discriminant(1) => Payload::APPEND_ENTRIES_RES_META.get(&untyped.variant_data).map(|x| Ok(Payload::AppendEntriesRes(x))),
+      Discriminant(2) => Payload::REQUEST_VOTE_REQ_META.get(&untyped.variant_data).map(|x| Ok(Payload::RequestVoteReq(x))),
+      Discriminant(3) => Payload::REQUEST_VOTE_RES_META.get(&untyped.variant_data).map(|x| Ok(Payload::RequestVoteRes(x))),
+      Discriminant(4) => Payload::START_ELECTION_REQ_META.get(&untyped.variant_data).map(|x| Ok(Payload::StartElectionReq(x))),
+      x => Ok(Err(UnknownDiscriminant(x, Payload::META.name))),
     }
   }
 }

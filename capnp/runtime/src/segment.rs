@@ -148,7 +148,7 @@ pub fn decode_stream_official<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
 
   let num_segments_bytes: [u8; 4] = buf
     .get(0..4)
-    .ok_or_else(|| Error::from("encoding: incomplete segment count"))?
+    .ok_or_else(|| Error::Encoding(format!("incomplete segment count")))?
     .try_into()
     .unwrap();
   let num_segments_minus_one = u32::from_le_bytes(num_segments_bytes);
@@ -162,21 +162,21 @@ pub fn decode_stream_official<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
     let segment_size_words = u32::from_le_bytes(
       buf
         .get(size_offset..size_offset + 4)
-        .ok_or_else(|| Error::from(format!("encoding: invalid segment {:?} size", id)))?
+        .ok_or_else(|| Error::Encoding(format!("invalid segment {:?} size", id)))?
         .try_into()
         .unwrap(),
     );
     let segment_size_bytes = segment_size_words as usize * 8;
     let segment_bytes = buf
       .get(buf_offset..buf_offset + segment_size_bytes)
-      .ok_or_else(|| Error::from(format!("encoding: insufficient segment {:?} bytes", id)))?;
+      .ok_or_else(|| Error::Encoding(format!("insufficient segment {:?} bytes", id)))?;
     size_offset += 4;
     buf_offset += segment_size_bytes;
     by_id.insert(id, segment_bytes);
   }
 
   let first_segment_buf =
-    by_id.get(&SegmentID(0)).ok_or_else(|| Error::from("encoding: no segments"))?;
+    by_id.get(&SegmentID(0)).ok_or_else(|| Error::Encoding(format!("no segments")))?;
   Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Rc::new(by_id)) }))
 }
 
@@ -188,7 +188,7 @@ pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> 
     let id = SegmentID(u32::from_le_bytes(
       buf
         .get(buf_offset..buf_offset + 4)
-        .ok_or_else(|| Error::from(format!("encoding: incomplete segment id")))?
+        .ok_or_else(|| Error::Encoding(format!("incomplete segment id")))?
         .try_into()
         .unwrap(),
     ));
@@ -196,7 +196,7 @@ pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> 
     let segment_size_words = u32::from_le_bytes(
       buf
         .get(buf_offset..buf_offset + 4)
-        .ok_or_else(|| Error::from(format!("encoding: invalid segment {:?} size", id)))?
+        .ok_or_else(|| Error::Encoding(format!("invalid segment {:?} size", id)))?
         .try_into()
         .unwrap(),
     );
@@ -204,12 +204,12 @@ pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> 
     let segment_size_bytes = segment_size_words as usize * 8;
     let segment_bytes = buf
       .get(buf_offset..buf_offset + segment_size_bytes)
-      .ok_or_else(|| Error::from(format!("encoding: insufficient segment {:?} bytes", id)))?;
+      .ok_or_else(|| Error::Encoding(format!("insufficient segment {:?} bytes", id)))?;
     buf_offset += segment_size_bytes;
     by_id.insert(id, segment_bytes);
   }
 
   let first_segment_buf =
-    by_id.get(&SegmentID(0)).ok_or_else(|| Error::from("encoding: no segments"))?;
+    by_id.get(&SegmentID(0)).ok_or_else(|| Error::Encoding(format!("no segments")))?;
   Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Rc::new(by_id)) }))
 }

@@ -1,13 +1,17 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use crate::common::{Discriminant, NumElements};
-use crate::error::Error;
+use crate::error::{Error, UnknownDiscriminant};
 use crate::field_meta::FieldMeta;
 use crate::r#struct::{UntypedStruct, UntypedStructOwned};
 
 pub trait TypedUnion<'a>: Sized {
   fn meta() -> &'static UnionMeta;
-  fn from_untyped_union(data: &UntypedUnion<'a>) -> Result<Self, Error>;
+  // NB: Double Result is intentional for better error handling. See
+  // https://sled.rs/errors.html
+  fn from_untyped_union(
+    data: &UntypedUnion<'a>,
+  ) -> Result<Result<Self, UnknownDiscriminant>, Error>;
 }
 
 pub trait TypedUnionShared<'a, T: TypedUnion<'a>> {

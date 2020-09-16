@@ -30,7 +30,7 @@ pub mod prelude {
     ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
     UnionElementType,
   };
-  pub use crate::error::Error;
+  pub use crate::error::{Error, UnknownDiscriminant};
   pub use crate::field_meta::{
     FieldMeta, ListFieldMeta, PointerFieldMeta, PrimitiveFieldMeta, StructFieldMeta, U64FieldMeta,
     UnionFieldMeta,

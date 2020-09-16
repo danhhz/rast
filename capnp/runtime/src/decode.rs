@@ -79,8 +79,8 @@ pub trait SegmentPointerDecode<'a>: Sized {
       }
       Pointer::Far(x) => {
         let seg = self.other(x.seg).ok_or_else(|| {
-          Error::from(format!(
-            "encoding: far struct pointer segment {:?} not found in {:?}",
+          Error::Encoding(format!(
+            "far struct pointer segment {:?} not found in {:?}",
             x.seg,
             self.all_other().iter().map(|x| x.0).collect::<Vec<_>>()
           ))
@@ -108,11 +108,11 @@ pub trait SegmentPointerDecode<'a>: Sized {
             // TODO: This is kinda hacky.
             let far_far = match far.pointer(NumElements(0)) {
               Pointer::Far(x) => Ok(x),
-              x => Err(Error::from(format!("encoding: expected far pointer got: {:?}", x))),
+              x => Err(Error::Encoding(format!("expected far pointer got: {:?}", x))),
             }?;
             if let LandingPadSize::TwoWords = far_far.landing_pad_size {
-              return Err(Error::from(format!(
-                "encoding: expected one word far pointer got: {:?}",
+              return Err(Error::Encoding(format!(
+                "expected one word far pointer got: {:?}",
                 far_far,
               )));
             }
@@ -123,7 +123,7 @@ pub trait SegmentPointerDecode<'a>: Sized {
             // always zero.
             let (sp_template, _) = far.struct_pointer(NumElements(1))?;
             let seg = far.other(far_far.seg).ok_or_else(|| {
-              Error::from(format!("encoding: far far pointer segment {:?} not found", far_far.seg))
+              Error::Encoding(format!("far far pointer segment {:?} not found", far_far.seg))
             })?;
             let sp_end = Self::from_root(seg);
             let sp = StructPointer {
@@ -135,7 +135,7 @@ pub trait SegmentPointerDecode<'a>: Sized {
           }
         }
       }
-      x => Err(Error::from(format!("encoding: expected struct pointer got: {:?}", x))),
+      x => Err(Error::Encoding(format!("expected struct pointer got: {:?}", x))),
     }
   }
 
@@ -149,7 +149,7 @@ pub trait SegmentPointerDecode<'a>: Sized {
       }
       Pointer::Far(x) => {
         let seg = self.other(x.seg).ok_or_else(|| {
-          Error::from(format!("encoding: far list pointer segment {:?} not found", x.seg))
+          Error::Encoding(format!("far list pointer segment {:?} not found", x.seg))
         })?;
         let far = Self::from_root(seg).add(x.off);
         match x.landing_pad_size {
@@ -174,11 +174,11 @@ pub trait SegmentPointerDecode<'a>: Sized {
             // TODO: This is kinda hacky.
             let far_far = match far.pointer(NumElements(0)) {
               Pointer::Far(x) => Ok(x),
-              x => Err(Error::from(format!("encoding: expected far pointer got: {:?}", x))),
+              x => Err(Error::Encoding(format!("expected far pointer got: {:?}", x))),
             }?;
             if let LandingPadSize::TwoWords = far_far.landing_pad_size {
-              return Err(Error::from(format!(
-                "encoding: expected one word far pointer got: {:?}",
+              return Err(Error::Encoding(format!(
+                "expected one word far pointer got: {:?}",
                 far_far,
               )));
             }
@@ -189,7 +189,7 @@ pub trait SegmentPointerDecode<'a>: Sized {
             // always zero.
             let (lp_template, _) = far.list_pointer(NumElements(1))?;
             let seg = far.other(far_far.seg).ok_or_else(|| {
-              Error::from(format!("encoding: far far pointer segment {:?} not found", far_far.seg))
+              Error::Encoding(format!("far far pointer segment {:?} not found", far_far.seg))
             })?;
             let lp_end = Self::from_root(seg);
             let lp = ListPointer { off: far_far.off, layout: lp_template.layout };
@@ -197,14 +197,14 @@ pub trait SegmentPointerDecode<'a>: Sized {
           }
         }
       }
-      x => Err(Error::from(format!("encoding: expected list pointer got: {:?}", x))),
+      x => Err(Error::Encoding(format!("expected list pointer got: {:?}", x))),
     }
   }
 
   fn list_composite_tag(&self) -> Result<(ListCompositeTag, Self), Error> {
     let raw = self
       .u64_raw(NumElements(0))
-      .ok_or_else(|| Error::from("encoding: expected composite tag"))?;
+      .ok_or_else(|| Error::Encoding(format!("expected composite tag")))?;
     let tag = ListCompositeTag::decode(raw)?;
     let tag_end = self.add(COMPOSITE_TAG_WIDTH_WORDS);
     Ok((tag, tag_end))
@@ -281,7 +281,7 @@ pub trait ListDecode<'a> {
       }
       ListLayout::Packed(num_elements, width) => {
         if width != &element_type.width() {
-          return Err(Error::from(format!(
+          return Err(Error::Encoding(format!(
             "unsupported list layout for {:?}: {:?}",
             element_type,
             self.pointer().layout
@@ -290,7 +290,10 @@ pub trait ListDecode<'a> {
         num_elements
       }
       x => {
-        return Err(Error::from(format!("unsupported list layout for {:?}: {:?}", element_type, x)))
+        return Err(Error::Encoding(format!(
+          "unsupported list layout for {:?}: {:?}",
+          element_type, x
+        )))
       }
     };
     let list_data_begin = self.list_data_begin();
@@ -307,12 +310,14 @@ pub trait ListDecode<'a> {
   ) -> Result<Vec<T>, Error> {
     let pointer_declared_len = match &self.pointer().layout {
       ListLayout::Composite(num_words) => *num_words,
-      x => return Err(Error::from(format!("unsupported list layout for TypedStruct: {:?}", x))),
+      x => {
+        return Err(Error::Encoding(format!("unsupported list layout for TypedStruct: {:?}", x)))
+      }
     };
     let (tag, tag_end) = self.list_data_begin().list_composite_tag()?;
     let composite_len = (tag.data_size + tag.pointer_size) * tag.num_elements;
     if composite_len != pointer_declared_len {
-      return Err(Error::from(format!(
+      return Err(Error::Encoding(format!(
         "composite tag length ({:?}) doesn't agree with pointer ({:?})",
         composite_len, pointer_declared_len
       )));
