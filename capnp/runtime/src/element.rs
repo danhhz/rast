@@ -2,8 +2,8 @@
 
 use crate::common::{CapnpAsRef, Discriminant};
 use crate::element_type::{
-  ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
-  UnionElementType,
+  DataElementType, ElementType, ListElementType, PointerElementType, PrimitiveElementType,
+  StructElementType, UnionElementType,
 };
 use crate::error::Error;
 use crate::list::{ListMeta, TypedList, UntypedList, UntypedListShared};
@@ -45,6 +45,7 @@ impl PrimitiveElement {
 
 #[derive(PartialEq, PartialOrd)]
 pub enum PointerElement<'a> {
+  Data(DataElement<'a>),
   Struct(StructElement<'a>),
   List(ListElement<'a>),
   ListDecoded(ListDecodedElement<'a>),
@@ -53,10 +54,20 @@ pub enum PointerElement<'a> {
 impl<'a> PointerElement<'a> {
   pub fn element_type(&self) -> PointerElementType {
     match self {
+      PointerElement::Data(x) => PointerElementType::Data(x.element_type()),
       PointerElement::Struct(x) => PointerElementType::Struct(x.element_type()),
       PointerElement::List(x) => PointerElementType::List(x.element_type()),
       PointerElement::ListDecoded(x) => PointerElementType::List(x.element_type()),
     }
+  }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub struct DataElement<'a>(pub &'a [u8]);
+
+impl<'a> DataElement<'a> {
+  pub fn element_type(&self) -> DataElementType {
+    DataElementType
   }
 }
 
@@ -132,6 +143,7 @@ impl<'a> CapnpAsRef<'a, Element<'a>> for ElementShared {
 }
 
 pub enum PointerElementShared {
+  Data(DataElementShared),
   Struct(StructElementShared),
   List(ListElementShared),
   ListDecoded(ListDecodedElementShared),
@@ -140,10 +152,20 @@ pub enum PointerElementShared {
 impl<'a> CapnpAsRef<'a, PointerElement<'a>> for PointerElementShared {
   fn capnp_as_ref(&'a self) -> PointerElement<'a> {
     match self {
+      PointerElementShared::Data(x) => PointerElement::Data(x.capnp_as_ref()),
       PointerElementShared::Struct(x) => PointerElement::Struct(x.capnp_as_ref()),
       PointerElementShared::List(x) => PointerElement::List(x.capnp_as_ref()),
       PointerElementShared::ListDecoded(x) => PointerElement::ListDecoded(x.capnp_as_ref()),
     }
+  }
+}
+
+pub struct DataElementShared(pub Vec<u8>);
+
+impl<'a> CapnpAsRef<'a, DataElement<'a>> for DataElementShared {
+  fn capnp_as_ref(&'a self) -> DataElement<'a> {
+    let DataElementShared(value) = self;
+    DataElement(&value)
   }
 }
 

@@ -4,8 +4,8 @@ use serde::ser::{SerializeSeq, SerializeStruct};
 use serde::{Serialize, Serializer};
 
 use crate::element::{
-  Element, ListDecodedElement, ListElement, PointerElement, PrimitiveElement, StructElement,
-  UnionElement,
+  DataElement, Element, ListDecodedElement, ListElement, PointerElement, PrimitiveElement,
+  StructElement, UnionElement,
 };
 use crate::field_meta::FieldMeta;
 
@@ -31,10 +31,18 @@ impl Serialize for PrimitiveElement {
 impl<'a> Serialize for PointerElement<'a> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     match self {
+      PointerElement::Data(x) => x.serialize(serializer),
       PointerElement::Struct(x) => x.serialize(serializer),
       PointerElement::List(x) => x.serialize(serializer),
       PointerElement::ListDecoded(x) => x.serialize(serializer),
     }
+  }
+}
+
+impl<'a> Serialize for DataElement<'a> {
+  fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    let DataElement(value) = self;
+    serializer.serialize_bytes(value)
   }
 }
 

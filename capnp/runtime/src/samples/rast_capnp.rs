@@ -15,12 +15,9 @@ impl<'a> Entry<'a> {
     name: "index",
     offset: NumElements(1),
   };
-  const PAYLOAD_META: ListFieldMeta = ListFieldMeta {
+  const PAYLOAD_META: DataFieldMeta = DataFieldMeta {
     name: "payload",
     offset: NumElements(0),
-    meta: &ListMeta {
-      value_type: ElementType::Primitive(PrimitiveElementType::U8)
-    },
   };
 
   const META: StructMeta = StructMeta {
@@ -30,7 +27,7 @@ impl<'a> Entry<'a> {
     fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::TERM_META)),
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::INDEX_META)),
-      FieldMeta::Pointer(PointerFieldMeta::List(Entry::PAYLOAD_META)),
+      FieldMeta::Pointer(PointerFieldMeta::Data(Entry::PAYLOAD_META)),
     ],
   };
 
@@ -41,7 +38,7 @@ impl<'a> Entry<'a> {
   pub fn index(&self) -> u64 { Entry::INDEX_META.get(&self.data) }
 
   /// The opaque user payload of the entry.
-  pub fn payload(&self) -> Result<Vec<u8>, Error> { Entry::PAYLOAD_META.get(&self.data) }
+  pub fn payload(&self) -> Result<&'a [u8], Error> { Entry::PAYLOAD_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> EntryShared {
     EntryShared { data: self.data.capnp_to_owned() }
@@ -94,7 +91,7 @@ impl EntryShared {
   pub fn new(
     term: u64,
     index: u64,
-    payload: &'_ [u8],
+    payload: &[u8],
   ) -> EntryShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Entry::META.data_size, Entry::META.pointer_size);
     Entry::TERM_META.set(&mut data, term);

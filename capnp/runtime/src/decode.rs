@@ -13,18 +13,18 @@ use crate::pointer::{
   LandingPadSize, ListCompositeTag, ListLayout, ListPointer, Pointer, StructPointer,
 };
 use crate::r#struct::UntypedStruct;
-use crate::segment::{Segment, SegmentID};
+use crate::segment::{SegmentBorrowed, SegmentID};
 use crate::segment_pointer::SegmentPointer;
 use crate::union::UntypedUnion;
 
 pub trait SegmentPointerDecode<'a>: Sized {
   fn empty() -> Self;
-  fn from_root(seg: Segment<'a>) -> Self;
+  fn from_root(seg: SegmentBorrowed<'a>) -> Self;
   fn add(&self, offset: NumWords) -> Self;
-  fn buf(&self) -> &[u8];
+  fn buf(&self) -> &'a [u8];
   fn offset_w(&self) -> NumWords;
-  fn other(&self, id: SegmentID) -> Option<Segment<'a>>;
-  fn all_other(&self) -> Vec<(SegmentID, Segment<'a>)>;
+  fn other(&self, id: SegmentID) -> Option<SegmentBorrowed<'a>>;
+  fn all_other(&self) -> Vec<(SegmentID, SegmentBorrowed<'a>)>;
 
   // TODO: This gets a little nicer with const generics.
   fn u8_raw(&self, offset_e: NumElements) -> Option<[u8; U8_WIDTH_BYTES]> {
@@ -225,6 +225,24 @@ pub trait StructDecode<'a> {
 
   fn pointer_raw(&self, offset_e: NumElements) -> Pointer {
     self.pointer_fields_begin().pointer(offset_e)
+  }
+
+  fn bytes(&self, offset_e: NumElements) -> Result<&'a [u8], Error> {
+    let (pointer, pointer_end) = self.pointer_fields_begin().list_pointer(offset_e)?;
+    if let ListLayout::Packed(num_elements, ElementWidth::OneByte) = pointer.layout {
+      let sp = pointer_end.add(pointer.off);
+      let data_begin = sp.offset_w().as_bytes();
+      let data_end = data_begin + num_elements.as_bytes(U8_WIDTH_BYTES);
+      sp.buf().get(data_begin..data_end).ok_or_else(|| {
+        Error::Encoding(format!(
+          "truncated byte field had {} of {}",
+          sp.buf()[data_begin..].len(),
+          data_end - data_begin
+        ))
+      })
+    } else {
+      Err(Error::Encoding(format!("unsupposed list layout for data: {:?}", pointer.layout)))
+    }
   }
 
   fn untyped_struct(&self, offset_e: NumElements) -> Result<UntypedStruct<'a>, Error> {

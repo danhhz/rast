@@ -10,12 +10,9 @@ impl<'a> TestAllTypes<'a> {
     name: "u_int64_field",
     offset: NumElements(3),
   };
-  const DATA_FIELD_META: ListFieldMeta = ListFieldMeta {
+  const DATA_FIELD_META: DataFieldMeta = DataFieldMeta {
     name: "data_field",
     offset: NumElements(1),
-    meta: &ListMeta {
-      value_type: ElementType::Primitive(PrimitiveElementType::U8)
-    },
   };
   const STRUCT_FIELD_META: StructFieldMeta = StructFieldMeta {
     name: "struct_field",
@@ -36,7 +33,7 @@ impl<'a> TestAllTypes<'a> {
     pointer_size: NumWords(20),
     fields: || &[
       FieldMeta::Primitive(PrimitiveFieldMeta::U64(TestAllTypes::U_INT64_FIELD_META)),
-      FieldMeta::Pointer(PointerFieldMeta::List(TestAllTypes::DATA_FIELD_META)),
+      FieldMeta::Pointer(PointerFieldMeta::Data(TestAllTypes::DATA_FIELD_META)),
       FieldMeta::Pointer(PointerFieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META)),
       FieldMeta::Pointer(PointerFieldMeta::List(TestAllTypes::STRUCT_LIST_META)),
     ],
@@ -44,7 +41,7 @@ impl<'a> TestAllTypes<'a> {
 
   pub fn u_int64_field(&self) -> u64 { TestAllTypes::U_INT64_FIELD_META.get(&self.data) }
 
-  pub fn data_field(&self) -> Result<Vec<u8>, Error> { TestAllTypes::DATA_FIELD_META.get(&self.data) }
+  pub fn data_field(&self) -> Result<&'a [u8], Error> { TestAllTypes::DATA_FIELD_META.get(&self.data) }
 
   pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> { TestAllTypes::STRUCT_FIELD_META.get(&self.data) }
 
@@ -100,7 +97,7 @@ pub struct TestAllTypesShared {
 impl TestAllTypesShared {
   pub fn new(
     u_int64_field: u64,
-    data_field: &'_ [u8],
+    data_field: &[u8],
     struct_field: Option<TestAllTypesShared>,
     struct_list: &'_ [TestAllTypesShared],
   ) -> TestAllTypesShared {

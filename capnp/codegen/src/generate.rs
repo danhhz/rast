@@ -38,6 +38,7 @@ impl Field {
 // WIP: Rename
 enum FieldTypeEnum {
   Primitive(PrimitiveField),
+  Data,
   List(ListField),
   Struct(StructField),
   Union(UnionField),
@@ -48,6 +49,7 @@ impl FieldTypeEnum {
   fn ftype(&self) -> &dyn FieldType {
     match self {
       FieldTypeEnum::Primitive(x) => x,
+      FieldTypeEnum::Data => &DataField,
       FieldTypeEnum::List(x) => x,
       FieldTypeEnum::Struct(x) => x,
       FieldTypeEnum::Union(x) => x,
@@ -138,6 +140,39 @@ impl FieldType for WrappedField {
   }
   fn type_meta_class(&self, field_meta: String) -> String {
     self.wrapped.ftype().type_meta_class(field_meta)
+  }
+}
+
+struct DataField;
+
+impl FieldType for DataField {
+  fn type_param(&self) -> Option<String> {
+    None
+  }
+  fn type_out(&self) -> String {
+    format!("&'a [u8]")
+  }
+  fn type_out_result(&self) -> bool {
+    true
+  }
+  fn type_in(&self) -> String {
+    format!("&[u8]")
+  }
+  fn type_in_option(&self) -> bool {
+    false
+  }
+  fn type_owned(&self) -> String {
+    todo!()
+  }
+  fn type_meta(&self) -> String {
+    "Data".to_string()
+  }
+  fn type_element(&self) -> String {
+    "ElementType::Pointer(PointerElementType::List(ListElementType {meta: &ListMeta{ FOO }}))"
+      .to_string()
+  }
+  fn type_meta_class(&self, field_meta: String) -> String {
+    format!("FieldMeta::Pointer(PointerFieldMeta::Data({}))", field_meta)
   }
 }
 
@@ -650,7 +685,7 @@ impl<'a> Generator<'a> {
     }
     let mut fields = Vec::new();
     for (field, doc_comment) in raw_fields.zip(field_doc_comments) {
-      let field_opt = self.field(struct_, field, doc_comment)?;
+      let field_opt = self.field(field, doc_comment)?;
       if let Some(field) = field_opt {
         fields.push(field);
       }
@@ -677,7 +712,7 @@ impl<'a> Generator<'a> {
     let mut variants = Vec::new();
     for (field, doc_comment) in fields.zip(field_doc_comments) {
       let discriminant = field.get_discriminant_value() as u64;
-      let field_opt = self.field(struct_, field, doc_comment)?;
+      let field_opt = self.field(field, doc_comment)?;
       if let Some(field) = field_opt {
         variants.push(UnionVariant {
           name: field.name.to_camel_case(),
@@ -695,36 +730,21 @@ impl<'a> Generator<'a> {
     })
   }
 
-  fn field(
-    &self,
-    struct_: struct_::Reader<'a>,
-    field: field::Reader<'a>,
-    doc_comment: Option<String>,
-  ) -> Result<Option<Field>> {
+  fn field(&self, field: field::Reader<'a>, doc_comment: Option<String>) -> Result<Option<Field>> {
     let name = Field::name(field.get_name()?);
-    let mut _offset_extra: usize = 0; // WIP hacks
     let ret = match field.which()? {
       field::Which::Slot(slot) => {
         let field_type: FieldTypeEnum = match slot.get_type()?.which()? {
           type_::Which::Uint64(_) => {
             FieldTypeEnum::Primitive(PrimitiveField { type_: "u64".to_string() })
           }
-          type_::Which::Data(_) => {
-            _offset_extra += struct_.get_data_word_count() as usize * 8;
-            FieldTypeEnum::List(ListField {
-              wrapped: Box::new(FieldTypeEnum::Primitive(PrimitiveField {
-                type_: "u8".to_string(),
-              })),
-            })
-          }
+          type_::Which::Data(_) => FieldTypeEnum::Data,
           type_::Which::Struct(substruct_) => {
-            _offset_extra += struct_.get_data_word_count() as usize * 8;
             let type_name = self.names.get(&substruct_.get_type_id()).ok_or_else(wip_err)?;
             FieldTypeEnum::Struct(StructField { type_: Struct::name(type_name) })
           }
           type_::Which::List(item) => match item.get_element_type()?.which()? {
             type_::Which::Struct(substruct_) => {
-              _offset_extra += struct_.get_data_word_count() as usize * 8;
               let type_name = self.names.get(&substruct_.get_type_id()).ok_or_else(wip_err)?;
               FieldTypeEnum::List(ListField {
                 wrapped: Box::new(FieldTypeEnum::Struct(StructField {

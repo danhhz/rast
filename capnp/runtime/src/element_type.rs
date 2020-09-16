@@ -63,6 +63,7 @@ impl PrimitiveElementType {
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum PointerElementType {
+  Data(DataElementType),
   Struct(StructElementType),
   List(ListElementType),
 }
@@ -77,6 +78,7 @@ impl PointerElementType {
     untyped: &UntypedList<'a>,
   ) -> Result<Vec<PointerElement<'a>>, Error> {
     match self {
+      PointerElementType::Data(_) => todo!(),
       PointerElementType::Struct(m) => StructElement::from_untyped_list(m.meta, untyped)
         .map(|xs| xs.into_iter().map(|x| PointerElement::Struct(x)).collect()),
       PointerElementType::List(m) => ListElement::from_untyped_list(&m.meta.value_type, untyped)
@@ -84,6 +86,9 @@ impl PointerElementType {
     }
   }
 }
+
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct DataElementType;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct StructElementType {

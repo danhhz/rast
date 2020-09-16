@@ -13,7 +13,7 @@ use crate::encode::StructEncode;
 use crate::error::Error;
 use crate::field_meta::FieldMeta;
 use crate::pointer::StructPointer;
-use crate::segment::{Segment, SegmentID, SegmentOwned};
+use crate::segment::{SegmentBorrowed, SegmentID, SegmentOwned};
 use crate::segment_pointer::{
   SegmentPointer, SegmentPointerBorrowMut, SegmentPointerOwned, SegmentPointerShared,
 };
@@ -102,7 +102,7 @@ impl<'a> UntypedStruct<'a> {
     w: &mut W,
     seen_segments: &mut HashSet<SegmentID>,
     id: SegmentID,
-    segment: Segment<'_>,
+    segment: SegmentBorrowed<'_>,
   ) -> io::Result<()> {
     let seg_buf = segment.buf();
     let len_bytes = seg_buf.len();

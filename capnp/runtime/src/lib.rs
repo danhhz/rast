@@ -32,8 +32,8 @@ pub mod prelude {
   };
   pub use crate::error::{Error, UnknownDiscriminant};
   pub use crate::field_meta::{
-    FieldMeta, ListFieldMeta, PointerFieldMeta, PrimitiveFieldMeta, StructFieldMeta, U64FieldMeta,
-    UnionFieldMeta,
+    DataFieldMeta, FieldMeta, ListFieldMeta, PointerFieldMeta, PrimitiveFieldMeta, StructFieldMeta,
+    U64FieldMeta, UnionFieldMeta,
   };
   pub use crate::list::ListMeta;
   pub use crate::r#struct::{

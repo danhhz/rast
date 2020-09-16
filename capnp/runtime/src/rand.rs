@@ -5,12 +5,12 @@ use std::cmp;
 use rand::Rng;
 
 use crate::element::{
-  ElementShared, ListDecodedElementShared, PointerElementShared, PrimitiveElement,
-  StructElementShared, UnionElementShared,
+  DataElementShared, ElementShared, ListDecodedElementShared, PointerElementShared,
+  PrimitiveElement, StructElementShared, UnionElementShared,
 };
 use crate::element_type::{
-  ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
-  UnionElementType,
+  DataElementType, ElementType, ListElementType, PointerElementType, PrimitiveElementType,
+  StructElementType, UnionElementType,
 };
 use crate::field_meta::{FieldMeta, PointerFieldMeta, PrimitiveFieldMeta};
 use crate::r#struct::{StructMeta, TypedStructShared, UntypedStructOwned, UntypedStructShared};
@@ -39,6 +39,9 @@ impl<'a, R: Rng> Rand<'a, R> {
           PrimitiveFieldMeta::U64(x) => x.set(&mut data, self.rng.gen()),
         },
         FieldMeta::Pointer(x) => match x {
+          PointerFieldMeta::Data(x) => {
+            x.set(&mut data, &self.gen_data_element(&x.element_type()).0);
+          }
           PointerFieldMeta::Struct(x) => {
             if self.rng.gen_bool(0.5) || self.max_struct_recursion == 0 {
               continue;
@@ -82,9 +85,14 @@ impl<'a, R: Rng> Rand<'a, R> {
 
   fn gen_pointer_element(&mut self, element_type: &PointerElementType) -> PointerElementShared {
     match element_type {
+      PointerElementType::Data(x) => PointerElementShared::Data(self.gen_data_element(x)),
       PointerElementType::Struct(x) => PointerElementShared::Struct(self.gen_struct_element(x)),
       PointerElementType::List(x) => PointerElementShared::ListDecoded(self.gen_list_element(x)),
     }
+  }
+
+  fn gen_data_element(&mut self, _: &DataElementType) -> DataElementShared {
+    DataElementShared((0..self.rng.gen_range(0, 5)).map(|_| self.rng.gen()).collect())
   }
 
   fn gen_struct_element(&mut self, element_type: &StructElementType) -> StructElementShared {

@@ -40,7 +40,9 @@ impl MemLog {
     // Remove all entries >= the index of the new one. This is an awkward way to
     // do it but we're limited by the BTreeMap interface.
     let _ = self.entries.split_off(&Index(entry.index()));
-    self.entries.insert(Index(entry.index()), (Term(entry.term()), entry.payload().expect("WIP")));
+    self
+      .entries
+      .insert(Index(entry.index()), (Term(entry.term()), entry.payload().expect("WIP").to_vec()));
   }
 
   /// Returns the payload of the entry at the given index or None if that index

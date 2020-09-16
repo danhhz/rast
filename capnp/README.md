@@ -47,7 +47,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [x] Mark whether an error is user handleable
 - [x] Bring back generated owned structs
 - [x] Use in Rast superproject
-- [ ] Return a reference to underlying bytes for capnp bytes fields
+- [x] Return a reference to underlying bytes for capnp bytes fields
 - [x] Bound size of rand value generation
 - [ ] README
 - [x] Document how to run the golden tests
@@ -104,6 +104,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Port tests for json.capnp annotations
 - [ ] Namespaces
 - [ ] Keep all underlying buffers word-aligned
+- [ ] Support no_std
 - [ ] Test for pass-through behavior (proxy/cache)
   - [ ] Test: Read message with later schema, store in list, encode, read with
     later schema

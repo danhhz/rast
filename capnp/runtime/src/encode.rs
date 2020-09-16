@@ -6,8 +6,8 @@ use crate::common::{
 };
 use crate::decode::SegmentPointerDecode;
 use crate::element::{
-  ElementShared, ListDecodedElementShared, PointerElementShared, PrimitiveElement,
-  StructElementShared, UnionElementShared,
+  DataElementShared, ElementShared, ListDecodedElementShared, PointerElementShared,
+  PrimitiveElement, StructElementShared, UnionElementShared,
 };
 use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
 use crate::error::Error;
@@ -130,6 +130,11 @@ pub trait StructEncode {
     });
 
     self.set_pointer(offset_e, far_pointer);
+  }
+
+  fn set_bytes(&mut self, offset_e: NumElements, value: &[u8]) {
+    // TODO: Specialize this to do a memcpy.
+    self.set_list(offset_e, value)
   }
 
   fn set_list<T: TypedListElementShared>(&mut self, offset_e: NumElements, value: &[T]) {
@@ -290,10 +295,16 @@ pub trait StructEncode {
     value: &PointerElementShared,
   ) -> Result<(), Error> {
     match value {
+      PointerElementShared::Data(x) => Ok(self.set_data_element(offset_e, x)),
       PointerElementShared::Struct(x) => Ok(self.set_struct_element(offset_e, x)),
       PointerElementShared::ListDecoded(x) => self.set_list_decoded_element(offset_e, x),
       PointerElementShared::List(_) => todo!(),
     }
+  }
+
+  fn set_data_element(&mut self, offset_e: NumElements, value: &DataElementShared) {
+    let DataElementShared(value) = value;
+    self.set_bytes(offset_e, value);
   }
 
   fn set_struct_element(&mut self, offset_e: NumElements, value: &StructElementShared) {

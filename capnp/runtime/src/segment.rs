@@ -72,13 +72,13 @@ impl SegmentShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, Segment<'a>> for SegmentShared {
-  fn capnp_as_ref(&'a self) -> Segment<'a> {
+impl<'a> CapnpAsRef<'a, SegmentBorrowed<'a>> for SegmentShared {
+  fn capnp_as_ref(&'a self) -> SegmentBorrowed<'a> {
     let mut other: HashMap<SegmentID, &'a [u8]> = HashMap::with_capacity(self.other.len());
     for (k, v) in self.other.iter() {
       other.insert(*k, &v);
     }
-    Segment::Borrowed(SegmentBorrowed { buf: &self.buf, other: Some(Arc::new(other)) })
+    SegmentBorrowed { buf: &self.buf, other: Some(Arc::new(other)) }
   }
 }
 
@@ -94,83 +94,50 @@ impl<'a> SegmentBorrowed<'a> {
   pub fn empty() -> SegmentBorrowed<'a> {
     SegmentBorrowed { buf: &SegmentBorrowed::EMPTY_BUF, other: None }
   }
-}
 
-#[derive(Debug, Clone)]
-pub enum Segment<'a> {
-  Shared(SegmentShared),
-  Borrowed(SegmentBorrowed<'a>),
-}
-
-impl<'a> Segment<'a> {
-  pub fn empty() -> Segment<'a> {
-    Segment::Borrowed(SegmentBorrowed::empty())
+  pub fn buf(&self) -> &'a [u8] {
+    self.buf
   }
 
-  pub fn buf(&'a self) -> &'a [u8] {
-    match self {
-      Segment::Shared(o) => o.buf.as_slice(),
-      Segment::Borrowed(b) => b.buf,
+  pub fn other(&self, id: SegmentID) -> Option<SegmentBorrowed<'a>> {
+    match &self.other {
+      None => None,
+      Some(other) => {
+        other.get(&id).map(|buf| SegmentBorrowed { buf: buf, other: self.other.clone() })
+      }
     }
   }
 
-  pub fn other(&self, id: SegmentID) -> Option<Segment<'a>> {
-    match self {
-      Segment::Shared(o) => o
-        .other
-        .get(&id)
-        .map(|s| Segment::Shared(SegmentShared { buf: s.clone(), other: o.other.clone() })),
-      Segment::Borrowed(b) => match &b.other {
-        None => None,
-        Some(other) => other
-          .get(&id)
-          .map(|buf| Segment::Borrowed(SegmentBorrowed { buf: buf, other: b.other.clone() })),
-      },
-    }
-  }
-
-  // TODO: Figure out how to return an iterator here.
-  pub fn all_other(&self) -> Vec<(SegmentID, Segment<'a>)> {
-    match self {
-      Segment::Shared(o) => o
-        .other
+  pub fn all_other(&self) -> Vec<(SegmentID, SegmentBorrowed<'a>)> {
+    match &self.other {
+      None => vec![],
+      Some(other) => other
         .iter()
-        .map(|(id, s)| {
-          (*id, Segment::Shared(SegmentShared { buf: s.clone(), other: o.other.clone() }))
-        })
+        .map(|(id, buf)| (*id, SegmentBorrowed { buf: buf, other: self.other.clone() }))
         .collect(),
-      Segment::Borrowed(b) => match &b.other {
-        None => vec![],
-        Some(other) => other
-          .iter()
-          .map(|(id, buf)| {
-            (*id, Segment::Borrowed(SegmentBorrowed { buf: buf, other: b.other.clone() }))
-          })
-          .collect(),
-      },
     }
   }
 }
 
-impl<'a> CapnpToOwned<'a> for Segment<'a> {
+impl<'a> CapnpToOwned<'a> for SegmentBorrowed<'a> {
   type Owned = SegmentShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    fn collect(seg: &Segment<'_>, by_id: &mut HashMap<SegmentID, Arc<Vec<u8>>>) {
+    fn collect(seg: &SegmentBorrowed<'_>, by_id: &mut HashMap<SegmentID, Arc<Vec<u8>>>) {
       for (id, other_seg) in seg.all_other().into_iter() {
         if by_id.contains_key(&id) {
           continue;
         }
-        by_id.insert(id, Arc::new(other_seg.buf().to_vec()));
+        by_id.insert(id, Arc::new(other_seg.buf.to_vec()));
         collect(&other_seg, by_id);
       }
     };
     let mut by_id = HashMap::new();
     collect(self, &mut by_id);
-    SegmentShared { buf: Arc::new(self.buf().to_vec()), other: Arc::new(by_id) }
+    SegmentShared { buf: Arc::new(self.buf.to_vec()), other: Arc::new(by_id) }
   }
 }
 
-pub fn decode_stream_official<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
+pub fn decode_stream_official<'a>(buf: &'a [u8]) -> Result<SegmentBorrowed<'a>, Error> {
   let mut by_id = HashMap::new();
 
   let num_segments_bytes: [u8; 4] = buf
@@ -204,10 +171,10 @@ pub fn decode_stream_official<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
 
   let first_segment_buf =
     by_id.get(&SegmentID(0)).ok_or_else(|| Error::Encoding(format!("no segments")))?;
-  Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Arc::new(by_id)) }))
+  Ok(SegmentBorrowed { buf: first_segment_buf, other: Some(Arc::new(by_id)) })
 }
 
-pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
+pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<SegmentBorrowed<'a>, Error> {
   let mut by_id = HashMap::new();
 
   let mut buf_offset = 0;
@@ -238,5 +205,5 @@ pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> 
 
   let first_segment_buf =
     by_id.get(&SegmentID(0)).ok_or_else(|| Error::Encoding(format!("no segments")))?;
-  Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Arc::new(by_id)) }))
+  Ok(SegmentBorrowed { buf: first_segment_buf, other: Some(Arc::new(by_id)) })
 }

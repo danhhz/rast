@@ -4,8 +4,8 @@ use std::fmt;
 
 use crate::common::CapnpAsRef;
 use crate::element::{
-  Element, ElementShared, ListDecodedElement, ListElement, PointerElement, PrimitiveElement,
-  StructElement, UnionElement,
+  DataElement, Element, ElementShared, ListDecodedElement, ListElement, PointerElement,
+  PrimitiveElement, StructElement, UnionElement,
 };
 use crate::field_meta::FieldMeta;
 use crate::r#struct::StructMeta;
@@ -51,10 +51,17 @@ impl<'a> fmt::Debug for Element<'a> {
 impl<'a> fmt::Debug for PointerElement<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
+      PointerElement::Data(x) => x.fmt(f),
       PointerElement::Struct(x) => x.fmt(f),
       PointerElement::List(x) => x.fmt(f),
       PointerElement::ListDecoded(x) => x.fmt(f),
     }
+  }
+}
+
+impl<'a> fmt::Debug for DataElement<'a> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    self.0.fmt(f)
   }
 }
 

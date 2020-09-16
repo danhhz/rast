@@ -3,12 +3,13 @@
 use crate::common::{CapnpAsRef, NumElements};
 use crate::decode::StructDecode;
 use crate::element::{
-  Element, ElementShared, ListElement, PointerElement, PointerElementShared, PrimitiveElement,
-  StructElement, StructElementShared, UnionElement, UnionElementShared,
+  DataElement, DataElementShared, Element, ElementShared, ListElement, PointerElement,
+  PointerElementShared, PrimitiveElement, StructElement, StructElementShared, UnionElement,
+  UnionElementShared,
 };
 use crate::element_type::{
-  ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
-  UnionElementType,
+  DataElementType, ElementType, ListElementType, PointerElementType, PrimitiveElementType,
+  StructElementType, UnionElementType,
 };
 use crate::encode::StructEncode;
 use crate::error::{Error, UnknownDiscriminant};
@@ -153,35 +154,41 @@ impl U64FieldMeta {
 pub enum PointerFieldMeta {
   Struct(StructFieldMeta),
   List(ListFieldMeta),
+  Data(DataFieldMeta),
 }
 
 impl PointerFieldMeta {
   pub fn name(&self) -> &'static str {
     match self {
+      PointerFieldMeta::Data(x) => x.name,
       PointerFieldMeta::Struct(x) => x.name,
       PointerFieldMeta::List(x) => x.name,
     }
   }
   pub fn offset(&self) -> NumElements {
     match self {
+      PointerFieldMeta::Data(x) => x.offset(),
       PointerFieldMeta::Struct(x) => x.offset(),
       PointerFieldMeta::List(x) => x.offset(),
     }
   }
   pub fn element_type(&self) -> PointerElementType {
     match self {
+      PointerFieldMeta::Data(x) => PointerElementType::Data(x.element_type()),
       PointerFieldMeta::Struct(x) => PointerElementType::Struct(x.element_type()),
       PointerFieldMeta::List(x) => PointerElementType::List(x.element_type()),
     }
   }
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
     match self {
+      PointerFieldMeta::Data(x) => x.is_null(data),
       PointerFieldMeta::Struct(x) => x.is_null(data),
       PointerFieldMeta::List(x) => x.is_null(data),
     }
   }
   pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<PointerElement<'a>, Error> {
     match self {
+      PointerFieldMeta::Data(x) => x.get_element(data).map(|x| PointerElement::Data(x)),
       PointerFieldMeta::Struct(x) => x.get_element(data).map(|x| PointerElement::Struct(x)),
       PointerFieldMeta::List(x) => x.get_element(data).map(|x| PointerElement::List(x)),
     }
@@ -192,6 +199,7 @@ impl PointerFieldMeta {
     value: &ElementShared,
   ) -> Result<(), Error> {
     match self {
+      PointerFieldMeta::Data(x) => x.set_element(data, value),
       PointerFieldMeta::Struct(x) => x.set_element(data, value),
       PointerFieldMeta::List(x) => x.set_element(data, value),
     }
@@ -321,6 +329,56 @@ impl ListFieldMeta {
       }
       value => Err(Error::Usage(format!(
         "ListFieldMeta::set_element unsupported_type: {:?}",
+        value.capnp_as_ref().element_type()
+      ))),
+    }
+  }
+}
+
+#[derive(Debug)]
+pub struct DataFieldMeta {
+  pub name: &'static str,
+  pub offset: NumElements,
+}
+
+impl DataFieldMeta {
+  pub fn element_type(&self) -> DataElementType {
+    DataElementType
+  }
+  pub fn offset(&self) -> NumElements {
+    self.offset
+  }
+  pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
+    match data.pointer_raw(self.offset) {
+      Pointer::Null => true,
+      _ => false,
+    }
+  }
+
+  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<DataElement<'a>, Error> {
+    self.get(data).map(|value| DataElement(value))
+  }
+
+  pub fn get<'a>(&self, data: &UntypedStruct<'a>) -> Result<&'a [u8], Error> {
+    data.bytes(self.offset)
+  }
+
+  pub fn set(&self, data: &mut UntypedStructOwned, value: &[u8]) {
+    data.set_bytes(self.offset, value)
+  }
+
+  pub fn set_element(
+    &self,
+    data: &mut UntypedStructOwned,
+    value: &ElementShared,
+  ) -> Result<(), Error> {
+    match value {
+      ElementShared::Pointer(PointerElementShared::Data(DataElementShared(value))) => {
+        self.set(data, value);
+        Ok(())
+      }
+      value => Err(Error::Usage(format!(
+        "DataFieldMeta::set_element unsupported_type: {:?}",
         value.capnp_as_ref().element_type()
       ))),
     }
