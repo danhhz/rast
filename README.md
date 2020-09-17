@@ -22,11 +22,11 @@ steady-state speed.
   of the Linux [zero-copy] optimization that copies the incoming network traffic
   straight to disk for persistance. There's no reason a Raft log implemenation
   couldn't work the same way and io_uring makes this even easier.
-- [Not yet implemented] Zero-alloc, lazy serde. The Raft logic in the steady
-  state hot-path only looks at a couple fields of each incoming message, but
-  popular serde implementations (like the [Protocol Buffers] of GRPC) require
-  that an entire message be deserialized and allocate while doing so.
-  Alternative wire formats like [Cap’n Proto] and [FlatBuffers] avoid this.
+- Zero-alloc, lazy serde. The Raft logic in the steady state hot-path only looks
+  at a couple fields of each incoming message, but popular serde implementations
+  (like the [Protocol Buffers] of GRPC) require that an entire message be
+  deserialized and allocate while doing so. Alternative wire formats like [Cap’n
+  Proto] and [FlatBuffers] avoid this. Rast uses the Cap'n Proto encoding.
 
 [kafka]: https://kafka.apache.org/
 [zero-copy]: https://lwn.net/Articles/726917/
@@ -39,7 +39,7 @@ steady-state speed.
 
 - [ ] Handle node restarts
   - [ ] Persist hard state
-- [ ] Zero-copy message serialization
+- [x] Zero-copy message serialization
 - [ ] More extensive nemesis testing
 - [ ] Initial benchmarking
 - [ ] Message idempotency
@@ -50,6 +50,7 @@ steady-state speed.
 - [ ] Clean up log messages
 - [ ] Internal documentation
 - [ ] Idiomatic rustdoc
+- [ ] Use std::iter::once instead of vec! for extend with one element
 
 # v0.1.0
 

@@ -56,6 +56,8 @@ Rast [Cap'n Proto]
 - [ ] Match up API naming with the official capnp
 - [ ] Escape field names so metas don't conflict
 - [ ] Figure out some obvious inlines
+- [ ] Constructor with named args (likely via generated struct)
+- [ ] Fully decode message into ^^, all accesses are error free
 - [ ] Clean up codegen code structure
 - [ ] Port remaining capnp testdata tests
 - [ ] Security: Pointer validation (tests)

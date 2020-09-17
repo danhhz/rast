@@ -41,9 +41,9 @@
 //! }
 //!
 //! # fn main() {
-//! let raft = Raft::new(NodeID(0), vec![NodeID(0)], Config::default(), Instant::now());
+//! let raft = Raft::new(NodeID(0), vec![NodeID(0)], Config::default());
 //! let mut rpc = MemRPC::new();
-//! let runtime = Runtime::new(raft, rpc.clone(), MemLog::new());
+//! let runtime = Runtime::new("rast".to_string(), raft, rpc.clone(), MemLog::new());
 //! rpc.register(NodeID(0), runtime.sender());
 //!
 //! // This client is Clone+Send.
@@ -97,9 +97,10 @@ mod serde;
 
 pub use crate::error::{ClientError, NotLeaderError};
 pub use crate::future::{ReadFuture, WriteFuture};
-pub use crate::raft::{Config, Input, Output, PersistRes, Raft, ReadStateMachineRes};
+pub use crate::raft::{Config, Input, Output, OwnedInput, PersistRes, Raft, ReadStateMachineRes};
 pub use crate::serde::{
-  Entry, Index, Message, NodeID, ReadID, ReadReq, ReadRes, Term, WriteReq, WriteRes,
+  Entry, EntryShared, Index, Message, MessageShared, NodeID, ReadID, ReadReq, ReadRes, Term,
+  WriteReq, WriteRes,
 };
 
 /// The Raft prelude.

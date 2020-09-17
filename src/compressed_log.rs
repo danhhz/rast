@@ -5,6 +5,7 @@ use std::iter::{DoubleEndedIterator, FusedIterator};
 
 use crate::serde::{Entry, Index, Term};
 
+#[derive(Debug)]
 pub struct CompressedLog {
   begin: Option<(Term, Index)>,
   end: Option<(Term, Index)>,
@@ -32,9 +33,10 @@ impl CompressedLog {
     self.iter().find(|(_, i)| *i == index).map(|(t, _)| t)
   }
 
-  pub fn extend(&mut self, entries: &[Entry]) {
+  // TODO: figure out how to accept either of Entry or EntryShared
+  pub fn extend(&mut self, entries: &[Entry<'_>]) {
     if let Some(entry) = entries.first() {
-      self.trim(Index(entry.index.0 - 1));
+      self.trim(Index(entry.index() - 1));
     }
     self.extend_trimmed(entries);
   }
@@ -57,16 +59,21 @@ impl CompressedLog {
     }
   }
 
-  fn extend_trimmed(&mut self, entries: &[Entry]) {
+  fn extend_trimmed(&mut self, entries: &[Entry<'_>]) {
     for entry in entries {
       if self.begin == None {
-        self.begin = Some((entry.term, entry.index));
+        self.begin = Some((Term(entry.term()), Index(entry.index())));
       }
       // TODO: return an error instead
-      debug_assert_eq!(entry.index, Index(self.end.map_or(0, |(_, i)| i.0) + 1));
-      self.end = Some((entry.term, entry.index));
-      if self.term_changes.last().copied().map_or(true, |(tc_term, _)| entry.term != tc_term) {
-        self.term_changes.push((entry.term, entry.index));
+      debug_assert_eq!(Index(entry.index()), Index(self.end.map_or(0, |(_, i)| i.0) + 1));
+      self.end = Some((Term(entry.term()), Index(entry.index())));
+      if self
+        .term_changes
+        .last()
+        .copied()
+        .map_or(true, |(tc_term, _)| Term(entry.term()) != tc_term)
+      {
+        self.term_changes.push((Term(entry.term()), Index(entry.index())));
       }
     }
   }
@@ -149,6 +156,8 @@ mod tests {
   #![allow(clippy::wildcard_imports)]
   use super::*;
 
+  use crate::serde::EntryShared;
+
   #[test]
   fn empty() {
     let log = CompressedLog::new();
@@ -172,10 +181,10 @@ mod tests {
     let entries = history
       .iter()
       .copied()
-      .map(|(term, index)| Entry { term: term, index: index, payload: vec![] })
+      .map(|(term, index)| EntryShared::new(term.0, index.0, &[]))
       .collect::<Vec<_>>();
 
-    log.extend(&entries);
+    log.extend(&entries.iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());
     assert_eq!((Term(1), Index(1)), log.first());
     assert_eq!((Term(3), Index(4)), log.last());
 
@@ -201,31 +210,31 @@ mod tests {
     let entries = history
       .iter()
       .copied()
-      .map(|(term, index)| Entry { term: term, index: index, payload: vec![] })
+      .map(|(term, index)| EntryShared::new(term.0, index.0, &[]))
       .collect::<Vec<_>>();
 
-    log.extend(&entries);
+    log.extend(&entries.iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());
     assert_eq!(history, log.iter().collect::<Vec<_>>());
 
-    log.extend(&entries[1..3]);
+    log.extend(&entries[1..3].iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());
     assert_eq!(history[..3], log.iter().collect::<Vec<_>>()[..]);
 
-    log.extend(&entries[2..]);
+    log.extend(&entries[2..].iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());
     assert_eq!(history, log.iter().collect::<Vec<_>>());
 
     let alt_history = vec![(Term(5), Index(1)), (Term(6), Index(2)), (Term(7), Index(3))];
     let alt_entries = alt_history
       .iter()
       .copied()
-      .map(|(term, index)| Entry { term: term, index: index, payload: vec![] })
+      .map(|(term, index)| EntryShared::new(term.0, index.0, &[]))
       .collect::<Vec<_>>();
 
-    log.extend(&alt_entries[1..]);
+    log.extend(&alt_entries[1..].iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());
     let mut expected = vec![history[0]];
     expected.extend(alt_history[1..].iter());
     assert_eq!(expected, log.iter().collect::<Vec<_>>());
 
-    log.extend(&alt_entries);
+    log.extend(&alt_entries.iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());
     assert_eq!(alt_history, log.iter().collect::<Vec<_>>());
 
     log.trim(Index(0));

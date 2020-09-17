@@ -5,12 +5,11 @@ use std::time::{Duration, Instant};
 
 use crate::prelude::*;
 use crate::runtime::MemLog;
-use crate::serde::{Payload, StartElectionReq};
 
 pub struct DeterministicNode {
   pub raft: Raft,
   pub now: Instant,
-  pub input: Vec<Input>,
+  pub input: Vec<OwnedInput>,
   pub output: Vec<Output>,
   pub log: MemLog,
   pub state: Vec<u8>,
@@ -29,12 +28,20 @@ impl DeterministicNode {
   }
 
   pub fn start_election(&mut self) {
-    let payload = Payload::StartElectionReq(StartElectionReq { term: self.raft.current_term() });
-    self.step(Input::Message(Message {
-      src: self.raft.id(),
-      dest: self.raft.id(),
-      payload: payload,
-    }));
+    let mut output = vec![];
+
+    #[cfg(feature = "log")]
+    debug!("e   {:?}", self.raft.id().0);
+    self.raft.start_election(&mut output, self.raft.id());
+    #[cfg(feature = "log")]
+    {
+      output.iter().for_each(|output| {
+        debug!("out {:?}: {:?}", self.raft.id().0, output);
+      });
+      debug!("");
+    }
+
+    self.output.extend(output);
   }
 
   pub fn tick(&mut self, inc: Duration) {
@@ -107,7 +114,7 @@ impl DeterministicNode {
       let mut output = vec![];
       #[cfg(feature = "log")]
       debug!("in  {:?}: {:?}", id.0, input);
-      self.raft.step(&mut output, input);
+      self.raft.step(&mut output, input.as_ref());
       #[cfg(feature = "log")]
       {
         output.iter().for_each(|output| {
@@ -199,8 +206,8 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
         Output::PersistReq(req) => {
           // TODO: test this being delayed
           for entry in req.entries {
-            debug!("APPEND {:?} {:?}", node.raft.id(), &entry);
-            node.log.add(entry);
+            debug!("APPEND {:?} {:?}", node.raft.id(), &entry.capnp_as_ref());
+            node.log.add(entry.capnp_as_ref());
           }
           debug!(
             "STATE {:?} last={:?} stable={:?} {:?}",
@@ -215,7 +222,7 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
             read_id: req.read_id,
             log_index: node.log.highest_index(),
           };
-          node.input.push(Input::PersistRes(msg));
+          node.input.push(Input::PersistRes(msg).into());
         }
         Output::ApplyReq(index) => {
           // TODO: test this being delayed
@@ -238,19 +245,19 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
             }
           }
           let msg = ReadStateMachineRes { index: req.index, read_id: req.read_id, payload: state };
-          node.input.push(Input::ReadStateMachineRes(msg));
+          node.input.push(Input::ReadStateMachineRes(msg).into());
         }
         Output::Message(msg) => rpcs.push(msg),
       }
     }
   }
   for msg in rpcs.drain(..) {
-    let dest = msg.dest.clone();
+    let dest = NodeID(msg.capnp_as_ref().dest());
     nodes
       .get_mut(&dest)
       .iter_mut()
       // TODO: get rid of this clone
-      .for_each(|dest| dest.input.push(Input::Message(msg.clone())));
+      .for_each(|dest| dest.input.push(OwnedInput::Message(msg.clone())));
   }
 }
 

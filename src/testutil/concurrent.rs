@@ -12,10 +12,11 @@ pub struct ConcurrentNode {
 
 impl ConcurrentNode {
   fn new(id: NodeID, nodes: Vec<NodeID>) -> ConcurrentNode {
+    let name = format!("runtime-{:?}", id);
     let cfg = Config::default();
     let raft = Raft::new(id, nodes, cfg);
     let rpc = MemRPC::new();
-    let runtime = Runtime::new(raft, rpc.clone(), MemLog::new());
+    let runtime = Runtime::new(name, raft, rpc.clone(), MemLog::new());
     ConcurrentNode { runtime: runtime, rpc: rpc }
   }
 

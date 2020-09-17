@@ -103,16 +103,11 @@ pub struct Applier<'a> {
   cfg: Config,
   ops: Arc<AtomicU64>,
   gen: &'a Generator,
-  c: &'a RastClient,
+  c: RastClient,
 }
 
 impl<'a> Applier<'a> {
-  pub fn new(
-    cfg: Config,
-    ops: Arc<AtomicU64>,
-    gen: &'a Generator,
-    c: &'a RastClient,
-  ) -> Applier<'a> {
+  pub fn new(cfg: Config, ops: Arc<AtomicU64>, gen: &'a Generator, c: RastClient) -> Applier<'a> {
     Applier { cfg: cfg, ops: ops, gen: gen, c: c }
   }
 
@@ -161,12 +156,16 @@ pub fn nemesis_test(cfg: Config) -> Result<(), ValidateError> {
     let ops = ops.clone();
     let generator = Generator::new(cfg.clone());
     // TODO: round robin
-    let c = group.nodes.iter().next().unwrap().1.client();
-    thread::spawn(move || {
-      let a = Applier::new(cfg, ops, &generator, &c);
-      let mut rng = SmallRng::seed_from_u64(worker_idx);
-      extreme::run(a.worker(worker_idx, &mut rng))
-    })
+    let client = group.nodes.iter().next().unwrap().1.client();
+    let thread_name = format!("worker-{}", worker_idx);
+    thread::Builder::new()
+      .name(thread_name)
+      .spawn(move || {
+        let a = Applier::new(cfg, ops, &generator, client);
+        let mut rng = SmallRng::seed_from_u64(worker_idx);
+        extreme::run(a.worker(worker_idx, &mut rng))
+      })
+      .expect("WIP")
   });
   let results: Vec<_> = threads.flat_map(|thread| thread.join().unwrap()).collect();
   validate(results)

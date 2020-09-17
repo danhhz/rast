@@ -10,7 +10,7 @@ use crate::prelude::*;
 /// benchmarks.
 #[derive(Debug, Clone)]
 pub struct MemRPC {
-  conns: Arc<Mutex<HashMap<NodeID, Sender<Input>>>>,
+  conns: Arc<Mutex<HashMap<NodeID, Sender<OwnedInput>>>>,
 }
 impl MemRPC {
   /// Constructs a new `MemRPC` with no connections.
@@ -19,7 +19,7 @@ impl MemRPC {
   }
 
   /// Registers a channel Sender and its destination.
-  pub fn register(&mut self, dest: NodeID, sender: Sender<Input>) {
+  pub fn register(&mut self, dest: NodeID, sender: Sender<OwnedInput>) {
     // TODO: handle error
     self.conns.lock().unwrap().insert(dest, sender);
   }
@@ -35,12 +35,12 @@ impl MemRPC {
 /// A channel-based, in-process rpc connection to a peer node. Suitable for unit
 /// tests and benchmarks.
 pub struct MemConn {
-  sender: Sender<Input>,
+  sender: Sender<OwnedInput>,
 }
 impl MemConn {
   /// Sends the given message.
-  pub fn send(&self, m: Message) {
+  pub fn send<'a>(&self, m: Message<'a>) {
     // TODO: handle error
-    self.sender.send(Input::Message(m)).unwrap();
+    self.sender.send(OwnedInput::Message(m.capnp_to_owned())).unwrap();
   }
 }

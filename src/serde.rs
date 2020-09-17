@@ -102,140 +102,132 @@ pub struct ReadRes {
   pub payload: Vec<u8>,
 }
 
-/// An entry in the Raft log.
-#[derive(Clone)]
-pub struct Entry {
-  /// The term of the entry.
-  pub term: Term,
-  /// The index of the entry.
-  pub index: Index,
-  /// The opaque user payload of the entry.
-  pub payload: Vec<u8>,
-}
+#[allow(missing_docs)]
+mod generated {
+  use std::fmt;
 
-impl fmt::Debug for Entry {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match std::str::from_utf8(&self.payload) {
-      Ok(payload) => write!(f, "({:}.{:} {:?})", self.term.0, self.index.0, payload),
-      Err(_) => write!(f, "({:}.{:} {:?})", self.term.0, self.index.0, self.payload),
+  include!("../capnp/codegen/src/samples/rast_capnp.rs");
+
+  impl<'a> fmt::Display for Entry<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      match std::str::from_utf8(&self.payload().expect("WIP")) {
+        Ok(payload) => write!(f, "({:}.{:} {:?})", self.term(), self.index(), payload),
+        Err(_) => write!(f, "({:}.{:} {:?})", self.term(), self.index(), self.payload()),
+      }
+    }
+  }
+
+  impl fmt::Debug for EntryShared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      self.capnp_as_ref().fmt(f)
+    }
+  }
+
+  impl fmt::Display for Message<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "[{:?}->{:?}:{:?}]", self.src(), self.dest(), self.payload().expect("WIP"))
+    }
+  }
+
+  impl fmt::Debug for MessageShared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      self.capnp_as_ref().fmt(f)
+    }
+  }
+
+  impl fmt::Debug for Payload<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      match self {
+        Payload::AppendEntriesReq(r) => r.fmt(f),
+        Payload::AppendEntriesRes(r) => r.fmt(f),
+        Payload::RequestVoteReq(r) => r.fmt(f),
+        Payload::RequestVoteRes(r) => r.fmt(f),
+        Payload::StartElectionReq(r) => r.fmt(f),
+      }
+    }
+  }
+
+  impl fmt::Debug for PayloadShared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      self.capnp_as_ref().fmt(f)
+    }
+  }
+
+  impl fmt::Display for AppendEntriesReq<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(
+        f,
+        "app({:}.{:} p{:}.{:} lc{:} r{:} {:?})",
+        self.term(),
+        self.leader_id(),
+        self.prev_log_index(),
+        self.prev_log_term(),
+        self.leader_commit(),
+        self.read_id(),
+        self.entries(),
+      )
+    }
+  }
+
+  impl fmt::Debug for AppendEntriesReqShared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      self.capnp_as_ref().fmt(f)
+    }
+  }
+
+  impl fmt::Display for AppendEntriesRes<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "appRes({:} r{:} success={:?})", self.term(), self.read_id(), self.success())
+    }
+  }
+
+  impl fmt::Debug for AppendEntriesResShared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      self.capnp_as_ref().fmt(f)
+    }
+  }
+
+  impl fmt::Display for RequestVoteReq<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(
+        f,
+        "vote({:} p{:}.{:} candidate={:})",
+        self.term(),
+        self.last_log_index(),
+        self.last_log_term(),
+        self.candidate_id(),
+      )
+    }
+  }
+
+  impl fmt::Debug for RequestVoteReqShared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      self.capnp_as_ref().fmt(f)
+    }
+  }
+
+  impl fmt::Display for RequestVoteRes<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "voteRes({:} granted={:?})", self.term(), self.vote_granted())
+    }
+  }
+
+  impl fmt::Debug for RequestVoteResShared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      self.capnp_as_ref().fmt(f)
+    }
+  }
+
+  impl fmt::Display for StartElectionReq<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "election({:})", self.term())
+    }
+  }
+
+  impl fmt::Debug for StartElectionReqShared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      self.capnp_as_ref().fmt(f)
     }
   }
 }
-
-/// An rpc message.
-#[derive(Clone)]
-pub struct Message {
-  /// The node sending this rpc.
-  pub src: NodeID,
-  /// The node to receive this rpc.
-  pub dest: NodeID,
-  /// TODO: Hide this from the external API.
-  pub payload: Payload,
-}
-
-impl fmt::Debug for Message {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "[{:?}->{:?}:{:?}]", self.src.0, self.dest.0, self.payload)
-  }
-}
-
-#[derive(Clone)]
-pub enum Payload {
-  AppendEntriesReq(AppendEntriesReq),
-  AppendEntriesRes(AppendEntriesRes),
-  RequestVoteReq(RequestVoteReq),
-  RequestVoteRes(RequestVoteRes),
-  StartElectionReq(StartElectionReq),
-}
-
-impl fmt::Debug for Payload {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Payload::AppendEntriesReq(r) => r.fmt(f),
-      Payload::AppendEntriesRes(r) => r.fmt(f),
-      Payload::RequestVoteReq(r) => r.fmt(f),
-      Payload::RequestVoteRes(r) => r.fmt(f),
-      Payload::StartElectionReq(r) => r.fmt(f),
-    }
-  }
-}
-
-#[derive(Clone)]
-pub struct AppendEntriesReq {
-  pub term: Term,
-  pub leader_id: NodeID,
-  pub prev_log_index: Index,
-  pub prev_log_term: Term,
-  pub leader_commit: Index,
-  pub entries: Vec<Entry>,
-
-  // NB: This is our own little extention.
-  pub read_id: ReadID,
-}
-
-impl fmt::Debug for AppendEntriesReq {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(
-      f,
-      "app({:}.{:} p{:}.{:} lc{:} r{:} {:?})",
-      self.term.0,
-      self.leader_id.0,
-      self.prev_log_index.0,
-      self.prev_log_term.0,
-      self.leader_commit.0,
-      self.read_id.0,
-      self.entries
-    )
-  }
-}
-
-#[derive(Clone)]
-pub struct AppendEntriesRes {
-  pub term: Term,
-  pub success: bool,
-
-  // NB: These are our own little extentions.
-  pub index: Index,
-  pub read_id: ReadID,
-}
-
-impl fmt::Debug for AppendEntriesRes {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "appRes({:} r{:} success={:?})", self.term.0, self.read_id.0, self.success)
-  }
-}
-
-#[derive(Clone)]
-pub struct RequestVoteReq {
-  pub term: Term,
-  pub candidate_id: NodeID,
-  pub last_log_index: Index,
-  pub last_log_term: Term,
-}
-
-impl fmt::Debug for RequestVoteReq {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(
-      f,
-      "vote({:} p{:}.{:} candidate={:})",
-      self.term.0, self.last_log_index.0, self.last_log_term.0, self.candidate_id.0,
-    )
-  }
-}
-
-#[derive(Clone)]
-pub struct RequestVoteRes {
-  pub term: Term,
-  pub vote_granted: bool,
-}
-
-impl fmt::Debug for RequestVoteRes {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "voteRes({:} granted={:?})", self.term.0, self.vote_granted)
-  }
-}
-
-#[derive(Debug, Clone)]
-pub struct StartElectionReq {
-  pub term: Term,
-}
+pub use generated::*;

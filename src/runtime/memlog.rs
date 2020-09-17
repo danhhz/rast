@@ -29,18 +29,18 @@ impl MemLog {
 
   /// Appends a new entry to the log, truncating existing entries that conflict,
   /// if necessary.
-  pub fn add(&mut self, entry: Entry) {
+  pub fn add<'a>(&mut self, entry: Entry<'a>) {
     // Invariant: All entries <= the stable one will not change.
-    debug_assert!(self.stable.map_or(true, |stable| entry.index > stable));
+    debug_assert!(self.stable.map_or(true, |stable| Index(entry.index()) > stable));
     // Invariant: Indexes are consecutive.
     debug_assert!({
-      let mut preceding = self.entries.range(..entry.index);
-      preceding.next_back().map_or(true, |prev| *prev.0 + 1 == entry.index)
+      let mut preceding = self.entries.range(..Index(entry.index()));
+      preceding.next_back().map_or(true, |prev| *prev.0 + 1 == Index(entry.index()))
     });
     // Remove all entries >= the index of the new one. This is an awkward way to
     // do it but we're limited by the BTreeMap interface.
-    let _ = self.entries.split_off(&entry.index);
-    self.entries.insert(entry.index, (entry.term, entry.payload));
+    let _ = self.entries.split_off(&Index(entry.index()));
+    self.entries.insert(Index(entry.index()), (Term(entry.term()), entry.payload().expect("WIP")));
   }
 
   /// Returns the payload of the entry at the given index or None if that index
