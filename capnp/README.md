@@ -1,6 +1,8 @@
 Rast [Cap'n Proto]
 ====
 
+[Cap'n Proto]: https://capnproto.org
+
 - More "ergonomic" user-facing API
 - Decoding can be both fast and user friendly, encoding less so
 - Encoding is often not as much of a hot path, so make the common case easy but
@@ -11,9 +13,30 @@ Rast [Cap'n Proto]
   list, far pointer, landing pad, tag word, composite, list element, segment
   framing
 
-[Cap'n Proto]: https://capnproto.org
+# Samples
 
-# v0.1.0-alpha.0
+A number of samples of the actual generated code for a given `.capnp` file are
+included. I've found in the past that this is often superior to attempting to
+document how to use the generated code in the abstract (set a list field, get a
+union, etc). To prevent rot, these are validated by a set of "golden" tests
+which fail if they don't exactly match the generated output.
+
+- [rast.capnp](runtime/src/samples/rast.capnp) and generated code
+  [rast_capnp.rs](runtime/src/samples/rast_capnp.rs)
+- [test.capnp](runtime/src/samples/test.capnp) and generated code
+  [test_capnp.rs](runtime/src/samples/test_capnp.rs)
+
+These are also quite useful for code review, as they provide the reviewer with
+concrete examples of how things have changed.
+
+If the "golden_test::*" tests ever fail, the generated files can be updated in
+bulk (from the capnp subdirectory):
+
+```
+$ cargo test -p capnpc_rust golden -- -- --overwrite
+```
+
+# Roadmap: v0.1.0-alpha.0
 
 - [ ] User-facing rustdoc
 - [x] Implement random encode/decode test
@@ -27,7 +50,7 @@ Rast [Cap'n Proto]
 - [ ] Return a reference to underlying bytes for capnp bytes fields
 - [x] Bound size of rand value generation
 - [ ] README
-- [ ] Document how to run the golden tests
+- [x] Document how to run the golden tests
 - [ ] Set up CI
 - [x] Clean up runtime prelude
 - [ ] Audit pub usage
@@ -38,7 +61,7 @@ Rast [Cap'n Proto]
 - [x] Remove "pub use"
 - [ ] Test: Message evolution basics
 
-# v0.1.0
+# Roadmap: v0.1.0
 
 - [ ] Name this project
 - [ ] Developer-facing rustdoc
@@ -60,6 +83,7 @@ Rast [Cap'n Proto]
 - [ ] Fully decode message into ^^, all accesses are error free
 - [ ] Clean up codegen code structure
 - [ ] Port remaining capnp testdata tests
+- [ ] Run generated output through rustfmt
 - [ ] Security: Pointer validation (tests)
 - [ ] Security: Amplification attack
 - [ ] Security: Stack overflow DoS attack
@@ -73,7 +97,7 @@ Rast [Cap'n Proto]
 - [ ] Test union of union
 
 
-# After v0.1.0
+# Roadmap: After v0.1.0
 
 - [ ] Post-construction mutation
 - [ ] Compatibility with json.capnp annotations
