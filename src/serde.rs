@@ -106,7 +106,7 @@ pub struct ReadRes {
 mod generated {
   use std::fmt;
 
-  include!("../capnp/codegen/src/samples/rast_capnp.rs");
+  include!("../capnp/runtime/src/samples/rast_capnp.rs");
 
   impl<'a> fmt::Display for Entry<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

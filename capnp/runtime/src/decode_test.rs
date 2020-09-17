@@ -5,8 +5,7 @@ use std::error;
 use std::fs::File;
 use std::io::Read;
 
-mod samples;
-use samples::test_capnp::TestAllTypes;
+use crate::samples::test_capnp::TestAllTypes;
 
 use capnp_runtime::prelude::*;
 

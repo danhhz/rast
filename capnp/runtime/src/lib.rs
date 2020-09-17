@@ -52,3 +52,12 @@ pub mod serde;
 
 #[cfg(feature = "rand")]
 pub mod rand;
+
+#[cfg(test)]
+pub mod samples;
+
+#[cfg(test)]
+mod init_test;
+
+#[cfg(test)]
+mod decode_test;

@@ -21,8 +21,8 @@ fn write_file<P: AsRef<Path>>(path: P, mut contents: &[u8]) -> Result<(), io::Er
 }
 
 fn golden_capnp(file: &'static str) -> Result<(), Box<dyn Error>> {
-  let input_path = format!("src/samples/{}.capnp.bin", file);
-  let expected_path = format!("src/samples/{}_capnp.rs", file);
+  let input_path = format!("../runtime/src/samples/{}.capnp.bin", file);
+  let expected_path = format!("../runtime/src/samples/{}_capnp.rs", file);
 
   let overwrite = std::env::args().any(|x| x == "--overwrite");
 
