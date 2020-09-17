@@ -1,6 +1,6 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use crate::common::{CapnpAsRef, NumWords};
+use crate::common::{CapnpAsRef, CapnpToOwned, NumWords};
 use crate::decode::SegmentPointerDecode;
 use crate::encode::SegmentPointerEncode;
 use crate::segment::{Segment, SegmentID, SegmentOwned, SegmentShared};
@@ -14,6 +14,13 @@ pub struct SegmentPointer<'a> {
 impl<'a> SegmentPointer<'a> {
   pub fn from_root(seg: Segment<'a>) -> Self {
     SegmentPointer { seg: seg, off: NumWords(0) }
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for SegmentPointer<'a> {
+  type Owned = SegmentPointerShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    SegmentPointerShared { seg: self.seg.capnp_to_owned(), off: self.off }
   }
 }
 
@@ -49,7 +56,7 @@ pub struct SegmentPointerShared {
 
 impl<'a> CapnpAsRef<'a, SegmentPointer<'a>> for SegmentPointerShared {
   fn capnp_as_ref(&'a self) -> SegmentPointer<'a> {
-    SegmentPointer { seg: Segment::Borrowed(self.seg.capnp_as_ref()), off: self.off }
+    SegmentPointer { seg: self.seg.capnp_as_ref(), off: self.off }
   }
 }
 

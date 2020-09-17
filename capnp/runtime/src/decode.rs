@@ -305,6 +305,10 @@ pub trait ListDecode<'a> {
     from_untyped_struct: fn(UntypedStruct<'a>) -> T,
   ) -> Result<Vec<T>, Error> {
     let pointer_declared_len = match &self.pointer().layout {
+      ListLayout::Packed(NumElements(0), ElementWidth::Void) => {
+        // NB: NumElements(0), ElementWidth::Void is a null pointer.
+        return Ok(vec![]);
+      }
       ListLayout::Composite(num_words) => *num_words,
       x => {
         return Err(Error::Encoding(format!("unsupported list layout for TypedStruct: {:?}", x)))

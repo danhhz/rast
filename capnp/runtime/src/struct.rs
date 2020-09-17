@@ -4,7 +4,9 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::io::{self, Write};
 
-use crate::common::{CapnpAsRef, Discriminant, NumElements, NumWords, POINTER_WIDTH_WORDS};
+use crate::common::{
+  CapnpAsRef, CapnpToOwned, Discriminant, NumElements, NumWords, POINTER_WIDTH_WORDS,
+};
 use crate::decode::{SegmentPointerDecode, StructDecode};
 use crate::element::StructElement;
 use crate::encode::StructEncode;
@@ -119,6 +121,16 @@ impl<'a> UntypedStruct<'a> {
       UntypedStruct::encode_segment_alternate(w, seen_segments, id, segment)?;
     }
     Ok(())
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for UntypedStruct<'a> {
+  type Owned = UntypedStructShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    UntypedStructShared {
+      pointer: self.pointer.clone(),
+      pointer_end: self.pointer_end.capnp_to_owned(),
+    }
   }
 }
 

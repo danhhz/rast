@@ -42,6 +42,10 @@ impl<'a> Entry<'a> {
 
   /// The opaque user payload of the entry.
   pub fn payload(&self) -> Result<Vec<u8>, Error> { Entry::PAYLOAD_META.get(&self.data) }
+
+  pub fn capnp_to_owned(&self) -> EntryShared {
+    EntryShared { data: self.data.capnp_to_owned() }
+  }
 }
 
 impl<'a> TypedStruct<'a> for Entry<'a> {
@@ -53,6 +57,13 @@ impl<'a> TypedStruct<'a> for Entry<'a> {
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for Entry<'a> {
+  type Owned = EntryShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    Entry::capnp_to_owned(self)
   }
 }
 
@@ -92,6 +103,9 @@ impl EntryShared {
     EntryShared { data: data.into_shared() }
   }
 
+  pub fn capnp_as_ref<'a>(&'a self) -> Entry<'a> {
+    Entry { data: self.data.capnp_as_ref() }
+  }
 }
 
 impl TypedStructShared for EntryShared {
@@ -108,7 +122,7 @@ impl TypedStructShared for EntryShared {
 
 impl<'a> CapnpAsRef<'a, Entry<'a>> for EntryShared {
   fn capnp_as_ref(&'a self) -> Entry<'a> {
-    Entry { data: self.data.capnp_as_ref() }
+    EntryShared::capnp_as_ref(self)
   }
 }
 
@@ -151,6 +165,10 @@ impl<'a> Message<'a> {
   pub fn dest(&self) -> u64 { Message::DEST_META.get(&self.data) }
 
   pub fn payload(&self) -> Result<Result<Payload<'a>, UnknownDiscriminant>,Error> { Message::PAYLOAD_META.get(&self.data) }
+
+  pub fn capnp_to_owned(&self) -> MessageShared {
+    MessageShared { data: self.data.capnp_to_owned() }
+  }
 }
 
 impl<'a> TypedStruct<'a> for Message<'a> {
@@ -162,6 +180,13 @@ impl<'a> TypedStruct<'a> for Message<'a> {
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for Message<'a> {
+  type Owned = MessageShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    Message::capnp_to_owned(self)
   }
 }
 
@@ -201,6 +226,9 @@ impl MessageShared {
     MessageShared { data: data.into_shared() }
   }
 
+  pub fn capnp_as_ref<'a>(&'a self) -> Message<'a> {
+    Message { data: self.data.capnp_as_ref() }
+  }
 }
 
 impl TypedStructShared for MessageShared {
@@ -217,7 +245,7 @@ impl TypedStructShared for MessageShared {
 
 impl<'a> CapnpAsRef<'a, Message<'a>> for MessageShared {
   fn capnp_as_ref(&'a self) -> Message<'a> {
-    Message { data: self.data.capnp_as_ref() }
+    MessageShared::capnp_as_ref(self)
   }
 }
 
@@ -287,6 +315,10 @@ impl<'a> AppendEntriesReq<'a> {
   pub fn read_id(&self) -> u64 { AppendEntriesReq::READ_ID_META.get(&self.data) }
 
   pub fn entries(&self) -> Result<Vec<Entry<'a>>, Error> { AppendEntriesReq::ENTRIES_META.get(&self.data) }
+
+  pub fn capnp_to_owned(&self) -> AppendEntriesReqShared {
+    AppendEntriesReqShared { data: self.data.capnp_to_owned() }
+  }
 }
 
 impl<'a> TypedStruct<'a> for AppendEntriesReq<'a> {
@@ -298,6 +330,13 @@ impl<'a> TypedStruct<'a> for AppendEntriesReq<'a> {
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for AppendEntriesReq<'a> {
+  type Owned = AppendEntriesReqShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    AppendEntriesReq::capnp_to_owned(self)
   }
 }
 
@@ -345,6 +384,9 @@ impl AppendEntriesReqShared {
     AppendEntriesReqShared { data: data.into_shared() }
   }
 
+  pub fn capnp_as_ref<'a>(&'a self) -> AppendEntriesReq<'a> {
+    AppendEntriesReq { data: self.data.capnp_as_ref() }
+  }
 }
 
 impl TypedStructShared for AppendEntriesReqShared {
@@ -361,7 +403,7 @@ impl TypedStructShared for AppendEntriesReqShared {
 
 impl<'a> CapnpAsRef<'a, AppendEntriesReq<'a>> for AppendEntriesReqShared {
   fn capnp_as_ref(&'a self) -> AppendEntriesReq<'a> {
-    AppendEntriesReq { data: self.data.capnp_as_ref() }
+    AppendEntriesReqShared::capnp_as_ref(self)
   }
 }
 
@@ -407,6 +449,10 @@ impl<'a> AppendEntriesRes<'a> {
   pub fn index(&self) -> u64 { AppendEntriesRes::INDEX_META.get(&self.data) }
 
   pub fn read_id(&self) -> u64 { AppendEntriesRes::READ_ID_META.get(&self.data) }
+
+  pub fn capnp_to_owned(&self) -> AppendEntriesResShared {
+    AppendEntriesResShared { data: self.data.capnp_to_owned() }
+  }
 }
 
 impl<'a> TypedStruct<'a> for AppendEntriesRes<'a> {
@@ -418,6 +464,13 @@ impl<'a> TypedStruct<'a> for AppendEntriesRes<'a> {
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for AppendEntriesRes<'a> {
+  type Owned = AppendEntriesResShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    AppendEntriesRes::capnp_to_owned(self)
   }
 }
 
@@ -459,6 +512,9 @@ impl AppendEntriesResShared {
     AppendEntriesResShared { data: data.into_shared() }
   }
 
+  pub fn capnp_as_ref<'a>(&'a self) -> AppendEntriesRes<'a> {
+    AppendEntriesRes { data: self.data.capnp_as_ref() }
+  }
 }
 
 impl TypedStructShared for AppendEntriesResShared {
@@ -475,7 +531,7 @@ impl TypedStructShared for AppendEntriesResShared {
 
 impl<'a> CapnpAsRef<'a, AppendEntriesRes<'a>> for AppendEntriesResShared {
   fn capnp_as_ref(&'a self) -> AppendEntriesRes<'a> {
-    AppendEntriesRes { data: self.data.capnp_as_ref() }
+    AppendEntriesResShared::capnp_as_ref(self)
   }
 }
 
@@ -521,6 +577,10 @@ impl<'a> RequestVoteReq<'a> {
   pub fn last_log_index(&self) -> u64 { RequestVoteReq::LAST_LOG_INDEX_META.get(&self.data) }
 
   pub fn last_log_term(&self) -> u64 { RequestVoteReq::LAST_LOG_TERM_META.get(&self.data) }
+
+  pub fn capnp_to_owned(&self) -> RequestVoteReqShared {
+    RequestVoteReqShared { data: self.data.capnp_to_owned() }
+  }
 }
 
 impl<'a> TypedStruct<'a> for RequestVoteReq<'a> {
@@ -532,6 +592,13 @@ impl<'a> TypedStruct<'a> for RequestVoteReq<'a> {
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for RequestVoteReq<'a> {
+  type Owned = RequestVoteReqShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    RequestVoteReq::capnp_to_owned(self)
   }
 }
 
@@ -573,6 +640,9 @@ impl RequestVoteReqShared {
     RequestVoteReqShared { data: data.into_shared() }
   }
 
+  pub fn capnp_as_ref<'a>(&'a self) -> RequestVoteReq<'a> {
+    RequestVoteReq { data: self.data.capnp_as_ref() }
+  }
 }
 
 impl TypedStructShared for RequestVoteReqShared {
@@ -589,7 +659,7 @@ impl TypedStructShared for RequestVoteReqShared {
 
 impl<'a> CapnpAsRef<'a, RequestVoteReq<'a>> for RequestVoteReqShared {
   fn capnp_as_ref(&'a self) -> RequestVoteReq<'a> {
-    RequestVoteReq { data: self.data.capnp_as_ref() }
+    RequestVoteReqShared::capnp_as_ref(self)
   }
 }
 
@@ -621,6 +691,10 @@ impl<'a> RequestVoteRes<'a> {
   pub fn term(&self) -> u64 { RequestVoteRes::TERM_META.get(&self.data) }
 
   pub fn vote_granted(&self) -> u64 { RequestVoteRes::VOTE_GRANTED_META.get(&self.data) }
+
+  pub fn capnp_to_owned(&self) -> RequestVoteResShared {
+    RequestVoteResShared { data: self.data.capnp_to_owned() }
+  }
 }
 
 impl<'a> TypedStruct<'a> for RequestVoteRes<'a> {
@@ -632,6 +706,13 @@ impl<'a> TypedStruct<'a> for RequestVoteRes<'a> {
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for RequestVoteRes<'a> {
+  type Owned = RequestVoteResShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    RequestVoteRes::capnp_to_owned(self)
   }
 }
 
@@ -669,6 +750,9 @@ impl RequestVoteResShared {
     RequestVoteResShared { data: data.into_shared() }
   }
 
+  pub fn capnp_as_ref<'a>(&'a self) -> RequestVoteRes<'a> {
+    RequestVoteRes { data: self.data.capnp_as_ref() }
+  }
 }
 
 impl TypedStructShared for RequestVoteResShared {
@@ -685,7 +769,7 @@ impl TypedStructShared for RequestVoteResShared {
 
 impl<'a> CapnpAsRef<'a, RequestVoteRes<'a>> for RequestVoteResShared {
   fn capnp_as_ref(&'a self) -> RequestVoteRes<'a> {
-    RequestVoteRes { data: self.data.capnp_as_ref() }
+    RequestVoteResShared::capnp_as_ref(self)
   }
 }
 
@@ -710,6 +794,10 @@ impl<'a> StartElectionReq<'a> {
   };
 
   pub fn term(&self) -> u64 { StartElectionReq::TERM_META.get(&self.data) }
+
+  pub fn capnp_to_owned(&self) -> StartElectionReqShared {
+    StartElectionReqShared { data: self.data.capnp_to_owned() }
+  }
 }
 
 impl<'a> TypedStruct<'a> for StartElectionReq<'a> {
@@ -721,6 +809,13 @@ impl<'a> TypedStruct<'a> for StartElectionReq<'a> {
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for StartElectionReq<'a> {
+  type Owned = StartElectionReqShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    StartElectionReq::capnp_to_owned(self)
   }
 }
 
@@ -756,6 +851,9 @@ impl StartElectionReqShared {
     StartElectionReqShared { data: data.into_shared() }
   }
 
+  pub fn capnp_as_ref<'a>(&'a self) -> StartElectionReq<'a> {
+    StartElectionReq { data: self.data.capnp_as_ref() }
+  }
 }
 
 impl TypedStructShared for StartElectionReqShared {
@@ -772,7 +870,7 @@ impl TypedStructShared for StartElectionReqShared {
 
 impl<'a> CapnpAsRef<'a, StartElectionReq<'a>> for StartElectionReqShared {
   fn capnp_as_ref(&'a self) -> StartElectionReq<'a> {
-    StartElectionReq { data: self.data.capnp_as_ref() }
+    StartElectionReqShared::capnp_as_ref(self)
   }
 }
 
@@ -836,6 +934,16 @@ impl Payload<'_> {
       },
     ],
   };
+
+  pub fn capnp_to_owned(&self) -> PayloadShared {
+    match self {
+      Payload::AppendEntriesReq(x) => PayloadShared::AppendEntriesReq(x.capnp_to_owned()),
+      Payload::AppendEntriesRes(x) => PayloadShared::AppendEntriesRes(x.capnp_to_owned()),
+      Payload::RequestVoteReq(x) => PayloadShared::RequestVoteReq(x.capnp_to_owned()),
+      Payload::RequestVoteRes(x) => PayloadShared::RequestVoteRes(x.capnp_to_owned()),
+      Payload::StartElectionReq(x) => PayloadShared::StartElectionReq(x.capnp_to_owned()),
+    }
+  }
 }
 
 impl<'a> TypedUnion<'a> for Payload<'a> {
@@ -854,6 +962,13 @@ impl<'a> TypedUnion<'a> for Payload<'a> {
   }
 }
 
+impl<'a> CapnpToOwned<'a> for Payload<'a> {
+  type Owned = PayloadShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    Payload::capnp_to_owned(self)
+  }
+}
+
 #[derive(Clone)]
 pub enum PayloadShared {
   AppendEntriesReq(AppendEntriesReqShared),
@@ -861,6 +976,18 @@ pub enum PayloadShared {
   RequestVoteReq(RequestVoteReqShared),
   RequestVoteRes(RequestVoteResShared),
   StartElectionReq(StartElectionReqShared),
+}
+
+impl PayloadShared {
+  pub fn capnp_as_ref<'a>(&'a self) -> Payload<'a> {
+    match self {
+      PayloadShared::AppendEntriesReq(x) => Payload::AppendEntriesReq(x.capnp_as_ref()),
+      PayloadShared::AppendEntriesRes(x) => Payload::AppendEntriesRes(x.capnp_as_ref()),
+      PayloadShared::RequestVoteReq(x) => Payload::RequestVoteReq(x.capnp_as_ref()),
+      PayloadShared::RequestVoteRes(x) => Payload::RequestVoteRes(x.capnp_as_ref()),
+      PayloadShared::StartElectionReq(x) => Payload::StartElectionReq(x.capnp_as_ref()),
+    }
+  }
 }
 
 impl<'a> TypedUnionShared<'a, Payload<'a>> for PayloadShared {
@@ -892,12 +1019,6 @@ impl<'a> TypedUnionShared<'a, Payload<'a>> for PayloadShared {
 
 impl<'a> CapnpAsRef<'a, Payload<'a>> for PayloadShared {
   fn capnp_as_ref(&'a self) -> Payload<'a> {
-    match self {
-      PayloadShared::AppendEntriesReq(x) => Payload::AppendEntriesReq(x.capnp_as_ref()),
-      PayloadShared::AppendEntriesRes(x) => Payload::AppendEntriesRes(x.capnp_as_ref()),
-      PayloadShared::RequestVoteReq(x) => Payload::RequestVoteReq(x.capnp_as_ref()),
-      PayloadShared::RequestVoteRes(x) => Payload::RequestVoteRes(x.capnp_as_ref()),
-      PayloadShared::StartElectionReq(x) => Payload::StartElectionReq(x.capnp_as_ref()),
-    }
+    PayloadShared::capnp_as_ref(self)
   }
 }

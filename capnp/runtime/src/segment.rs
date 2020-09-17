@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::hash::Hasher;
 use std::iter::Iterator;
-use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::common::{CapnpAsRef, NumWords, WORD_BYTES};
+use crate::common::{CapnpAsRef, CapnpToOwned, NumWords, WORD_BYTES};
 use crate::error::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -16,7 +16,7 @@ pub struct SegmentID(pub u32);
 #[derive(Debug)]
 pub struct SegmentOwned {
   buf: Vec<u8>,
-  other: HashMap<SegmentID, SegmentShared>,
+  other: HashMap<SegmentID, Arc<Vec<u8>>>,
 }
 
 impl SegmentOwned {
@@ -25,7 +25,7 @@ impl SegmentOwned {
   }
 
   pub fn into_shared(self) -> SegmentShared {
-    SegmentShared { buf: Rc::new(self.buf), other: Rc::new(self.other) }
+    SegmentShared { buf: Arc::new(self.buf), other: Arc::new(self.other) }
   }
 
   pub fn len_words_rounded_up(&mut self) -> NumWords {
@@ -51,15 +51,15 @@ impl SegmentOwned {
     let segment_id = SegmentID(h.finish() as u32);
     // WIP: Is this really needed? Makes things O(n^2).
     self.other.extend(other.all_other());
-    self.other.insert(segment_id, other);
+    self.other.insert(segment_id, other.buf);
     segment_id
   }
 }
 
 #[derive(Debug, Clone)]
 pub struct SegmentShared {
-  buf: Rc<Vec<u8>>,
-  other: Rc<HashMap<SegmentID, SegmentShared>>,
+  buf: Arc<Vec<u8>>,
+  other: Arc<HashMap<SegmentID, Arc<Vec<u8>>>>,
 }
 
 impl SegmentShared {
@@ -67,25 +67,25 @@ impl SegmentShared {
     &self.buf
   }
 
-  pub fn all_other<'a>(&'a self) -> Vec<(SegmentID, SegmentShared)> {
+  pub fn all_other<'a>(&'a self) -> Vec<(SegmentID, Arc<Vec<u8>>)> {
     self.other.iter().map(|(id, s)| (*id, s.clone())).collect()
   }
 }
 
-impl<'a> CapnpAsRef<'a, SegmentBorrowed<'a>> for SegmentShared {
-  fn capnp_as_ref(&'a self) -> SegmentBorrowed<'a> {
+impl<'a> CapnpAsRef<'a, Segment<'a>> for SegmentShared {
+  fn capnp_as_ref(&'a self) -> Segment<'a> {
     let mut other: HashMap<SegmentID, &'a [u8]> = HashMap::with_capacity(self.other.len());
     for (k, v) in self.other.iter() {
-      other.insert(*k, &v.buf);
+      other.insert(*k, &v);
     }
-    SegmentBorrowed { buf: &self.buf, other: Some(Rc::new(other)) }
+    Segment::Borrowed(SegmentBorrowed { buf: &self.buf, other: Some(Arc::new(other)) })
   }
 }
 
 #[derive(Debug, Clone)]
 pub struct SegmentBorrowed<'a> {
   buf: &'a [u8],
-  other: Option<Rc<HashMap<SegmentID, &'a [u8]>>>,
+  other: Option<Arc<HashMap<SegmentID, &'a [u8]>>>,
 }
 
 impl<'a> SegmentBorrowed<'a> {
@@ -116,7 +116,10 @@ impl<'a> Segment<'a> {
 
   pub fn other(&self, id: SegmentID) -> Option<Segment<'a>> {
     match self {
-      Segment::Shared(o) => o.other.get(&id).map(|s| Segment::Shared(s.clone())),
+      Segment::Shared(o) => o
+        .other
+        .get(&id)
+        .map(|s| Segment::Shared(SegmentShared { buf: s.clone(), other: o.other.clone() })),
       Segment::Borrowed(b) => match &b.other {
         None => None,
         Some(other) => other
@@ -129,9 +132,13 @@ impl<'a> Segment<'a> {
   // TODO: Figure out how to return an iterator here.
   pub fn all_other(&self) -> Vec<(SegmentID, Segment<'a>)> {
     match self {
-      Segment::Shared(o) => {
-        o.other.iter().map(|(id, s)| (*id, Segment::Shared(s.clone()))).collect()
-      }
+      Segment::Shared(o) => o
+        .other
+        .iter()
+        .map(|(id, s)| {
+          (*id, Segment::Shared(SegmentShared { buf: s.clone(), other: o.other.clone() }))
+        })
+        .collect(),
       Segment::Borrowed(b) => match &b.other {
         None => vec![],
         Some(other) => other
@@ -142,6 +149,24 @@ impl<'a> Segment<'a> {
           .collect(),
       },
     }
+  }
+}
+
+impl<'a> CapnpToOwned<'a> for Segment<'a> {
+  type Owned = SegmentShared;
+  fn capnp_to_owned(&self) -> Self::Owned {
+    fn collect(seg: &Segment<'_>, by_id: &mut HashMap<SegmentID, Arc<Vec<u8>>>) {
+      for (id, other_seg) in seg.all_other().into_iter() {
+        if by_id.contains_key(&id) {
+          continue;
+        }
+        by_id.insert(id, Arc::new(other_seg.buf().to_vec()));
+        collect(&other_seg, by_id);
+      }
+    };
+    let mut by_id = HashMap::new();
+    collect(self, &mut by_id);
+    SegmentShared { buf: Arc::new(self.buf().to_vec()), other: Arc::new(by_id) }
   }
 }
 
@@ -179,7 +204,7 @@ pub fn decode_stream_official<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
 
   let first_segment_buf =
     by_id.get(&SegmentID(0)).ok_or_else(|| Error::Encoding(format!("no segments")))?;
-  Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Rc::new(by_id)) }))
+  Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Arc::new(by_id)) }))
 }
 
 pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> {
@@ -213,5 +238,5 @@ pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<Segment<'a>, Error> 
 
   let first_segment_buf =
     by_id.get(&SegmentID(0)).ok_or_else(|| Error::Encoding(format!("no segments")))?;
-  Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Rc::new(by_id)) }))
+  Ok(Segment::Borrowed(SegmentBorrowed { buf: first_segment_buf, other: Some(Arc::new(by_id)) }))
 }

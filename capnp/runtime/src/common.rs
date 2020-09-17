@@ -84,6 +84,12 @@ pub trait CapnpAsRef<'a, T> {
   fn capnp_as_ref(&'a self) -> T;
 }
 
+pub trait CapnpToOwned<'a>: Sized {
+  // TODO: Rename CapnpAsRef to CapnpBorrow
+  type Owned: CapnpAsRef<'a, Self>;
+  fn capnp_to_owned(&self) -> Self::Owned;
+}
+
 #[cfg(test)]
 pub mod test {
   use std::fmt;

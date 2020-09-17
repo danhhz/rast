@@ -337,6 +337,9 @@ impl Struct {
       struct_name, field.meta_name())?;
     }
 
+    write!(w, "\n  pub fn capnp_to_owned(&self) -> {}Shared {{\n", struct_name)?;
+    write!(w, "    {}Shared {{ data: self.data.capnp_to_owned() }}\n", struct_name)?;
+    write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
     write!(w, "\nimpl<'a> TypedStruct<'a> for {}<'a> {{\n", struct_name)?;
@@ -348,6 +351,13 @@ impl Struct {
     write!(w, "  }}\n")?;
     write!(w, "  fn as_untyped(&self) -> UntypedStruct<'a> {{\n")?;
     write!(w, "    self.data.clone()\n")?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n")?;
+
+    write!(w, "\nimpl<'a> CapnpToOwned<'a> for {}<'a> {{\n", struct_name)?;
+    write!(w, "  type Owned = {}Shared;\n", struct_name)?;
+    write!(w, "  fn capnp_to_owned(&self) -> Self::Owned {{\n")?;
+    write!(w, "    {}::capnp_to_owned(self)\n", struct_name)?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
@@ -390,7 +400,11 @@ impl Struct {
       write!(w, "    {}::{}_META.set(&mut data, {});\n", struct_name, field.meta_name(), field.name)?;
     }
     write!(w, "    {}Shared {{ data: data.into_shared() }}\n", struct_name)?;
-    write!(w, "  }}\n\n")?;
+    write!(w, "  }}\n")?;
+
+    write!(w, "\n  pub fn capnp_as_ref<'a>(&'a self) -> {}<'a> {{\n", struct_name)?;
+    write!(w, "    {} {{ data: self.data.capnp_as_ref() }}\n", struct_name)?;
+    write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
     write!(w, "\nimpl TypedStructShared for {}Shared {{\n", struct_name)?;
@@ -407,7 +421,7 @@ impl Struct {
 
     write!(w, "\nimpl<'a> CapnpAsRef<'a, {}<'a>> for {}Shared {{\n", struct_name, struct_name)?;
     write!(w, "  fn capnp_as_ref(&'a self) -> {}<'a> {{\n", struct_name)?;
-    write!(w, "    {} {{ data: self.data.capnp_as_ref() }}\n", struct_name)?;
+    write!(w, "    {}Shared::capnp_as_ref(self)\n", struct_name)?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
@@ -461,6 +475,14 @@ impl Union {
     }
     write!(w, "    ],\n")?;
     write!(w, "  }};\n")?;
+
+    write!(w, "\n  pub fn capnp_to_owned(&self) -> {}Shared {{\n", &self.name)?;
+    write!(w, "    match self {{\n")?;
+    for variant in &self.variants {
+      write!(w, "      {}::{}(x) => {}Shared::{}(x.capnp_to_owned()),\n", &self.name, variant.name, &self.name, variant.name)?;
+    }
+    write!(w, "    }}\n")?;
+    write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
     write!(w, "\nimpl<'a> TypedUnion<'a> for {}<'a> {{\n", &self.name)?;
@@ -479,6 +501,13 @@ impl Union {
     write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
+    write!(w, "\nimpl<'a> CapnpToOwned<'a> for {}<'a> {{\n", &self.name)?;
+    write!(w, "  type Owned = {}Shared;\n", &self.name)?;
+    write!(w, "  fn capnp_to_owned(&self) -> Self::Owned {{\n")?;
+    write!(w, "    {}::capnp_to_owned(self)\n", &self.name)?;
+    write!(w, "  }}\n")?;
+    write!(w, "}}\n")?;
+
     write!(w, "\n")?;
     if let Some(doc_comment) = &self.doc_comment {
       write!(w, "/// {}\n", doc_comment.trim().replace("\n", " "))?;
@@ -488,6 +517,16 @@ impl Union {
     for variant in &self.variants {
       write!(w, "  {}({}Shared),\n", variant.name, variant.field.ftype().type_owned())?;
     }
+    write!(w, "}}\n")?;
+
+    write!(w, "\nimpl {}Shared {{\n", &self.name)?;
+    write!(w, "  pub fn capnp_as_ref<'a>(&'a self) -> {}<'a> {{\n", &self.name)?;
+    write!(w, "    match self {{\n")?;
+    for variant in &self.variants {
+      write!(w, "      {}Shared::{}(x) => {}::{}(x.capnp_as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
+    }
+    write!(w, "    }}\n")?;
+    write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
     write!(w, "\nimpl<'a> TypedUnionShared<'a, {}<'a>> for {}Shared {{\n", &self.name, &self.name)?;
@@ -505,11 +544,7 @@ impl Union {
 
     write!(w, "\nimpl<'a> CapnpAsRef<'a, {}<'a>> for {}Shared {{\n", &self.name, &self.name)?;
     write!(w, "  fn capnp_as_ref(&'a self) -> {}<'a> {{\n", &self.name)?;
-    write!(w, "    match self {{\n")?;
-    for variant in &self.variants {
-      write!(w, "      {}Shared::{}(x) => {}::{}(x.capnp_as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
-    }
-    write!(w, "    }}\n")?;
+    write!(w, "    {}Shared::capnp_as_ref(self)\n", &self.name)?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 

@@ -23,7 +23,7 @@ Rast [Cap'n Proto]
 - [x] Add context to error messages
 - [x] Mark whether an error is user handleable
 - [x] Bring back generated owned structs
-- [ ] Use in Rast superproject
+- [x] Use in Rast superproject
 - [ ] Return a reference to underlying bytes for capnp bytes fields
 - [x] Bound size of rand value generation
 - [ ] README
@@ -52,8 +52,10 @@ Rast [Cap'n Proto]
 - [ ] Packing
 - [ ] Replace Vec in list in/out types with iterators
 - [ ] Accept Struct or &Struct in constructor (same for struct lists)
+- [ ] Wrapped fields
 - [ ] Match up API naming with the official capnp
 - [ ] Escape field names so metas don't conflict
+- [ ] Figure out some obvious inlines
 - [ ] Clean up codegen code structure
 - [ ] Port remaining capnp testdata tests
 - [ ] Security: Pointer validation (tests)
