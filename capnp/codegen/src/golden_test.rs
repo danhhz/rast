@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::Path;
 
-use crate::Generator;
+use crate::generate::Generator;
 
 fn read_file<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, io::Error> {
   let mut f = File::open(path)?;

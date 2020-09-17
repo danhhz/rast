@@ -7,4 +7,11 @@ script:
 - cargo fmt -- --check
 - cargo build
 - cargo test
+- cargo build --all-features
+- cargo test --all-features
 - cargo doc --all-features
+- cargo build --manifest-path capnp/Cargo.toml
+- cargo test --manifest-path capnp/Cargo.toml
+- cargo build --manifest-path capnp/Cargo.toml --all-features
+- cargo test --manifest-path capnp/Cargo.toml --all-features
+- cargo doc --manifest-path capnp/Cargo.toml --all-features

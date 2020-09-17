@@ -51,7 +51,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [x] Bound size of rand value generation
 - [ ] README
 - [x] Document how to run the golden tests
-- [ ] Set up CI
+- [x] Set up CI
 - [x] Clean up runtime prelude
 - [ ] Audit pub usage
 - [x] Audit TODO comments

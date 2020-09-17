@@ -54,6 +54,7 @@ pub mod serde;
 pub mod rand;
 
 #[cfg(test)]
+#[rustfmt::skip]
 pub mod samples;
 
 #[cfg(test)]

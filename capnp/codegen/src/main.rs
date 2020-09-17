@@ -3,6 +3,7 @@
 use std::io;
 
 #[allow(dead_code)]
+#[rustfmt::skip]
 mod schema_capnp;
 
 #[cfg(test)]
@@ -10,8 +11,7 @@ mod golden_test;
 
 #[allow(dead_code)]
 mod generate;
-use generate::Generator;
 
 fn main() {
-  Generator::generate(&mut io::stdin(), &mut io::stdout()).unwrap();
+  generate::Generator::generate(&mut io::stdin(), &mut io::stdout()).unwrap();
 }

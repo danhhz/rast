@@ -1,7 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 #![allow(unused_attributes)]
-#![rustfmt::skip::macros(write)]
+// TODO: This doesn't seem to work with CI #![rustfmt::skip::macros(write)]
 
 use capnp;
 use capnp::message::ReaderOptions;
@@ -270,7 +270,9 @@ impl Struct {
   }
 
   fn render_field_meta(w: &mut dyn Write, field: &Field) -> io::Result<()> {
-    write!(w, "  const {}_META: {}FieldMeta = {}FieldMeta {{\n", field.meta_name(), field.ftype().type_meta(), field.ftype().type_meta())?;
+    #[rustfmt::skip]
+    write!(w, "  const {}_META: {}FieldMeta = {}FieldMeta {{\n",
+      field.meta_name(), field.ftype().type_meta(), field.ftype().type_meta())?;
     write!(w, "    name: \"{}\",\n", field.name)?;
     write!(w, "    offset: NumElements({}),\n", field.offset)?;
     match &field.type_ {
@@ -315,7 +317,9 @@ impl Struct {
     write!(w, "    pointer_size: NumWords({}),\n", self.pointer_words)?;
     write!(w, "    fields: || &[\n")?;
     for field in self.fields.iter() {
-      write!(w, "      {},\n", field.ftype().type_meta_class(format!("{}::{}_META", struct_name, field.meta_name())))?;
+      #[rustfmt::skip]
+      write!(w, "      {},\n",
+        field.ftype().type_meta_class(format!("{}::{}_META", struct_name, field.meta_name())))?;
     }
     write!(w, "    ],\n")?;
     write!(w, "  }};\n")?;
@@ -327,14 +331,13 @@ impl Struct {
       }
       write!(w, "  pub fn {}(&self) -> ", field.name)?;
       if let FieldTypeEnum::Union(_) = field.type_ {
-        write!(w, "Result<Result<{}, UnknownDiscriminant>,Error>",field.ftype().type_out())?;
+        write!(w, "Result<Result<{}, UnknownDiscriminant>,Error>", field.ftype().type_out())?;
       } else if field.ftype().type_out_result() {
-        write!(w, "Result<{}, Error>",field.ftype().type_out())?;
+        write!(w, "Result<{}, Error>", field.ftype().type_out())?;
       } else {
-        write!(w, "{}",field.ftype().type_out())?;
+        write!(w, "{}", field.ftype().type_out())?;
       }
-      write!(w, " {{ {}::{}_META.get(&self.data) }}\n",
-      struct_name, field.meta_name())?;
+      write!(w, " {{ {}::{}_META.get(&self.data) }}\n", struct_name, field.meta_name())?;
     }
 
     write!(w, "\n  pub fn capnp_to_owned(&self) -> {}Shared {{\n", struct_name)?;
@@ -368,6 +371,7 @@ impl Struct {
     write!(w, "}}\n")?;
 
     write!(w, "\nimpl<'a> std::cmp::PartialOrd for {}<'a> {{\n", struct_name)?;
+    #[rustfmt::skip]
     write!(w, "  fn partial_cmp(&self, other: &{}<'a>) -> Option<std::cmp::Ordering> {{\n", struct_name)?;
     write!(w, "    self.as_element().partial_cmp(&other.as_element())\n")?;
     write!(w, "  }}\n")?;
@@ -395,8 +399,11 @@ impl Struct {
       }
     }
     write!(w, "  ) -> {}Shared {{\n", struct_name)?;
-    write!(w, "    let mut data = UntypedStructOwned::new_with_root_struct({}::META.data_size, {}::META.pointer_size);\n", struct_name, struct_name)?;
+    #[rustfmt::skip]
+    write!(w, "    let mut data = UntypedStructOwned::new_with_root_struct({}::META.data_size, {}::META.pointer_size);\n",
+      struct_name, struct_name)?;
     for field in self.fields.iter() {
+      #[rustfmt::skip]
       write!(w, "    {}::{}_META.set(&mut data, {});\n", struct_name, field.meta_name(), field.name)?;
     }
     write!(w, "    {}Shared {{ data: data.into_shared() }}\n", struct_name)?;
@@ -447,6 +454,7 @@ impl Union {
     raw.to_camel_case()
   }
 
+  #[rustfmt::skip::macros(write)]
   fn render(&self, w: &mut dyn Write) -> io::Result<()> {
     write!(w, "\n")?;
     if let Some(doc_comment) = &self.doc_comment {
@@ -469,6 +477,7 @@ impl Union {
     for variant in self.variants.iter() {
       write!(w, "      UnionVariantMeta{{\n")?;
       write!(w, "        discriminant: Discriminant({}),\n", variant.discriminant)?;
+      #[rustfmt::skip]
       write!(w, "        field_meta: {},\n",
         variant.field.ftype().type_meta_class(format!("{}::{}_META", &self.name, variant.field.meta_name())))?;
       write!(w, "      }},\n")?;
@@ -479,7 +488,9 @@ impl Union {
     write!(w, "\n  pub fn capnp_to_owned(&self) -> {}Shared {{\n", &self.name)?;
     write!(w, "    match self {{\n")?;
     for variant in &self.variants {
-      write!(w, "      {}::{}(x) => {}Shared::{}(x.capnp_to_owned()),\n", &self.name, variant.name, &self.name, variant.name)?;
+      #[rustfmt::skip]
+      write!(w, "      {}::{}(x) => {}Shared::{}(x.capnp_to_owned()),\n",
+        &self.name, variant.name, &self.name, variant.name)?;
     }
     write!(w, "    }}\n")?;
     write!(w, "  }}\n")?;
@@ -487,12 +498,14 @@ impl Union {
 
     write!(w, "\nimpl<'a> TypedUnion<'a> for {}<'a> {{\n", &self.name)?;
     write!(w, "  fn meta() -> &'static UnionMeta {{\n")?;
-    write!(w, "    &{}::META\n",  &self.name)?;
+    write!(w, "    &{}::META\n", &self.name)?;
     write!(w, "  }}\n")?;
+    #[rustfmt::skip]
     write!(w, "  fn from_untyped_union(untyped: &UntypedUnion<'a>) -> Result<Result<Self, UnknownDiscriminant>, Error> {{\n")?;
     write!(w, "    match untyped.discriminant {{\n")?;
     for variant in self.variants.iter() {
       // TODO: This only works for pointer types.
+      #[rustfmt::skip]
       write!(w, "      Discriminant({}) => {}::{}_META.get(&untyped.variant_data).map(|x| Ok({}::{}(x))),\n",
         variant.discriminant, &self.name, variant.field.meta_name(), &self.name, variant.name)?;
     }
@@ -523,18 +536,23 @@ impl Union {
     write!(w, "  pub fn capnp_as_ref<'a>(&'a self) -> {}<'a> {{\n", &self.name)?;
     write!(w, "    match self {{\n")?;
     for variant in &self.variants {
-      write!(w, "      {}Shared::{}(x) => {}::{}(x.capnp_as_ref()),\n", &self.name, variant.name, &self.name, variant.name)?;
+      #[rustfmt::skip]
+      write!(w, "      {}Shared::{}(x) => {}::{}(x.capnp_as_ref()),\n",
+        &self.name, variant.name, &self.name, variant.name)?;
     }
     write!(w, "    }}\n")?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n")?;
 
     write!(w, "\nimpl<'a> TypedUnionShared<'a, {}<'a>> for {}Shared {{\n", &self.name, &self.name)?;
+    #[rustfmt::skip]
     write!(w, "  fn set(&self, data: &mut UntypedStructOwned, discriminant_offset: NumElements) {{\n")?;
     write!(w, "    match self {{\n")?;
     for variant in &self.variants {
       write!(w, "      {}Shared::{}(x) => {{\n", &self.name, variant.name)?;
+      #[rustfmt::skip]
       write!(w, "        data.set_discriminant(discriminant_offset, Discriminant({}));\n", variant.discriminant)?;
+      #[rustfmt::skip]
       write!(w, "        {}::{}_META.set(data, Some(x.clone()));\n", &self.name, variant.field.meta_name())?;
       write!(w, "      }}\n")?;
     }
@@ -558,7 +576,6 @@ pub struct Generator<'a> {
   names: HashMap<u64, String>,
 }
 
-#[rustfmt::skip::macros(write)]
 impl<'a> Generator<'a> {
   pub fn generate(r: &mut dyn io::Read, w: &mut dyn io::Write) -> Result<()> {
     let req_reader = serialize::read_message(r, ReaderOptions::new())?;
