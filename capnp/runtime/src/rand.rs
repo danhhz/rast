@@ -130,21 +130,20 @@ impl<'a, R: Rng> Rand<'a, R> {
 #[cfg(test)]
 mod test {
   use rand;
-  use std::convert::TryInto;
   use std::error::Error;
 
   use crate::samples::rast_capnp::{Message, MessageShared};
   use crate::samples::test_capnp::{TestAllTypes, TestAllTypesShared};
-  use capnp_runtime::prelude::*;
+  use capnp_runtime::decode_stream;
+  use capnp_runtime::encode_stream;
 
   #[test]
   fn rand_roundtrip_testalltypes() -> Result<(), Box<dyn Error>> {
     let before: TestAllTypesShared =
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
-    before.capnp_as_ref().as_untyped().encode_as_root_alternate(&mut buf)?;
-    let seg = decode_stream_alternate(&buf)?;
-    let after = TestAllTypes::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
+    encode_stream::alternate(&mut buf, &before.capnp_as_ref())?;
+    let after: TestAllTypes = decode_stream::alternate(&buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }
@@ -154,9 +153,8 @@ mod test {
     let before: MessageShared =
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
-    before.capnp_as_ref().as_untyped().encode_as_root_alternate(&mut buf)?;
-    let seg = decode_stream_alternate(&buf)?;
-    let after = Message::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
+    encode_stream::alternate(&mut buf, &before.capnp_as_ref())?;
+    let after: Message = decode_stream::alternate(&buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }

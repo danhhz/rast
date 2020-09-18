@@ -1,9 +1,5 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use std::collections::HashSet;
-use std::convert::TryFrom;
-use std::io::{self, Write};
-
 use crate::common::{
   CapnpAsRef, CapnpToOwned, Discriminant, NumElements, NumWords, POINTER_WIDTH_WORDS,
 };
@@ -13,7 +9,7 @@ use crate::encode::StructEncode;
 use crate::error::Error;
 use crate::field_meta::FieldMeta;
 use crate::pointer::StructPointer;
-use crate::segment::{SegmentBorrowed, SegmentID, SegmentOwned};
+use crate::segment::{SegmentBorrowed, SegmentOwned};
 use crate::segment_pointer::{
   SegmentPointer, SegmentPointerBorrowMut, SegmentPointerOwned, SegmentPointerShared,
 };
@@ -53,74 +49,23 @@ pub struct UntypedStruct<'a> {
   pointer_end: SegmentPointer<'a>,
 }
 
-impl<'a> TryFrom<SegmentPointer<'a>> for UntypedStruct<'a> {
-  type Error = Error;
-
-  fn try_from(value: SegmentPointer<'a>) -> Result<Self, Self::Error> {
-    let (pointer, pointer_end) = value.struct_pointer(NumElements(0))?;
-    Ok(UntypedStruct { pointer: pointer, pointer_end: pointer_end })
-  }
-}
-
 impl<'a> UntypedStruct<'a> {
   pub fn new(pointer: StructPointer, pointer_end: SegmentPointer<'a>) -> Self {
     UntypedStruct { pointer: pointer, pointer_end: pointer_end }
   }
 
-  pub fn encode_as_root_alternate<W: Write>(&self, w: &mut W) -> io::Result<()> {
-    // Emit this struct's segment prefixed with a pointer to this struct.
+  pub(crate) fn from_root(seg: SegmentBorrowed<'a>) -> Result<Self, Error> {
+    let (pointer, pointer_end) = SegmentPointer::from_root(seg).struct_pointer(NumElements(0))?;
+    Ok(UntypedStruct { pointer: pointer, pointer_end: pointer_end })
+  }
+
+  pub(crate) fn as_root(&self) -> (StructPointer, SegmentBorrowed<'a>) {
     let root_pointer = StructPointer {
       off: self.pointer_end.off + self.pointer.off,
       data_size: self.pointer.data_size,
       pointer_size: self.pointer.pointer_size,
-    }
-    .encode();
-    let seg_buf = self.pointer_end.seg.buf();
-    let fake_len_bytes = seg_buf.len() + root_pointer.len();
-    let fake_len_words = (fake_len_bytes + 7) / 8;
-    let padding = vec![0; fake_len_words * 8 - fake_len_bytes];
-
-    // WIP: What do we do about the segment id?
-    w.write_all(&u32::to_le_bytes(0))?;
-    w.write_all(&u32::to_le_bytes(fake_len_words as u32))?;
-    w.write_all(&root_pointer)?;
-    w.write_all(seg_buf)?;
-    w.write_all(&padding)?;
-
-    let mut seen_segments = HashSet::new();
-    for (id, segment) in self.pointer_end.seg.all_other() {
-      if seen_segments.contains(&id) {
-        continue;
-      }
-      seen_segments.insert(id);
-      UntypedStruct::encode_segment_alternate(w, &mut seen_segments, id, segment)?;
-    }
-    Ok(())
-  }
-
-  fn encode_segment_alternate<W: Write>(
-    w: &mut W,
-    seen_segments: &mut HashSet<SegmentID>,
-    id: SegmentID,
-    segment: SegmentBorrowed<'_>,
-  ) -> io::Result<()> {
-    let seg_buf = segment.buf();
-    let len_bytes = seg_buf.len();
-    let len_words = (len_bytes + 7) / 8;
-    let padding = vec![0; len_words * 8 - len_bytes];
-
-    w.write_all(&u32::to_le_bytes(id.0))?;
-    w.write_all(&u32::to_le_bytes(len_words as u32))?;
-    w.write_all(seg_buf)?;
-    w.write_all(&padding)?;
-    for (id, segment) in segment.all_other() {
-      if seen_segments.contains(&id) {
-        continue;
-      }
-      seen_segments.insert(id);
-      UntypedStruct::encode_segment_alternate(w, seen_segments, id, segment)?;
-    }
-    Ok(())
+    };
+    (root_pointer, self.pointer_end.seg.clone())
   }
 }
 
@@ -145,8 +90,9 @@ impl<'a> StructDecode<'a> for UntypedStruct<'a> {
 
 #[derive(Clone)]
 pub struct UntypedStructShared {
-  pub pointer: StructPointer,
-  pub pointer_end: SegmentPointerShared,
+  // TODO: Remove these `pub(crate)`s.
+  pub(crate) pointer: StructPointer,
+  pub(crate) pointer_end: SegmentPointerShared,
 }
 
 impl<'a> CapnpAsRef<'a, UntypedStruct<'a>> for UntypedStructShared {

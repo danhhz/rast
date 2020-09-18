@@ -49,11 +49,12 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [x] Use in Rast superproject
 - [x] Return a reference to underlying bytes for capnp bytes fields
 - [x] Bound size of rand value generation
+- [ ] Combine *Meta and *ElementType
 - [ ] README
 - [x] Document how to run the golden tests
 - [x] Set up CI
 - [x] Clean up runtime prelude
-- [ ] Audit pub usage
+- [x] Audit pub usage
 - [x] Audit TODO comments
 - [ ] Resolve WIP comments
 - [x] Remove dbg!
@@ -81,6 +82,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Figure out some obvious inlines
 - [ ] Constructor with named args (likely via generated struct)
 - [ ] Fully decode message into ^^, all accesses are error free
+- [ ] Audit const usage (make them &'static?)
 - [ ] Clean up codegen code structure
 - [ ] Port remaining capnp testdata tests
 - [ ] Run generated output through rustfmt

@@ -132,27 +132,24 @@ impl<'a> cmp::PartialEq for UnionMeta {
 #[cfg(test)]
 mod test {
   use std::cmp::Ordering;
-  use std::convert::TryInto;
   use std::error;
   use std::fs::File;
   use std::io::Read;
 
   use crate::samples::test_capnp::TestAllTypes;
-  use capnp_runtime::prelude::*;
+  use capnp_runtime::decode_stream;
 
   #[test]
   fn cmp_equal() -> Result<(), Box<dyn error::Error>> {
     let mut f = File::open("testdata/binary")?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let seg = decode_stream_official(&buf)?;
-    let binary = TestAllTypes::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
+    let binary: TestAllTypes = decode_stream::official(&buf)?;
 
     let mut f = File::open("testdata/segmented")?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let seg = decode_stream_official(&buf)?;
-    let segmented = TestAllTypes::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
+    let segmented: TestAllTypes = decode_stream::official(&buf)?;
 
     assert_eq!(binary.partial_cmp(&segmented), Some(Ordering::Equal));
     assert_eq!(binary == segmented, true);

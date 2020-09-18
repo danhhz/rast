@@ -11,9 +11,11 @@
 mod cmp;
 mod common;
 mod decode;
+pub mod decode_stream;
 mod element;
 mod element_type;
 mod encode;
+pub mod encode_stream;
 mod error;
 mod field_meta;
 mod fmt_debug;
@@ -41,10 +43,6 @@ pub mod prelude {
     UntypedStructShared,
   };
   pub use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UnionVariantMeta, UntypedUnion};
-
-  // WIP: Remove these from prelude
-  pub use crate::segment::{decode_stream_alternate, decode_stream_official};
-  pub use crate::segment_pointer::SegmentPointer;
 }
 
 #[cfg(feature = "serde")]

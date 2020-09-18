@@ -115,12 +115,12 @@ impl<'a> Serialize for UnionElement<'a> {
 #[cfg(test)]
 mod test {
   use serde_json;
-  use std::convert::TryInto;
   use std::error;
   use std::fs::File;
   use std::io::Read;
 
   use crate::samples::test_capnp::TestAllTypes;
+  use capnp_runtime::decode_stream;
   use capnp_runtime::prelude::*;
 
   #[test]
@@ -128,8 +128,7 @@ mod test {
     let mut f = File::open("testdata/binary")?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let seg = decode_stream_official(&buf)?;
-    let message = TestAllTypes::from_untyped_struct(SegmentPointer::from_root(seg).try_into()?);
+    let message: TestAllTypes = decode_stream::official(&buf)?;
 
     let mut f = File::open("testdata/short.json")?;
     let mut expected = Vec::new();

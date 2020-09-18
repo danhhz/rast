@@ -2,13 +2,11 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::hash::Hasher;
 use std::iter::Iterator;
 use std::sync::Arc;
 
 use crate::common::{CapnpAsRef, CapnpToOwned, NumWords, WORD_BYTES};
-use crate::error::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SegmentID(pub u32);
@@ -95,6 +93,10 @@ impl<'a> SegmentBorrowed<'a> {
     SegmentBorrowed { buf: &SegmentBorrowed::EMPTY_BUF, other: None }
   }
 
+  pub fn new(buf: &'a [u8], other: Option<Arc<HashMap<SegmentID, &'a [u8]>>>) -> Self {
+    SegmentBorrowed { buf: buf, other: other }
+  }
+
   pub fn buf(&self) -> &'a [u8] {
     self.buf
   }
@@ -135,75 +137,4 @@ impl<'a> CapnpToOwned<'a> for SegmentBorrowed<'a> {
     collect(self, &mut by_id);
     SegmentShared { buf: Arc::new(self.buf.to_vec()), other: Arc::new(by_id) }
   }
-}
-
-pub fn decode_stream_official<'a>(buf: &'a [u8]) -> Result<SegmentBorrowed<'a>, Error> {
-  let mut by_id = HashMap::new();
-
-  let num_segments_bytes: [u8; 4] = buf
-    .get(0..4)
-    .ok_or_else(|| Error::Encoding(format!("incomplete segment count")))?
-    .try_into()
-    .unwrap();
-  let num_segments_minus_one = u32::from_le_bytes(num_segments_bytes);
-  let num_segments = num_segments_minus_one + 1;
-  let mut size_offset = 4;
-  let padding = if num_segments % 2 == 1 { 0 } else { 4 };
-  let mut buf_offset = 4 * (1 + num_segments as usize) + padding;
-
-  for idx in 0..num_segments {
-    let id = SegmentID(idx);
-    let segment_size_words = u32::from_le_bytes(
-      buf
-        .get(size_offset..size_offset + 4)
-        .ok_or_else(|| Error::Encoding(format!("invalid segment {:?} size", id)))?
-        .try_into()
-        .unwrap(),
-    );
-    let segment_size_bytes = segment_size_words as usize * 8;
-    let segment_bytes = buf
-      .get(buf_offset..buf_offset + segment_size_bytes)
-      .ok_or_else(|| Error::Encoding(format!("insufficient segment {:?} bytes", id)))?;
-    size_offset += 4;
-    buf_offset += segment_size_bytes;
-    by_id.insert(id, segment_bytes);
-  }
-
-  let first_segment_buf =
-    by_id.get(&SegmentID(0)).ok_or_else(|| Error::Encoding(format!("no segments")))?;
-  Ok(SegmentBorrowed { buf: first_segment_buf, other: Some(Arc::new(by_id)) })
-}
-
-pub fn decode_stream_alternate<'a>(buf: &'a [u8]) -> Result<SegmentBorrowed<'a>, Error> {
-  let mut by_id = HashMap::new();
-
-  let mut buf_offset = 0;
-  while buf_offset < buf.len() {
-    let id = SegmentID(u32::from_le_bytes(
-      buf
-        .get(buf_offset..buf_offset + 4)
-        .ok_or_else(|| Error::Encoding(format!("incomplete segment id")))?
-        .try_into()
-        .unwrap(),
-    ));
-    buf_offset += 4;
-    let segment_size_words = u32::from_le_bytes(
-      buf
-        .get(buf_offset..buf_offset + 4)
-        .ok_or_else(|| Error::Encoding(format!("invalid segment {:?} size", id)))?
-        .try_into()
-        .unwrap(),
-    );
-    buf_offset += 4;
-    let segment_size_bytes = segment_size_words as usize * 8;
-    let segment_bytes = buf
-      .get(buf_offset..buf_offset + segment_size_bytes)
-      .ok_or_else(|| Error::Encoding(format!("insufficient segment {:?} bytes", id)))?;
-    buf_offset += segment_size_bytes;
-    by_id.insert(id, segment_bytes);
-  }
-
-  let first_segment_buf =
-    by_id.get(&SegmentID(0)).ok_or_else(|| Error::Encoding(format!("no segments")))?;
-  Ok(SegmentBorrowed { buf: first_segment_buf, other: Some(Arc::new(by_id)) })
 }
