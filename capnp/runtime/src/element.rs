@@ -1,10 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use crate::common::{CapnpAsRef, Discriminant};
-use crate::element_type::{
-  DataElementType, ElementType, ListElementType, PointerElementType, PrimitiveElementType,
-  StructElementType, UnionElementType,
-};
+use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
 use crate::error::Error;
 use crate::list::{ListMeta, TypedList, UntypedList, UntypedListShared};
 use crate::r#struct::{StructMeta, UntypedStruct, UntypedStructShared};
@@ -22,7 +19,7 @@ impl<'a> Element<'a> {
     match self {
       Element::Primitive(x) => ElementType::Primitive(x.element_type()),
       Element::Pointer(x) => ElementType::Pointer(x.element_type()),
-      Element::Union(x) => ElementType::Union(x.element_type()),
+      Element::Union(UnionElement(meta, _, _)) => ElementType::Union(meta),
     }
   }
 }
@@ -54,22 +51,16 @@ pub enum PointerElement<'a> {
 impl<'a> PointerElement<'a> {
   pub fn element_type(&self) -> PointerElementType {
     match self {
-      PointerElement::Data(x) => PointerElementType::Data(x.element_type()),
-      PointerElement::Struct(x) => PointerElementType::Struct(x.element_type()),
-      PointerElement::List(x) => PointerElementType::List(x.element_type()),
-      PointerElement::ListDecoded(x) => PointerElementType::List(x.element_type()),
+      PointerElement::Data(_) => PointerElementType::Data,
+      PointerElement::Struct(StructElement(meta, _)) => PointerElementType::Struct(meta),
+      PointerElement::List(ListElement(meta, _)) => PointerElementType::List(meta),
+      PointerElement::ListDecoded(ListDecodedElement(meta, _)) => PointerElementType::List(meta),
     }
   }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct DataElement<'a>(pub &'a [u8]);
-
-impl<'a> DataElement<'a> {
-  pub fn element_type(&self) -> DataElementType {
-    DataElementType
-  }
-}
 
 pub struct StructElement<'a>(pub &'static StructMeta, pub UntypedStruct<'a>);
 
@@ -80,11 +71,6 @@ impl<'a> StructElement<'a> {
   ) -> Result<Vec<Self>, Error> {
     Vec::<UntypedStruct<'a>>::from_untyped_list(untyped)
       .map(|xs| xs.into_iter().map(|x| StructElement(meta, x)).collect())
-  }
-
-  pub fn element_type(&self) -> StructElementType {
-    let StructElement(meta, _) = self;
-    StructElementType { meta: meta }
   }
 }
 
@@ -101,30 +87,11 @@ impl<'a> ListElement<'a> {
   ) -> Result<Vec<Self>, Error> {
     todo!()
   }
-
-  pub fn element_type(&self) -> ListElementType {
-    let ListElement(meta, _) = self;
-    ListElementType { meta: meta }
-  }
 }
 
 pub struct ListDecodedElement<'a>(pub &'static ListMeta, pub Vec<Element<'a>>);
 
-impl<'a> ListDecodedElement<'a> {
-  pub fn element_type(&self) -> ListElementType {
-    let ListDecodedElement(meta, _) = self;
-    ListElementType { meta: meta }
-  }
-}
-
 pub struct UnionElement<'a>(pub &'static UnionMeta, pub Discriminant, pub Box<Element<'a>>);
-
-impl<'a> UnionElement<'a> {
-  pub fn element_type(&self) -> UnionElementType {
-    let UnionElement(meta, _, _) = self;
-    UnionElementType { meta: meta }
-  }
-}
 
 pub enum ElementShared {
   Primitive(PrimitiveElement),

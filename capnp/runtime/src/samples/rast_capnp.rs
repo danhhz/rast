@@ -280,7 +280,7 @@ impl<'a> AppendEntriesReq<'a> {
     name: "entries",
     offset: NumElements(0),
     meta: &ListMeta {
-      value_type: ElementType::Pointer(PointerElementType::Struct(StructElementType {meta: &Entry::META}))
+      value_type: ElementType::Pointer(PointerElementType::Struct(&Entry::META))
     },
   };
 

@@ -12,7 +12,7 @@ use crate::union::UnionMeta;
 pub enum ElementType {
   Primitive(PrimitiveElementType),
   Pointer(PointerElementType),
-  Union(UnionElementType),
+  Union(&'static UnionMeta),
 }
 
 impl ElementType {
@@ -63,9 +63,9 @@ impl PrimitiveElementType {
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum PointerElementType {
-  Data(DataElementType),
-  Struct(StructElementType),
-  List(ListElementType),
+  Data,
+  Struct(&'static StructMeta),
+  List(&'static ListMeta),
 }
 
 impl PointerElementType {
@@ -78,29 +78,11 @@ impl PointerElementType {
     untyped: &UntypedList<'a>,
   ) -> Result<Vec<PointerElement<'a>>, Error> {
     match self {
-      PointerElementType::Data(_) => todo!(),
-      PointerElementType::Struct(m) => StructElement::from_untyped_list(m.meta, untyped)
+      PointerElementType::Data => todo!(),
+      PointerElementType::Struct(m) => StructElement::from_untyped_list(m, untyped)
         .map(|xs| xs.into_iter().map(|x| PointerElement::Struct(x)).collect()),
-      PointerElementType::List(m) => ListElement::from_untyped_list(&m.meta.value_type, untyped)
+      PointerElementType::List(m) => ListElement::from_untyped_list(&m.value_type, untyped)
         .map(|xs| xs.into_iter().map(|x| PointerElement::List(x)).collect()),
     }
   }
-}
-
-#[derive(Debug, PartialOrd, PartialEq)]
-pub struct DataElementType;
-
-#[derive(Debug, PartialOrd, PartialEq)]
-pub struct StructElementType {
-  pub meta: &'static StructMeta,
-}
-
-#[derive(Debug, PartialOrd, PartialEq)]
-pub struct ListElementType {
-  pub meta: &'static ListMeta,
-}
-
-#[derive(Debug, PartialOrd, PartialEq)]
-pub struct UnionElementType {
-  pub meta: &'static UnionMeta,
 }

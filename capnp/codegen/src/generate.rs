@@ -205,10 +205,7 @@ impl FieldType for StructField {
     "Struct".to_string()
   }
   fn type_element(&self) -> String {
-    format!(
-      "ElementType::Pointer(PointerElementType::Struct(StructElementType {{meta: &{}::META}}))",
-      self.type_
-    )
+    format!("ElementType::Pointer(PointerElementType::Struct(&{}::META))", self.type_)
   }
   fn type_meta_class(&self, field_meta: String) -> String {
     format!("FieldMeta::Pointer(PointerFieldMeta::Struct({}))", field_meta)

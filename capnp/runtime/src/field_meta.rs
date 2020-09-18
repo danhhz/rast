@@ -7,10 +7,7 @@ use crate::element::{
   PointerElementShared, PrimitiveElement, StructElement, StructElementShared, UnionElement,
   UnionElementShared,
 };
-use crate::element_type::{
-  DataElementType, ElementType, ListElementType, PointerElementType, PrimitiveElementType,
-  StructElementType, UnionElementType,
-};
+use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
 use crate::encode::StructEncode;
 use crate::error::{Error, UnknownDiscriminant};
 use crate::list::{ListMeta, TypedList, TypedListElementShared, UntypedList};
@@ -51,7 +48,7 @@ impl FieldMeta {
     match self {
       FieldMeta::Primitive(x) => ElementType::Primitive(x.element_type()),
       FieldMeta::Pointer(x) => ElementType::Pointer(x.element_type()),
-      FieldMeta::Union(x) => ElementType::Union(x.element_type()),
+      FieldMeta::Union(x) => ElementType::Union(x.meta),
     }
   }
 
@@ -174,9 +171,9 @@ impl PointerFieldMeta {
   }
   pub fn element_type(&self) -> PointerElementType {
     match self {
-      PointerFieldMeta::Data(x) => PointerElementType::Data(x.element_type()),
-      PointerFieldMeta::Struct(x) => PointerElementType::Struct(x.element_type()),
-      PointerFieldMeta::List(x) => PointerElementType::List(x.element_type()),
+      PointerFieldMeta::Data(_) => PointerElementType::Data,
+      PointerFieldMeta::Struct(x) => PointerElementType::Struct(x.meta),
+      PointerFieldMeta::List(x) => PointerElementType::List(x.meta),
     }
   }
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
@@ -214,9 +211,6 @@ pub struct StructFieldMeta {
 }
 
 impl StructFieldMeta {
-  pub fn element_type(&self) -> StructElementType {
-    StructElementType { meta: self.meta }
-  }
   pub fn offset(&self) -> NumElements {
     self.offset
   }
@@ -288,9 +282,6 @@ pub struct ListFieldMeta {
 }
 
 impl ListFieldMeta {
-  pub fn element_type(&self) -> ListElementType {
-    ListElementType { meta: self.meta }
-  }
   pub fn offset(&self) -> NumElements {
     self.offset
   }
@@ -342,9 +333,6 @@ pub struct DataFieldMeta {
 }
 
 impl DataFieldMeta {
-  pub fn element_type(&self) -> DataElementType {
-    DataElementType
-  }
   pub fn offset(&self) -> NumElements {
     self.offset
   }
@@ -393,9 +381,6 @@ pub struct UnionFieldMeta {
 }
 
 impl UnionFieldMeta {
-  pub fn element_type(&self) -> UnionElementType {
-    UnionElementType { meta: self.meta }
-  }
   pub fn offset(&self) -> NumElements {
     self.offset
   }

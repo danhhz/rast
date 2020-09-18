@@ -8,12 +8,11 @@ use crate::element::{
   DataElementShared, ElementShared, ListDecodedElementShared, PointerElementShared,
   PrimitiveElement, StructElementShared, UnionElementShared,
 };
-use crate::element_type::{
-  DataElementType, ElementType, ListElementType, PointerElementType, PrimitiveElementType,
-  StructElementType, UnionElementType,
-};
+use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
 use crate::field_meta::{FieldMeta, PointerFieldMeta, PrimitiveFieldMeta};
+use crate::list::ListMeta;
 use crate::r#struct::{StructMeta, TypedStructShared, UntypedStructOwned, UntypedStructShared};
+use crate::union::UnionMeta;
 
 pub struct Rand<'a, R: Rng> {
   rng: &'a mut R,
@@ -40,7 +39,7 @@ impl<'a, R: Rng> Rand<'a, R> {
         },
         FieldMeta::Pointer(x) => match x {
           PointerFieldMeta::Data(x) => {
-            x.set(&mut data, &self.gen_data_element(&x.element_type()).0);
+            x.set(&mut data, &self.gen_data_element().0);
           }
           PointerFieldMeta::Struct(x) => {
             if self.rng.gen_bool(0.5) || self.max_struct_recursion == 0 {
@@ -51,17 +50,14 @@ impl<'a, R: Rng> Rand<'a, R> {
             x.set_struct_element(&mut data, &StructElementShared(x.meta, untyped))
           }
           PointerFieldMeta::List(x) => {
-            let l = self.gen_list_element(&ListElementType { meta: x.meta });
+            let l = self.gen_list_element(x.meta);
             x.set_element(&mut data, &ElementShared::Pointer(PointerElementShared::ListDecoded(l)))
               .expect("WIP");
           }
         },
         FieldMeta::Union(x) => {
-          x.set_element(
-            &mut data,
-            &ElementShared::Union(self.gen_union_element(&x.element_type())),
-          )
-          .expect("WIP");
+          x.set_element(&mut data, &ElementShared::Union(self.gen_union_element(x.meta)))
+            .expect("WIP");
         }
       }
     }
@@ -85,25 +81,22 @@ impl<'a, R: Rng> Rand<'a, R> {
 
   fn gen_pointer_element(&mut self, element_type: &PointerElementType) -> PointerElementShared {
     match element_type {
-      PointerElementType::Data(x) => PointerElementShared::Data(self.gen_data_element(x)),
+      PointerElementType::Data => PointerElementShared::Data(self.gen_data_element()),
       PointerElementType::Struct(x) => PointerElementShared::Struct(self.gen_struct_element(x)),
       PointerElementType::List(x) => PointerElementShared::ListDecoded(self.gen_list_element(x)),
     }
   }
 
-  fn gen_data_element(&mut self, _: &DataElementType) -> DataElementShared {
+  fn gen_data_element(&mut self) -> DataElementShared {
     DataElementShared((0..self.rng.gen_range(0, 5)).map(|_| self.rng.gen()).collect())
   }
 
-  fn gen_struct_element(&mut self, element_type: &StructElementType) -> StructElementShared {
-    StructElementShared(element_type.meta, self.gen_untyped_struct(element_type.meta))
+  fn gen_struct_element(&mut self, meta: &'static StructMeta) -> StructElementShared {
+    StructElementShared(meta, self.gen_untyped_struct(meta))
   }
 
-  fn gen_list_element(&mut self, element_type: &ListElementType) -> ListDecodedElementShared {
-    ListDecodedElementShared(
-      element_type.meta,
-      self.gen_element_list(&element_type.meta.value_type),
-    )
+  fn gen_list_element(&mut self, meta: &'static ListMeta) -> ListDecodedElementShared {
+    ListDecodedElementShared(meta, self.gen_element_list(&meta.value_type))
   }
 
   fn gen_element_list(&mut self, value_type: &ElementType) -> Vec<ElementShared> {
@@ -116,11 +109,10 @@ impl<'a, R: Rng> Rand<'a, R> {
     (0..len).map(|_| self.gen_element(value_type)).collect()
   }
 
-  fn gen_union_element(&mut self, element_type: &UnionElementType) -> UnionElementShared {
-    let variant_meta =
-      &element_type.meta.variants[self.rng.gen_range(0, element_type.meta.variants.len())];
+  fn gen_union_element(&mut self, meta: &'static UnionMeta) -> UnionElementShared {
+    let variant_meta = &meta.variants[self.rng.gen_range(0, meta.variants.len())];
     UnionElementShared(
-      element_type.meta,
+      meta,
       variant_meta.discriminant,
       Box::new(self.gen_element(&variant_meta.field_meta.element_type())),
     )

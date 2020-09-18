@@ -49,7 +49,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [x] Use in Rast superproject
 - [x] Return a reference to underlying bytes for capnp bytes fields
 - [x] Bound size of rand value generation
-- [ ] Combine *Meta and *ElementType
+- [x] Combine *Meta and *ElementType
 - [ ] README
 - [x] Document how to run the golden tests
 - [x] Set up CI

@@ -23,7 +23,7 @@ impl<'a> TestAllTypes<'a> {
     name: "struct_list",
     offset: NumElements(17),
     meta: &ListMeta {
-      value_type: ElementType::Pointer(PointerElementType::Struct(StructElementType {meta: &TestAllTypes::META}))
+      value_type: ElementType::Pointer(PointerElementType::Struct(&TestAllTypes::META))
     },
   };
 

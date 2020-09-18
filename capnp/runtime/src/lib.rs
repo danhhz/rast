@@ -28,10 +28,7 @@ mod union;
 
 pub mod prelude {
   pub use super::common::{CapnpAsRef, CapnpToOwned, Discriminant, NumElements, NumWords};
-  pub use crate::element_type::{
-    ElementType, ListElementType, PointerElementType, PrimitiveElementType, StructElementType,
-    UnionElementType,
-  };
+  pub use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
   pub use crate::error::{Error, UnknownDiscriminant};
   pub use crate::field_meta::{
     DataFieldMeta, FieldMeta, ListFieldMeta, PointerFieldMeta, PrimitiveFieldMeta, StructFieldMeta,
