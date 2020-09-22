@@ -1,5 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+//! Random generation of Cap'n Proto types
+
 use std::cmp;
 
 use rand::Rng;
@@ -14,6 +16,12 @@ use crate::list::ListMeta;
 use crate::r#struct::{StructMeta, TypedStructShared, UntypedStructOwned, UntypedStructShared};
 use crate::union::UnionMeta;
 
+/// A generator for random Cap'n Proto types.
+///
+/// Configurables:
+/// - max_struct_recursion: An upper bound on total recursive calls into struct
+///   generation used to construct a single struct (NB: not recursion depth).
+///   Useful for self-referential structs.
 pub struct Rand<'a, R: Rng> {
   rng: &'a mut R,
 
@@ -22,10 +30,13 @@ pub struct Rand<'a, R: Rng> {
 }
 
 impl<'a, R: Rng> Rand<'a, R> {
+  /// Constructs a new [`Rand`].
   pub fn new(rng: &'a mut R, max_struct_recursion: usize) -> Self {
     Rand { rng: rng, max_struct_recursion: max_struct_recursion }
   }
 
+  /// Returns a new Cap'n Proto struct with fields filled with randomly
+  /// generated values.
   pub fn gen_typed_struct<T: TypedStructShared>(&mut self) -> T {
     T::from_untyped_struct(self.gen_untyped_struct(T::meta()))
   }
@@ -109,16 +120,15 @@ mod test {
 
   use crate::samples::rast_capnp::{Message, MessageShared};
   use crate::samples::test_capnp::{TestAllTypes, TestAllTypesShared};
-  use capnp_runtime::decode_stream;
-  use capnp_runtime::encode_stream;
+  use capnp_runtime::segment_framing_alternate;
 
   #[test]
   fn rand_roundtrip_testalltypes() -> Result<(), Box<dyn Error>> {
     let before: TestAllTypesShared =
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
-    encode_stream::alternate(&mut buf, &before.capnp_as_ref())?;
-    let after: TestAllTypes = decode_stream::alternate(&buf)?;
+    segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
+    let after: TestAllTypes = segment_framing_alternate::decode(&buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }
@@ -128,8 +138,8 @@ mod test {
     let before: MessageShared =
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
-    encode_stream::alternate(&mut buf, &before.capnp_as_ref())?;
-    let after: Message = decode_stream::alternate(&buf)?;
+    segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
+    let after: Message = segment_framing_alternate::decode(&buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }

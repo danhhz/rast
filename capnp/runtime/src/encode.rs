@@ -18,7 +18,7 @@ use crate::pointer::{
 use crate::r#struct::UntypedStructShared;
 use crate::segment_pointer::SegmentPointerBorrowMut;
 
-pub trait SegmentPointerEncode {
+pub(crate) trait SegmentPointerEncode {
   fn buf_mut(&mut self) -> &mut [u8];
   fn ensure_len(&mut self, len_bytes: usize);
   fn offset_w(&self) -> NumWords;
@@ -72,7 +72,7 @@ pub trait SegmentPointerEncode {
   }
 }
 
-pub trait StructEncode {
+pub(crate) trait StructEncode {
   fn pointer(&self) -> &StructPointer;
   fn pointer_end<'a>(&'a mut self) -> SegmentPointerBorrowMut<'a>;
 
@@ -281,7 +281,6 @@ pub trait StructEncode {
       ElementShared::Data(x) => Ok(self.set_data_element(offset_e, x)),
       ElementShared::Struct(x) => Ok(self.set_struct_element(offset_e, x)),
       ElementShared::ListDecoded(x) => self.set_list_decoded_element(offset_e, x),
-      ElementShared::List(_) => todo!(),
       ElementShared::Union(x) => self.set_union_element(offset_e, x),
     }
   }

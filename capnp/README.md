@@ -77,7 +77,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 
 # Roadmap: v0.1.0-alpha.0
 
-- [ ] User-facing rustdoc
+- [x] User-facing rustdoc
 - [x] Implement random encode/decode test
 - [x] Encoding via constructor
 - [x] ListMeta
@@ -121,7 +121,10 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Figure out some obvious inlines
 - [ ] Constructor with named args (likely via generated struct)
 - [ ] Fully decode message into ^^, all accesses are error free
+- [ ] Set list field in one message to list field from another message
 - [ ] Audit const usage (make them &'static?)
+- [ ] Cleanups
+  - [ ] Rename the meta things to schema
 - [ ] Clean up codegen code structure
 - [ ] Port remaining capnp testdata tests
 - [ ] Run generated output through rustfmt

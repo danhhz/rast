@@ -3,7 +3,7 @@
 use crate::common::{CapnpAsRef, Discriminant};
 use crate::element_type::ElementType;
 use crate::error::Error;
-use crate::list::{ListMeta, TypedList, UntypedList, UntypedListShared};
+use crate::list::{ListMeta, UntypedList, UntypedListShared};
 use crate::r#struct::{StructMeta, UntypedStruct, UntypedStructShared};
 use crate::union::UnionMeta;
 
@@ -37,28 +37,11 @@ pub struct DataElement<'a>(pub &'a [u8]);
 
 pub struct StructElement<'a>(pub &'static StructMeta, pub UntypedStruct<'a>);
 
-impl<'a> StructElement<'a> {
-  pub fn from_untyped_list(
-    meta: &'static StructMeta,
-    untyped: &UntypedList<'a>,
-  ) -> Result<Vec<Self>, Error> {
-    Vec::<UntypedStruct<'a>>::from_untyped_list(untyped)
-      .map(|xs| xs.into_iter().map(|x| StructElement(meta, x)).collect())
-  }
-}
-
 pub struct ListElement<'a>(pub &'static ListMeta, pub UntypedList<'a>);
 
 impl<'a> ListElement<'a> {
   pub fn to_element_list(&self) -> Result<Vec<Element<'a>>, Error> {
     self.0.value_type.to_element_list(&self.1)
-  }
-
-  pub fn from_untyped_list(
-    _values: &ElementType,
-    _untyped: &UntypedList<'a>,
-  ) -> Result<Vec<Self>, Error> {
-    todo!()
   }
 }
 
@@ -66,12 +49,13 @@ pub struct ListDecodedElement<'a>(pub &'static ListMeta, pub Vec<Element<'a>>);
 
 pub struct UnionElement<'a>(pub &'static UnionMeta, pub Discriminant, pub Box<Element<'a>>);
 
+// TODO: Polish, document, and expose this.
+#[allow(dead_code)]
 pub enum ElementShared {
   U8(u8),
   U64(u64),
   Data(DataElementShared),
   Struct(StructElementShared),
-  List(ListElementShared),
   ListDecoded(ListDecodedElementShared),
   Union(UnionElementShared),
 }
@@ -83,7 +67,6 @@ impl<'a> CapnpAsRef<'a, Element<'a>> for ElementShared {
       ElementShared::U64(x) => Element::U64(*x),
       ElementShared::Data(x) => Element::Data(x.capnp_as_ref()),
       ElementShared::Struct(x) => Element::Struct(x.capnp_as_ref()),
-      ElementShared::List(x) => Element::List(x.capnp_as_ref()),
       ElementShared::ListDecoded(x) => Element::ListDecoded(x.capnp_as_ref()),
       ElementShared::Union(x) => Element::Union(x.capnp_as_ref()),
     }

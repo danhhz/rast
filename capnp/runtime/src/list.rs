@@ -1,5 +1,12 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+//! Cap'n Proto [list]
+//!
+//! A list is an ordered sequence of elements of the same type.
+//!
+//! [list]: crate#list
+//! [elements]: crate#element
+
 use crate::common::{CapnpAsRef, NumElements};
 use crate::decode::{ListDecode, SegmentPointerDecode};
 use crate::element_type::ElementType;
@@ -11,8 +18,13 @@ use crate::r#struct::{
 };
 use crate::segment_pointer::{SegmentPointer, SegmentPointerBorrowMut, SegmentPointerShared};
 
+/// Metadata for intrepreting an encoded Cap'n Proto list
+///
+/// This contains all the information necessary to fully intrepret an encoded
+/// Cap'n Proto list as its final codegen type.
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct ListMeta {
+  /// The type of item this list repeats.
   pub value_type: ElementType,
 }
 
@@ -27,7 +39,7 @@ impl<'a, T: TypedListElement<'a>> TypedList<'a> for Vec<T> {
 }
 
 // TODO: Relate TypedListShared to TypedList.
-pub trait TypedListShared {
+pub(crate) trait TypedListShared {
   fn set(&self, data: &mut UntypedStructOwned, offset: NumElements);
 }
 
@@ -129,12 +141,14 @@ impl<T: TypedStructShared> TypedListElementShared for T {
   }
 }
 
+/// A borrowed Cap'n Proto list without schema
 pub struct UntypedList<'a> {
   pointer: ListPointer,
   pointer_end: SegmentPointer<'a>,
 }
 
 impl<'a> UntypedList<'a> {
+  /// Returns a new [`UntypedList`]
   pub fn new(pointer: ListPointer, pointer_end: SegmentPointer<'a>) -> Self {
     UntypedList { pointer: pointer, pointer_end: pointer_end }
   }
@@ -149,9 +163,10 @@ impl<'a> ListDecode<'a> for UntypedList<'a> {
   }
 }
 
+/// A reference-counted Cap'n Proto list without schema
 pub struct UntypedListShared {
-  pub pointer: ListPointer,
-  pub pointer_end: SegmentPointerShared,
+  pub(crate) pointer: ListPointer,
+  pub(crate) pointer_end: SegmentPointerShared,
 }
 
 impl<'a> CapnpAsRef<'a, UntypedList<'a>> for UntypedListShared {

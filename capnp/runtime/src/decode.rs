@@ -17,7 +17,7 @@ use crate::segment::{SegmentBorrowed, SegmentID};
 use crate::segment_pointer::SegmentPointer;
 use crate::union::UntypedUnion;
 
-pub trait SegmentPointerDecode<'a>: Sized {
+pub(crate) trait SegmentPointerDecode<'a>: Sized {
   fn empty() -> Self;
   fn from_root(seg: SegmentBorrowed<'a>) -> Self;
   fn add(&self, offset: NumWords) -> Self;
@@ -207,7 +207,7 @@ pub trait SegmentPointerDecode<'a>: Sized {
   }
 }
 
-pub trait StructDecode<'a> {
+pub(crate) trait StructDecode<'a> {
   fn pointer(&self) -> &StructPointer;
   fn pointer_end(&self) -> &SegmentPointer<'a>;
 
@@ -264,7 +264,7 @@ pub trait StructDecode<'a> {
   }
 }
 
-pub trait ListDecode<'a> {
+pub(crate) trait ListDecode<'a> {
   fn pointer(&self) -> &ListPointer;
   fn pointer_end(&self) -> &SegmentPointer<'a>;
 

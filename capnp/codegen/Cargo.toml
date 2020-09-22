@@ -5,6 +5,10 @@ version = "0.1.0-alpha.0"
 authors = ["Daniel Harrison <daniel.harrison@gmail.com>"]
 edition = "2018"
 
+[badges]
+circle-ci = { repository = "danhhz/rast", branch = "dev" }
+maintenance = { status = "experimental" }
+
 [dependencies]
 capnp = "0.13"
 heck = "0.3"

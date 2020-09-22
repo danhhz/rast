@@ -1,14 +1,20 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+//! Errors returned from Cap'n Proto encoding and decoding.
+
 use std::error;
 use std::fmt;
 
 use crate::common::Discriminant;
 
+/// An error returned from Cap'n Proto encoding or decoding.
 #[derive(Debug, Clone)]
 pub enum Error {
+  /// An error in the encoded bytes being intrepreted
   Encoding(String),
+  /// An unimplemented feature in this library
   TODO(String),
+  /// An incorrect usage of this library's APIs
   Usage(String),
 }
 
@@ -33,6 +39,10 @@ impl fmt::Display for Error {
   }
 }
 
+/// A placeholder for an unknown discriminant
+///
+/// This process received a union or enum encoded by process with a future
+/// version of the schema.
 #[derive(Debug, Clone)]
 pub struct UnknownDiscriminant(pub Discriminant, pub &'static str);
 

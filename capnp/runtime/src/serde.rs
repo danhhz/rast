@@ -1,5 +1,9 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+//! [Serde] serializers for Cap'n Proto types
+//!
+//! [serde]: https://serde.rs
+
 use serde::ser::{SerializeSeq, SerializeStruct};
 use serde::{Serialize, Serializer};
 
@@ -97,15 +101,15 @@ mod test {
   use std::io::Read;
 
   use crate::samples::test_capnp::TestAllTypes;
-  use capnp_runtime::decode_stream;
   use capnp_runtime::prelude::*;
+  use capnp_runtime::segment_framing_official;
 
   #[test]
   fn serialize_json() -> Result<(), Box<dyn error::Error>> {
     let mut f = File::open("testdata/binary")?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let message: TestAllTypes = decode_stream::official(&buf)?;
+    let message: TestAllTypes = segment_framing_official::decode(&buf)?;
 
     let mut f = File::open("testdata/short.json")?;
     let mut expected = Vec::new();

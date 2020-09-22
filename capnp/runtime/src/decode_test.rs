@@ -6,14 +6,14 @@ use std::io::Read;
 
 use crate::samples::test_capnp::TestAllTypes;
 
-use capnp_runtime::decode_stream;
+use capnp_runtime::segment_framing_official;
 
 #[test]
 fn decode_binary() -> Result<(), Box<dyn error::Error>> {
   let mut f = File::open("testdata/binary")?;
   let mut buf = Vec::new();
   f.read_to_end(&mut buf)?;
-  let message: TestAllTypes = decode_stream::official(&buf)?;
+  let message: TestAllTypes = segment_framing_official::decode(&buf)?;
 
   let mut f = File::open("testdata/pretty.txt")?;
   let mut expected = Vec::new();
@@ -29,7 +29,7 @@ fn decode_segmented() -> Result<(), Box<dyn error::Error>> {
   let mut f = File::open("testdata/segmented")?;
   let mut buf = Vec::new();
   f.read_to_end(&mut buf)?;
-  let message: TestAllTypes = decode_stream::official(&buf)?;
+  let message: TestAllTypes = segment_framing_official::decode(&buf)?;
 
   let mut f = File::open("testdata/pretty.txt")?;
   let mut expected = Vec::new();

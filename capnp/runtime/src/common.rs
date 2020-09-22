@@ -3,22 +3,30 @@
 use std::mem;
 use std::ops::{Add, Mul, Sub};
 
-// NB: This only ever uses the bottom 29 bits.
+/// A count of elements of some type
+///
+/// This represents N i32s or N lists, etc.
+///
+/// NB: This only ever uses the bottom 29 bits.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct NumElements(pub i32);
 
 #[cfg(target_pointer_width = "64")]
 impl NumElements {
+  /// The number of bytes represented, given an element width in bytes
   pub const fn as_bytes(self, width: usize) -> usize {
+    // TODO: Consolidate this with ElementWidth::list_len_bytes.
     self.0 as usize * width
   }
 }
 
+/// A count of 64-bit words
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct NumWords(pub i32);
 
 #[cfg(target_pointer_width = "64")]
 impl NumWords {
+  /// The number of bytes represented
   pub const fn as_bytes(self) -> usize {
     self.0 as usize * 8
   }
@@ -45,6 +53,7 @@ impl Mul<NumElements> for NumWords {
   }
 }
 
+/// An enum or union discriminant
 #[derive(Debug, Clone, Copy)]
 pub struct Discriminant(pub u16);
 
@@ -80,13 +89,23 @@ impl ElementWidth {
   }
 }
 
+/// Used to return the reference companion of an owned or shared object
+///
+/// This is similar to [`std::convert::AsRef`], but with a lifetime parameter.
 pub trait CapnpAsRef<'a, T> {
+  /// Performs the conversion.
   fn capnp_as_ref(&'a self) -> T;
 }
 
+/// Used to return the owned companion of a shared or reference object
+///
+/// This is similar to [`std::borrow::ToOwned`], but with a lifetime parameter.
 pub trait CapnpToOwned<'a>: Sized {
   // TODO: Rename CapnpAsRef to CapnpBorrow
+
+  /// The resulting type after obtaining ownership.
   type Owned: CapnpAsRef<'a, Self>;
+  /// Creates owned data from borrowed data by cloning.
   fn capnp_to_owned(&self) -> Self::Owned;
 }
 

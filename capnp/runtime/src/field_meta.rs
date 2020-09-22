@@ -17,38 +17,47 @@ use crate::r#struct::{
 };
 use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UntypedUnion};
 
+/// Schema for a field in a Cap'n Proto struct
 #[derive(Debug)]
 pub enum FieldMeta {
+  /// Schema for a `u64` field in a Cap'n Proto struct
   U64(U64FieldMeta),
-  Struct(StructFieldMeta),
-  List(ListFieldMeta),
+  /// Schema for a `[u8]` field in a Cap'n Proto struct
   Data(DataFieldMeta),
+  /// Schema for a struct field in a Cap'n Proto struct
+  Struct(StructFieldMeta),
+  /// Schema for a list field in a Cap'n Proto struct
+  List(ListFieldMeta),
+  /// Schema for a union field in a Cap'n Proto struct
   Union(UnionFieldMeta),
 }
 
 impl FieldMeta {
+  /// The name of this field
   pub fn name(&self) -> &'static str {
     match self {
       FieldMeta::U64(x) => x.name,
       FieldMeta::Data(x) => x.name,
       FieldMeta::Struct(x) => x.name,
       FieldMeta::List(x) => x.name,
-      FieldMeta::Union(x) => x.name(),
+      FieldMeta::Union(x) => x.name,
     }
   }
 
+  /// The offset of this field
   // WIP this shouldn't be exposed. instead move set_element from SegmentOwned
   // to UntypedStructOwned
   pub fn offset(&self) -> NumElements {
     match self {
       FieldMeta::U64(x) => x.offset,
-      FieldMeta::Data(x) => x.offset(),
-      FieldMeta::Struct(x) => x.offset(),
-      FieldMeta::List(x) => x.offset(),
-      FieldMeta::Union(x) => x.offset(),
+      FieldMeta::Data(x) => x.offset,
+      FieldMeta::Struct(x) => x.offset,
+      FieldMeta::List(x) => x.offset,
+      FieldMeta::Union(x) => x.offset,
     }
   }
 
+  /// Schema for the element stored by this field
   pub fn element_type(&self) -> ElementType {
     match self {
       FieldMeta::U64(_) => ElementType::U64,
@@ -59,6 +68,7 @@ impl FieldMeta {
     }
   }
 
+  /// Returns whether this field is null in the given struct.
   // TODO: Make this an enum with Null/NotNull/NotNullable/Missing.
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
     match self {
@@ -70,6 +80,8 @@ impl FieldMeta {
     }
   }
 
+  // TODO: Polish, document, and expose this.
+  #[allow(dead_code)]
   pub(crate) fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<Element<'a>, Error> {
     match self {
       FieldMeta::U64(x) => Ok(x.get_element(data)),
@@ -80,6 +92,8 @@ impl FieldMeta {
     }
   }
 
+  // TODO: Polish, document, and expose this.
+  #[allow(dead_code)]
   pub(crate) fn set_element(
     &self,
     data: &mut UntypedStructOwned,
@@ -95,26 +109,32 @@ impl FieldMeta {
   }
 }
 
+/// Schema for a u64 field in a Cap'n Proto struct
 #[derive(Debug)]
 pub struct U64FieldMeta {
+  /// The name of this field
   pub name: &'static str,
+  /// The offset of this field
   pub offset: NumElements,
 }
 
 impl U64FieldMeta {
+  /// Returns the value of this field in the given struct (or the default value
+  /// if it's missing).
   pub fn get(&self, data: &UntypedStruct<'_>) -> u64 {
     data.u64(self.offset)
   }
 
+  /// Sets this field in the given struct.
   pub fn set(&self, data: &mut UntypedStructOwned, value: u64) {
     data.set_u64(self.offset, value);
   }
 
-  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Element<'a> {
+  pub(crate) fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Element<'a> {
     Element::U64(self.get(data))
   }
 
-  pub fn set_element(
+  pub(crate) fn set_element(
     &self,
     data: &mut UntypedStructOwned,
     value: &ElementShared,
@@ -132,17 +152,17 @@ impl U64FieldMeta {
   }
 }
 
+/// Schema for a [u8] field in a Cap'n Proto struct
 #[derive(Debug)]
-pub struct StructFieldMeta {
+pub struct DataFieldMeta {
+  /// The name of this field
   pub name: &'static str,
+  /// The offset of this field
   pub offset: NumElements,
-  pub meta: &'static StructMeta,
 }
 
-impl StructFieldMeta {
-  pub fn offset(&self) -> NumElements {
-    self.offset
-  }
+impl DataFieldMeta {
+  /// Returns whether this field is null in the given struct.
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
     match data.pointer_raw(self.offset) {
       Pointer::Null => true,
@@ -150,32 +170,95 @@ impl StructFieldMeta {
     }
   }
 
-  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> Result<UntypedStruct<'a>, Error> {
-    data.untyped_struct(self.offset)
+  /// Returns the value of this field in the given struct (or the default value
+  /// if it's missing or null).
+  pub fn get<'a>(&self, data: &UntypedStruct<'a>) -> Result<&'a [u8], Error> {
+    data.bytes(self.offset)
   }
 
-  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<StructElement<'a>, Error> {
-    self.get_untyped(data).map(|untyped| StructElement(self.meta, untyped))
+  /// Sets this field in the given struct.
+  pub fn set(&self, data: &mut UntypedStructOwned, value: &[u8]) {
+    data.set_bytes(self.offset, value)
   }
 
-  // TODO: Spec allows returning default value in the case of an out-of-bounds
-  // pointer.
+  pub(crate) fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<DataElement<'a>, Error> {
+    self.get(data).map(|value| DataElement(value))
+  }
+
+  pub(crate) fn set_element(
+    &self,
+    data: &mut UntypedStructOwned,
+    value: &ElementShared,
+  ) -> Result<(), Error> {
+    match value {
+      ElementShared::Data(DataElementShared(value)) => {
+        self.set(data, value);
+        Ok(())
+      }
+      value => Err(Error::Usage(format!(
+        "DataFieldMeta::set_element unsupported_type: {:?}",
+        value.capnp_as_ref().element_type()
+      ))),
+    }
+  }
+}
+
+/// Schema for a struct field in a Cap'n Proto struct
+#[derive(Debug)]
+pub struct StructFieldMeta {
+  /// The name of this field
+  pub name: &'static str,
+  /// The offset of this field
+  pub offset: NumElements,
+  /// The schema of the struct stored by this field.
+  pub meta: &'static StructMeta,
+}
+
+impl StructFieldMeta {
+  /// Returns whether this field is null in the given struct.
+  pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
+    match data.pointer_raw(self.offset) {
+      Pointer::Null => true,
+      _ => false,
+    }
+  }
+
+  /// Returns the value of this field in the given struct (or the default value
+  /// if it's missing or null).
   pub fn get<'a, T: TypedStruct<'a>>(&self, data: &UntypedStruct<'a>) -> Result<T, Error> {
+    // TODO: Spec allows returning default value in the case of an out-of-bounds
+    // pointer.
     self.get_untyped(data).map(|x| T::from_untyped_struct(x))
   }
 
+  /// Sets this field in the given struct.
   pub fn set<T: TypedStructShared>(&self, data: &mut UntypedStructOwned, value: Option<T>) {
     if let Some(value) = value {
       self.set_untyped(data, T::meta(), Some(&value.as_untyped()));
     }
   }
 
-  pub fn set_struct_element(&self, data: &mut UntypedStructOwned, value: &StructElementShared) {
+  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> Result<UntypedStruct<'a>, Error> {
+    data.untyped_struct(self.offset)
+  }
+
+  pub(crate) fn get_element<'a>(
+    &self,
+    data: &UntypedStruct<'a>,
+  ) -> Result<StructElement<'a>, Error> {
+    self.get_untyped(data).map(|untyped| StructElement(self.meta, untyped))
+  }
+
+  pub(crate) fn set_struct_element(
+    &self,
+    data: &mut UntypedStructOwned,
+    value: &StructElementShared,
+  ) {
     let StructElementShared(meta, untyped) = value;
     self.set_untyped(data, meta, Some(untyped));
   }
 
-  pub fn set_element(
+  pub(crate) fn set_element(
     &self,
     data: &mut UntypedStructOwned,
     value: &ElementShared,
@@ -203,17 +286,19 @@ impl StructFieldMeta {
   }
 }
 
+/// Schema for a list field in a Cap'n Proto struct
 #[derive(Debug)]
 pub struct ListFieldMeta {
+  /// The name of this field
   pub name: &'static str,
+  /// The offset of this field
   pub offset: NumElements,
+  /// The schema of the list stored by this field.
   pub meta: &'static ListMeta,
 }
 
 impl ListFieldMeta {
-  pub fn offset(&self) -> NumElements {
-    self.offset
-  }
+  /// Returns whether this field is null in the given struct.
   pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
     match data.pointer_raw(self.offset) {
       Pointer::Null => true,
@@ -221,23 +306,26 @@ impl ListFieldMeta {
     }
   }
 
-  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> Result<UntypedList<'a>, Error> {
-    data.untyped_list(self.offset)
-  }
-
-  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<ListElement<'a>, Error> {
-    self.get_untyped(data).map(|untyped| ListElement(self.meta, untyped))
-  }
-
+  /// Returns the value of this field in the given struct (or the default value
+  /// if it's missing or null).
   pub fn get<'a, T: TypedList<'a>>(&self, data: &UntypedStruct<'a>) -> Result<T, Error> {
     self.get_untyped(data).and_then(|untyped| T::from_untyped_list(&untyped))
   }
 
+  /// Sets this field in the given struct.
   pub fn set<T: TypedListElementShared>(&self, data: &mut UntypedStructOwned, value: &[T]) {
     data.set_list(self.offset, value)
   }
 
-  pub fn set_element(
+  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> Result<UntypedList<'a>, Error> {
+    data.untyped_list(self.offset)
+  }
+
+  pub(crate) fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<ListElement<'a>, Error> {
+    self.get_untyped(data).map(|untyped| ListElement(self.meta, untyped))
+  }
+
+  pub(crate) fn set_element(
     &self,
     data: &mut UntypedStructOwned,
     value: &ElementShared,
@@ -255,87 +343,31 @@ impl ListFieldMeta {
   }
 }
 
-#[derive(Debug)]
-pub struct DataFieldMeta {
-  pub name: &'static str,
-  pub offset: NumElements,
-}
-
-impl DataFieldMeta {
-  pub fn offset(&self) -> NumElements {
-    self.offset
-  }
-  pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
-    match data.pointer_raw(self.offset) {
-      Pointer::Null => true,
-      _ => false,
-    }
-  }
-
-  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<DataElement<'a>, Error> {
-    self.get(data).map(|value| DataElement(value))
-  }
-
-  pub fn get<'a>(&self, data: &UntypedStruct<'a>) -> Result<&'a [u8], Error> {
-    data.bytes(self.offset)
-  }
-
-  pub fn set(&self, data: &mut UntypedStructOwned, value: &[u8]) {
-    data.set_bytes(self.offset, value)
-  }
-
-  pub fn set_element(
-    &self,
-    data: &mut UntypedStructOwned,
-    value: &ElementShared,
-  ) -> Result<(), Error> {
-    match value {
-      ElementShared::Data(DataElementShared(value)) => {
-        self.set(data, value);
-        Ok(())
-      }
-      value => Err(Error::Usage(format!(
-        "DataFieldMeta::set_element unsupported_type: {:?}",
-        value.capnp_as_ref().element_type()
-      ))),
-    }
-  }
-}
-
+/// Schema for a union field in a Cap'n Proto struct
 #[derive(Debug)]
 pub struct UnionFieldMeta {
+  /// The name of this field
   pub name: &'static str,
+  /// The offset of this field
   pub offset: NumElements,
+  /// The schema of the union stored by this field.
   pub meta: &'static UnionMeta,
 }
 
 impl UnionFieldMeta {
-  pub fn offset(&self) -> NumElements {
-    self.offset
-  }
-  pub fn name(&self) -> &'static str {
-    self.name
-  }
-
-  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> UntypedUnion<'a> {
-    data.untyped_union(self.offset)
-  }
-
-  // NB: Double Result is intentional for better error handling. See
-  // https://sled.rs/errors.html
+  /// Returns the value of this field in the given struct (or the default value
+  /// if it's missing or null).
+  ///
+  /// NB: Double Result is intentional for better error handling. See
+  /// https://sled.rs/errors.html
   pub fn get<'a, T: TypedUnion<'a>>(
     &self,
     data: &UntypedStruct<'a>,
   ) -> Result<Result<T, UnknownDiscriminant>, Error> {
     T::from_untyped_union(&self.get_untyped(data))
   }
-  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<UnionElement<'a>, Error> {
-    let untyped = self.get_untyped(data);
-    let variant_meta = self.meta.get(untyped.discriminant).expect("WIP");
-    let value = variant_meta.field_meta.get_element(data)?;
-    Ok(UnionElement(self.meta, variant_meta.discriminant, Box::new(value)))
-  }
 
+  /// Sets this field in the given struct.
   pub fn set<'a, U: TypedUnion<'a>, S: TypedUnionShared<'a, U>>(
     &self,
     data: &mut UntypedStructOwned,
@@ -344,7 +376,21 @@ impl UnionFieldMeta {
     value.set(data, self.offset);
   }
 
-  pub fn set_element(
+  fn get_untyped<'a>(&self, data: &UntypedStruct<'a>) -> UntypedUnion<'a> {
+    data.untyped_union(self.offset)
+  }
+
+  pub(crate) fn get_element<'a>(
+    &self,
+    data: &UntypedStruct<'a>,
+  ) -> Result<UnionElement<'a>, Error> {
+    let untyped = self.get_untyped(data);
+    let variant_meta = self.meta.get(untyped.discriminant).expect("WIP");
+    let value = variant_meta.field_meta.get_element(data)?;
+    Ok(UnionElement(self.meta, variant_meta.discriminant, Box::new(value)))
+  }
+
+  pub(crate) fn set_element(
     &self,
     data: &mut UntypedStructOwned,
     value: &ElementShared,

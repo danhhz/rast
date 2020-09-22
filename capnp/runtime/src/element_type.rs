@@ -7,18 +7,28 @@ use crate::list::{ListMeta, TypedList, UntypedList};
 use crate::r#struct::{StructMeta, UntypedStruct};
 use crate::union::UnionMeta;
 
+/// Schema for a Cap'n Proto [element]
+///
+/// [element]: crate#element
 // TODO: Rename these all to *Meta?
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum ElementType {
+  /// A [`u8`]
   U8,
+  /// A [`u64`]
   U64,
+  /// A slice of [`u8`]s
   Data,
+  /// Schema for a Cap'n Proto [struct](crate#struct)
   Struct(&'static StructMeta),
+  /// Schema for a Cap'n Proto [list](crate#list)
   List(&'static ListMeta),
+  /// Schema for a Cap'n Proto [union](crate#union)
   Union(&'static UnionMeta),
 }
 
 impl ElementType {
+  /// Width of an element with this schema
   pub fn width(&self) -> ElementWidth {
     match self {
       ElementType::U8 => ElementWidth::OneByte,
@@ -30,6 +40,7 @@ impl ElementType {
     }
   }
 
+  /// Intreprets the given encoded list as elements of this type.
   pub fn to_element_list<'a>(&self, untyped: &UntypedList<'a>) -> Result<Vec<Element<'a>>, Error> {
     match self {
       ElementType::U8 => Vec::<u8>::from_untyped_list(untyped)
