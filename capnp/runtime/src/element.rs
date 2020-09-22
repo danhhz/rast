@@ -1,7 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
 use crate::common::{CapnpAsRef, Discriminant};
-use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
+use crate::element_type::ElementType;
 use crate::error::Error;
 use crate::list::{ListMeta, TypedList, UntypedList, UntypedListShared};
 use crate::r#struct::{StructMeta, UntypedStruct, UntypedStructShared};
@@ -9,52 +9,25 @@ use crate::union::UnionMeta;
 
 #[derive(PartialEq, PartialOrd)]
 pub enum Element<'a> {
-  Primitive(PrimitiveElement),
-  Pointer(PointerElement<'a>),
+  U8(u8),
+  U64(u64),
+  Data(DataElement<'a>),
+  Struct(StructElement<'a>),
+  List(ListElement<'a>),
+  ListDecoded(ListDecodedElement<'a>),
   Union(UnionElement<'a>),
 }
 
 impl<'a> Element<'a> {
   pub fn element_type(&self) -> ElementType {
     match self {
-      Element::Primitive(x) => ElementType::Primitive(x.element_type()),
-      Element::Pointer(x) => ElementType::Pointer(x.element_type()),
+      Element::U8(_) => ElementType::U8,
+      Element::U64(_) => ElementType::U64,
+      Element::Data(_) => ElementType::Data,
+      Element::Struct(StructElement(meta, _)) => ElementType::Struct(meta),
+      Element::List(ListElement(meta, _)) => ElementType::List(meta),
+      Element::ListDecoded(ListDecodedElement(meta, _)) => ElementType::List(meta),
       Element::Union(UnionElement(meta, _, _)) => ElementType::Union(meta),
-    }
-  }
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub enum PrimitiveElement {
-  // TODO: Break these out into U64Element, etc?
-  U8(u8),
-  U64(u64),
-}
-
-impl PrimitiveElement {
-  pub fn element_type(&self) -> PrimitiveElementType {
-    match self {
-      PrimitiveElement::U8(_) => PrimitiveElementType::U8,
-      PrimitiveElement::U64(_) => PrimitiveElementType::U8,
-    }
-  }
-}
-
-#[derive(PartialEq, PartialOrd)]
-pub enum PointerElement<'a> {
-  Data(DataElement<'a>),
-  Struct(StructElement<'a>),
-  List(ListElement<'a>),
-  ListDecoded(ListDecodedElement<'a>),
-}
-
-impl<'a> PointerElement<'a> {
-  pub fn element_type(&self) -> PointerElementType {
-    match self {
-      PointerElement::Data(_) => PointerElementType::Data,
-      PointerElement::Struct(StructElement(meta, _)) => PointerElementType::Struct(meta),
-      PointerElement::List(ListElement(meta, _)) => PointerElementType::List(meta),
-      PointerElement::ListDecoded(ListDecodedElement(meta, _)) => PointerElementType::List(meta),
     }
   }
 }
@@ -94,35 +67,25 @@ pub struct ListDecodedElement<'a>(pub &'static ListMeta, pub Vec<Element<'a>>);
 pub struct UnionElement<'a>(pub &'static UnionMeta, pub Discriminant, pub Box<Element<'a>>);
 
 pub enum ElementShared {
-  Primitive(PrimitiveElement),
-  Pointer(PointerElementShared),
+  U8(u8),
+  U64(u64),
+  Data(DataElementShared),
+  Struct(StructElementShared),
+  List(ListElementShared),
+  ListDecoded(ListDecodedElementShared),
   Union(UnionElementShared),
 }
 
 impl<'a> CapnpAsRef<'a, Element<'a>> for ElementShared {
   fn capnp_as_ref(&'a self) -> Element<'a> {
     match self {
-      ElementShared::Primitive(x) => Element::Primitive(x.clone()),
-      ElementShared::Pointer(x) => Element::Pointer(x.capnp_as_ref()),
+      ElementShared::U8(x) => Element::U8(*x),
+      ElementShared::U64(x) => Element::U64(*x),
+      ElementShared::Data(x) => Element::Data(x.capnp_as_ref()),
+      ElementShared::Struct(x) => Element::Struct(x.capnp_as_ref()),
+      ElementShared::List(x) => Element::List(x.capnp_as_ref()),
+      ElementShared::ListDecoded(x) => Element::ListDecoded(x.capnp_as_ref()),
       ElementShared::Union(x) => Element::Union(x.capnp_as_ref()),
-    }
-  }
-}
-
-pub enum PointerElementShared {
-  Data(DataElementShared),
-  Struct(StructElementShared),
-  List(ListElementShared),
-  ListDecoded(ListDecodedElementShared),
-}
-
-impl<'a> CapnpAsRef<'a, PointerElement<'a>> for PointerElementShared {
-  fn capnp_as_ref(&'a self) -> PointerElement<'a> {
-    match self {
-      PointerElementShared::Data(x) => PointerElement::Data(x.capnp_as_ref()),
-      PointerElementShared::Struct(x) => PointerElement::Struct(x.capnp_as_ref()),
-      PointerElementShared::List(x) => PointerElement::List(x.capnp_as_ref()),
-      PointerElementShared::ListDecoded(x) => PointerElement::ListDecoded(x.capnp_as_ref()),
     }
   }
 }

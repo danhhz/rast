@@ -4,10 +4,8 @@ use std::fmt;
 
 use crate::common::CapnpAsRef;
 use crate::element::{
-  DataElement, Element, ElementShared, ListDecodedElement, ListElement, PointerElement,
-  PrimitiveElement, StructElement, UnionElement,
+  DataElement, Element, ElementShared, ListDecodedElement, ListElement, StructElement, UnionElement,
 };
-use crate::field_meta::FieldMeta;
 use crate::r#struct::StructMeta;
 
 impl fmt::Debug for StructMeta {
@@ -29,32 +27,16 @@ impl fmt::Debug for ElementShared {
   }
 }
 
-impl fmt::Debug for PrimitiveElement {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      PrimitiveElement::U8(x) => x.fmt(f),
-      PrimitiveElement::U64(x) => x.fmt(f),
-    }
-  }
-}
-
 impl<'a> fmt::Debug for Element<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
-      Element::Primitive(x) => x.fmt(f),
-      Element::Pointer(x) => x.fmt(f),
+      Element::U8(x) => x.fmt(f),
+      Element::U64(x) => x.fmt(f),
+      Element::Data(x) => x.fmt(f),
+      Element::Struct(x) => x.fmt(f),
+      Element::List(x) => x.fmt(f),
+      Element::ListDecoded(x) => x.fmt(f),
       Element::Union(x) => x.fmt(f),
-    }
-  }
-}
-
-impl<'a> fmt::Debug for PointerElement<'a> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      PointerElement::Data(x) => x.fmt(f),
-      PointerElement::Struct(x) => x.fmt(f),
-      PointerElement::List(x) => x.fmt(f),
-      PointerElement::ListDecoded(x) => x.fmt(f),
     }
   }
 }
@@ -71,13 +53,8 @@ impl<'a> fmt::Debug for StructElement<'a> {
     f.write_str("(")?;
     let mut has_fields = false;
     for field_meta in meta.fields() {
-      match field_meta {
-        FieldMeta::Pointer(x) => {
-          if x.is_null(untyped) {
-            continue;
-          }
-        }
-        _ => {} // No-op
+      if field_meta.is_null(untyped) {
+        continue;
       }
       if has_fields {
         f.write_str(", ")?;

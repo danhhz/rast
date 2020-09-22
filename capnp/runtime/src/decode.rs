@@ -6,7 +6,7 @@ use crate::common::{
   Discriminant, ElementWidth, NumElements, NumWords, COMPOSITE_TAG_WIDTH_WORDS,
   POINTER_WIDTH_WORDS, U16_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
 };
-use crate::element_type::PrimitiveElementType;
+use crate::element_type::ElementType;
 use crate::error::Error;
 use crate::list::{ListElementDecoding, TypedListElement, UntypedList};
 use crate::pointer::{
@@ -274,18 +274,16 @@ pub trait ListDecode<'a> {
 
   fn list<T: TypedListElement<'a>>(&self) -> Result<Vec<T>, Error> {
     match T::decoding() {
-      ListElementDecoding::Primitive(element_type, decode) => {
-        self.primitive_list(element_type, decode)
-      }
+      ListElementDecoding::Packed(element_type, decode) => self.packed_list(element_type, decode),
       ListElementDecoding::Composite(from_untyped_struct) => {
         self.composite_list(from_untyped_struct)
       }
     }
   }
 
-  fn primitive_list<T>(
+  fn packed_list<T>(
     &self,
-    element_type: PrimitiveElementType,
+    element_type: ElementType,
     decode: fn(&SegmentPointer<'a>, NumElements) -> T,
   ) -> Result<Vec<T>, Error> {
     let num_elements = match &self.pointer().layout {

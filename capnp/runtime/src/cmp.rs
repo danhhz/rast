@@ -3,7 +3,6 @@
 use std::cmp::{self, Ordering};
 
 use crate::element::{ListDecodedElement, ListElement, StructElement, UnionElement};
-use crate::field_meta::FieldMeta;
 use crate::r#struct::StructMeta;
 use crate::union::UnionMeta;
 
@@ -22,27 +21,15 @@ impl<'a> cmp::PartialOrd for StructElement<'a> {
     for field_meta in self_meta_fields {
       // TODO: This is getting around an infinite recursion, but it's incorrect.
       // A null field should be treated as the default value for comparisons.
-      match field_meta {
-        FieldMeta::Pointer(x) => {
-          if x.is_null(self_untyped) {
-            self_field_elements.push(None);
-          } else {
-            self_field_elements.push(Some(field_meta.get_element(self_untyped).expect("WIP")));
-          }
-          if x.is_null(other_untyped) {
-            other_field_elements.push(None);
-          } else {
-            other_field_elements.push(Some(field_meta.get_element(other_untyped).expect("WIP")));
-          }
-        }
-        FieldMeta::Primitive(_) => {
-          self_field_elements.push(Some(field_meta.get_element(self_untyped).expect("WIP")));
-          other_field_elements.push(Some(field_meta.get_element(other_untyped).expect("WIP")));
-        }
-        FieldMeta::Union(_) => {
-          self_field_elements.push(Some(field_meta.get_element(self_untyped).expect("WIP")));
-          other_field_elements.push(Some(field_meta.get_element(other_untyped).expect("WIP")));
-        }
+      if field_meta.is_null(self_untyped) {
+        self_field_elements.push(None);
+      } else {
+        self_field_elements.push(Some(field_meta.get_element(self_untyped).expect("WIP")));
+      }
+      if field_meta.is_null(other_untyped) {
+        other_field_elements.push(None);
+      } else {
+        other_field_elements.push(Some(field_meta.get_element(other_untyped).expect("WIP")));
       }
     }
     self_field_elements.partial_cmp(&other_field_elements)

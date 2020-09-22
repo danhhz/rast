@@ -2,7 +2,7 @@
 
 use crate::common::{CapnpAsRef, NumElements};
 use crate::decode::{ListDecode, SegmentPointerDecode};
-use crate::element_type::{ElementType, PrimitiveElementType};
+use crate::element_type::ElementType;
 use crate::encode::{SegmentPointerEncode, StructEncode};
 use crate::error::Error;
 use crate::pointer::ListPointer;
@@ -38,12 +38,12 @@ impl<T: TypedListElementShared> TypedListShared for &[T] {
 }
 
 pub enum ListElementDecoding<'a, T> {
-  Primitive(PrimitiveElementType, fn(&SegmentPointer<'a>, NumElements) -> T),
+  Packed(ElementType, fn(&SegmentPointer<'a>, NumElements) -> T),
   Composite(fn(UntypedStruct<'a>) -> T),
 }
 
 pub enum ListElementEncoding<T> {
-  Primitive(PrimitiveElementType, fn(&mut SegmentPointerBorrowMut<'_>, NumElements, &T)),
+  Packed(ElementType, fn(&mut SegmentPointerBorrowMut<'_>, NumElements, &T)),
   Composite(fn(&T) -> UntypedStructShared),
 }
 
@@ -70,13 +70,13 @@ fn encode_u8_list_element(
 
 impl<'a> TypedListElement<'a> for u8 {
   fn decoding() -> ListElementDecoding<'a, Self> {
-    ListElementDecoding::Primitive(PrimitiveElementType::U8, decode_u8_list_element)
+    ListElementDecoding::Packed(ElementType::U8, decode_u8_list_element)
   }
 }
 
 impl TypedListElementShared for u8 {
   fn encoding() -> ListElementEncoding<Self> {
-    ListElementEncoding::Primitive(PrimitiveElementType::U8, encode_u8_list_element)
+    ListElementEncoding::Packed(ElementType::U8, encode_u8_list_element)
   }
 }
 
@@ -95,13 +95,13 @@ fn encode_u64_list_element(
 
 impl<'a> TypedListElement<'a> for u64 {
   fn decoding() -> ListElementDecoding<'a, Self> {
-    ListElementDecoding::Primitive(PrimitiveElementType::U64, decode_u64_list_element)
+    ListElementDecoding::Packed(ElementType::U64, decode_u64_list_element)
   }
 }
 
 impl TypedListElementShared for u64 {
   fn encoding() -> ListElementEncoding<Self> {
-    ListElementEncoding::Primitive(PrimitiveElementType::U64, encode_u64_list_element)
+    ListElementEncoding::Packed(ElementType::U64, encode_u64_list_element)
   }
 }
 

@@ -4,37 +4,20 @@ use serde::ser::{SerializeSeq, SerializeStruct};
 use serde::{Serialize, Serializer};
 
 use crate::element::{
-  DataElement, Element, ListDecodedElement, ListElement, PointerElement, PrimitiveElement,
-  StructElement, UnionElement,
+  DataElement, Element, ListDecodedElement, ListElement, StructElement, UnionElement,
 };
 use crate::field_meta::FieldMeta;
 
 impl<'a> Serialize for Element<'a> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     match self {
-      Element::Primitive(x) => x.serialize(serializer),
-      Element::Pointer(x) => x.serialize(serializer),
+      Element::U8(x) => serializer.serialize_u8(*x),
+      Element::U64(x) => serializer.serialize_u64(*x),
+      Element::Data(x) => x.serialize(serializer),
+      Element::Struct(x) => x.serialize(serializer),
+      Element::List(x) => x.serialize(serializer),
+      Element::ListDecoded(x) => x.serialize(serializer),
       Element::Union(x) => x.serialize(serializer),
-    }
-  }
-}
-
-impl Serialize for PrimitiveElement {
-  fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-    match self {
-      PrimitiveElement::U8(x) => serializer.serialize_u8(*x),
-      PrimitiveElement::U64(x) => serializer.serialize_u64(*x),
-    }
-  }
-}
-
-impl<'a> Serialize for PointerElement<'a> {
-  fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-    match self {
-      PointerElement::Data(x) => x.serialize(serializer),
-      PointerElement::Struct(x) => x.serialize(serializer),
-      PointerElement::List(x) => x.serialize(serializer),
-      PointerElement::ListDecoded(x) => x.serialize(serializer),
     }
   }
 }
@@ -52,18 +35,12 @@ impl<'a> Serialize for StructElement<'a> {
     let fields = meta.fields();
     let mut state = serializer.serialize_struct(meta.name, fields.len())?;
     for field in fields {
+      if field.is_null(untyped) {
+        continue;
+      }
       match field {
-        FieldMeta::Primitive(x) => state.serialize_field(field.name(), &x.get_element(untyped))?,
-        FieldMeta::Pointer(x) => {
-          if x.is_null(untyped) {
-            continue;
-          }
-          match x.get_element(untyped) {
-            Err(_) => todo!(),
-            Ok(x) => state.serialize_field(field.name(), &x)?,
-          }
-        }
-        FieldMeta::Union(x) => match x.get_element(untyped) {
+        FieldMeta::U64(x) => state.serialize_field(field.name(), &x.get_element(untyped))?,
+        _ => match field.get_element(untyped) {
           Err(_) => todo!(),
           Ok(x) => state.serialize_field(field.name(), &x)?,
         },

@@ -3,11 +3,10 @@
 use crate::common::{CapnpAsRef, NumElements};
 use crate::decode::StructDecode;
 use crate::element::{
-  DataElement, DataElementShared, Element, ElementShared, ListElement, PointerElement,
-  PointerElementShared, PrimitiveElement, StructElement, StructElementShared, UnionElement,
-  UnionElementShared,
+  DataElement, DataElementShared, Element, ElementShared, ListElement, StructElement,
+  StructElementShared, UnionElement, UnionElementShared,
 };
-use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
+use crate::element_type::ElementType;
 use crate::encode::StructEncode;
 use crate::error::{Error, UnknownDiscriminant};
 use crate::list::{ListMeta, TypedList, TypedListElementShared, UntypedList};
@@ -20,16 +19,20 @@ use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UntypedUnion};
 
 #[derive(Debug)]
 pub enum FieldMeta {
-  Primitive(PrimitiveFieldMeta),
-  Pointer(PointerFieldMeta),
+  U64(U64FieldMeta),
+  Struct(StructFieldMeta),
+  List(ListFieldMeta),
+  Data(DataFieldMeta),
   Union(UnionFieldMeta),
 }
 
 impl FieldMeta {
   pub fn name(&self) -> &'static str {
     match self {
-      FieldMeta::Primitive(x) => x.name(),
-      FieldMeta::Pointer(x) => x.name(),
+      FieldMeta::U64(x) => x.name,
+      FieldMeta::Data(x) => x.name,
+      FieldMeta::Struct(x) => x.name,
+      FieldMeta::List(x) => x.name,
       FieldMeta::Union(x) => x.name(),
     }
   }
@@ -38,74 +41,56 @@ impl FieldMeta {
   // to UntypedStructOwned
   pub fn offset(&self) -> NumElements {
     match self {
-      FieldMeta::Primitive(x) => x.offset(),
-      FieldMeta::Pointer(x) => x.offset(),
+      FieldMeta::U64(x) => x.offset,
+      FieldMeta::Data(x) => x.offset(),
+      FieldMeta::Struct(x) => x.offset(),
+      FieldMeta::List(x) => x.offset(),
       FieldMeta::Union(x) => x.offset(),
     }
   }
 
   pub fn element_type(&self) -> ElementType {
     match self {
-      FieldMeta::Primitive(x) => ElementType::Primitive(x.element_type()),
-      FieldMeta::Pointer(x) => ElementType::Pointer(x.element_type()),
+      FieldMeta::U64(_) => ElementType::U64,
+      FieldMeta::Data(_) => ElementType::Data,
+      FieldMeta::Struct(x) => ElementType::Struct(x.meta),
+      FieldMeta::List(x) => ElementType::List(x.meta),
       FieldMeta::Union(x) => ElementType::Union(x.meta),
     }
   }
 
-  pub fn set_element(
-    &self,
-    data: &mut UntypedStructOwned,
-    value: &ElementShared,
-  ) -> Result<(), Error> {
+  // TODO: Make this an enum with Null/NotNull/NotNullable/Missing.
+  pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
     match self {
-      FieldMeta::Primitive(x) => x.set_element(data, value),
-      FieldMeta::Pointer(x) => x.set_element(data, value),
-      FieldMeta::Union(x) => x.set_element(data, value),
+      FieldMeta::Data(x) => x.is_null(data),
+      FieldMeta::Struct(x) => x.is_null(data),
+      FieldMeta::List(x) => x.is_null(data),
+      // Primitive and union fields cannot be null.
+      _ => false,
     }
   }
 
-  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<Element<'a>, Error> {
+  pub(crate) fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<Element<'a>, Error> {
     match self {
-      FieldMeta::Primitive(x) => Ok(Element::Primitive(x.get_element(data))),
-      FieldMeta::Pointer(x) => x.get_element(data).map(|x| Element::Pointer(x)),
+      FieldMeta::U64(x) => Ok(x.get_element(data)),
+      FieldMeta::Data(x) => x.get_element(data).map(|x| Element::Data(x)),
+      FieldMeta::Struct(x) => x.get_element(data).map(|x| Element::Struct(x)),
+      FieldMeta::List(x) => x.get_element(data).map(|x| Element::List(x)),
       FieldMeta::Union(x) => x.get_element(data).map(|x| Element::Union(x)),
     }
   }
-}
 
-#[derive(Debug)]
-pub enum PrimitiveFieldMeta {
-  U64(U64FieldMeta),
-}
-
-impl PrimitiveFieldMeta {
-  pub fn name(&self) -> &'static str {
-    match self {
-      PrimitiveFieldMeta::U64(x) => x.name,
-    }
-  }
-  pub fn offset(&self) -> NumElements {
-    match self {
-      PrimitiveFieldMeta::U64(x) => x.offset,
-    }
-  }
-  pub fn element_type(&self) -> PrimitiveElementType {
-    match self {
-      PrimitiveFieldMeta::U64(_) => PrimitiveElementType::U64,
-    }
-  }
-  pub fn get_element(&self, data: &UntypedStruct<'_>) -> PrimitiveElement {
-    match self {
-      PrimitiveFieldMeta::U64(x) => x.get_element(data),
-    }
-  }
-  pub fn set_element(
+  pub(crate) fn set_element(
     &self,
     data: &mut UntypedStructOwned,
     value: &ElementShared,
   ) -> Result<(), Error> {
     match self {
-      PrimitiveFieldMeta::U64(x) => x.set_element(data, value),
+      FieldMeta::U64(x) => x.set_element(data, value),
+      FieldMeta::Data(x) => x.set_element(data, value),
+      FieldMeta::Struct(x) => x.set_element(data, value),
+      FieldMeta::List(x) => x.set_element(data, value),
+      FieldMeta::Union(x) => x.set_element(data, value),
     }
   }
 }
@@ -121,12 +106,12 @@ impl U64FieldMeta {
     data.u64(self.offset)
   }
 
-  pub fn get_element(&self, data: &UntypedStruct<'_>) -> PrimitiveElement {
-    PrimitiveElement::U64(self.get(data))
-  }
-
   pub fn set(&self, data: &mut UntypedStructOwned, value: u64) {
     data.set_u64(self.offset, value);
+  }
+
+  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Element<'a> {
+    Element::U64(self.get(data))
   }
 
   pub fn set_element(
@@ -135,7 +120,7 @@ impl U64FieldMeta {
     value: &ElementShared,
   ) -> Result<(), Error> {
     match value {
-      ElementShared::Primitive(PrimitiveElement::U64(value)) => {
+      ElementShared::U64(value) => {
         self.set(data, *value);
         Ok(())
       }
@@ -143,62 +128,6 @@ impl U64FieldMeta {
         "U64FieldMeta::set_element unsupported_type: {:?}",
         value.capnp_as_ref().element_type()
       ))),
-    }
-  }
-}
-
-#[derive(Debug)]
-pub enum PointerFieldMeta {
-  Struct(StructFieldMeta),
-  List(ListFieldMeta),
-  Data(DataFieldMeta),
-}
-
-impl PointerFieldMeta {
-  pub fn name(&self) -> &'static str {
-    match self {
-      PointerFieldMeta::Data(x) => x.name,
-      PointerFieldMeta::Struct(x) => x.name,
-      PointerFieldMeta::List(x) => x.name,
-    }
-  }
-  pub fn offset(&self) -> NumElements {
-    match self {
-      PointerFieldMeta::Data(x) => x.offset(),
-      PointerFieldMeta::Struct(x) => x.offset(),
-      PointerFieldMeta::List(x) => x.offset(),
-    }
-  }
-  pub fn element_type(&self) -> PointerElementType {
-    match self {
-      PointerFieldMeta::Data(_) => PointerElementType::Data,
-      PointerFieldMeta::Struct(x) => PointerElementType::Struct(x.meta),
-      PointerFieldMeta::List(x) => PointerElementType::List(x.meta),
-    }
-  }
-  pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
-    match self {
-      PointerFieldMeta::Data(x) => x.is_null(data),
-      PointerFieldMeta::Struct(x) => x.is_null(data),
-      PointerFieldMeta::List(x) => x.is_null(data),
-    }
-  }
-  pub fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<PointerElement<'a>, Error> {
-    match self {
-      PointerFieldMeta::Data(x) => x.get_element(data).map(|x| PointerElement::Data(x)),
-      PointerFieldMeta::Struct(x) => x.get_element(data).map(|x| PointerElement::Struct(x)),
-      PointerFieldMeta::List(x) => x.get_element(data).map(|x| PointerElement::List(x)),
-    }
-  }
-  pub fn set_element(
-    &self,
-    data: &mut UntypedStructOwned,
-    value: &ElementShared,
-  ) -> Result<(), Error> {
-    match self {
-      PointerFieldMeta::Data(x) => x.set_element(data, value),
-      PointerFieldMeta::Struct(x) => x.set_element(data, value),
-      PointerFieldMeta::List(x) => x.set_element(data, value),
     }
   }
 }
@@ -252,7 +181,7 @@ impl StructFieldMeta {
     value: &ElementShared,
   ) -> Result<(), Error> {
     match value {
-      ElementShared::Pointer(PointerElementShared::Struct(value)) => {
+      ElementShared::Struct(value) => {
         self.set_struct_element(data, value);
         Ok(())
       }
@@ -314,7 +243,7 @@ impl ListFieldMeta {
     value: &ElementShared,
   ) -> Result<(), Error> {
     match value {
-      ElementShared::Pointer(PointerElementShared::ListDecoded(x)) => {
+      ElementShared::ListDecoded(x) => {
         // TODO: Check that the metas match?
         data.set_list_decoded_element(self.offset, x)
       }
@@ -361,7 +290,7 @@ impl DataFieldMeta {
     value: &ElementShared,
   ) -> Result<(), Error> {
     match value {
-      ElementShared::Pointer(PointerElementShared::Data(DataElementShared(value))) => {
+      ElementShared::Data(DataElementShared(value)) => {
         self.set(data, value);
         Ok(())
       }

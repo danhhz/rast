@@ -23,7 +23,7 @@ impl<'a> TestAllTypes<'a> {
     name: "struct_list",
     offset: NumElements(17),
     meta: &ListMeta {
-      value_type: ElementType::Pointer(PointerElementType::Struct(&TestAllTypes::META))
+      value_type: ElementType::Struct(&TestAllTypes::META)
     },
   };
 
@@ -32,10 +32,10 @@ impl<'a> TestAllTypes<'a> {
     data_size: NumWords(6),
     pointer_size: NumWords(20),
     fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(TestAllTypes::U_INT64_FIELD_META)),
-      FieldMeta::Pointer(PointerFieldMeta::Data(TestAllTypes::DATA_FIELD_META)),
-      FieldMeta::Pointer(PointerFieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META)),
-      FieldMeta::Pointer(PointerFieldMeta::List(TestAllTypes::STRUCT_LIST_META)),
+      FieldMeta::U64(TestAllTypes::U_INT64_FIELD_META),
+      FieldMeta::Data(TestAllTypes::DATA_FIELD_META),
+      FieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META),
+      FieldMeta::List(TestAllTypes::STRUCT_LIST_META),
     ],
   };
 

@@ -25,9 +25,9 @@ impl<'a> Entry<'a> {
     data_size: NumWords(2),
     pointer_size: NumWords(1),
     fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(Entry::INDEX_META)),
-      FieldMeta::Pointer(PointerFieldMeta::Data(Entry::PAYLOAD_META)),
+      FieldMeta::U64(Entry::TERM_META),
+      FieldMeta::U64(Entry::INDEX_META),
+      FieldMeta::Data(Entry::PAYLOAD_META),
     ],
   };
 
@@ -149,8 +149,8 @@ impl<'a> Message<'a> {
     data_size: NumWords(3),
     pointer_size: NumWords(1),
     fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::SRC_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(Message::DEST_META)),
+      FieldMeta::U64(Message::SRC_META),
+      FieldMeta::U64(Message::DEST_META),
       FieldMeta::Union(Message::PAYLOAD_META),
     ],
   };
@@ -280,7 +280,7 @@ impl<'a> AppendEntriesReq<'a> {
     name: "entries",
     offset: NumElements(0),
     meta: &ListMeta {
-      value_type: ElementType::Pointer(PointerElementType::Struct(&Entry::META))
+      value_type: ElementType::Struct(&Entry::META)
     },
   };
 
@@ -289,13 +289,13 @@ impl<'a> AppendEntriesReq<'a> {
     data_size: NumWords(6),
     pointer_size: NumWords(1),
     fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::LEADER_ID_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::PREV_LOG_INDEX_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::PREV_LOG_TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::LEADER_COMMIT_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesReq::READ_ID_META)),
-      FieldMeta::Pointer(PointerFieldMeta::List(AppendEntriesReq::ENTRIES_META)),
+      FieldMeta::U64(AppendEntriesReq::TERM_META),
+      FieldMeta::U64(AppendEntriesReq::LEADER_ID_META),
+      FieldMeta::U64(AppendEntriesReq::PREV_LOG_INDEX_META),
+      FieldMeta::U64(AppendEntriesReq::PREV_LOG_TERM_META),
+      FieldMeta::U64(AppendEntriesReq::LEADER_COMMIT_META),
+      FieldMeta::U64(AppendEntriesReq::READ_ID_META),
+      FieldMeta::List(AppendEntriesReq::ENTRIES_META),
     ],
   };
 
@@ -432,10 +432,10 @@ impl<'a> AppendEntriesRes<'a> {
     data_size: NumWords(4),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::SUCCESS_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::INDEX_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(AppendEntriesRes::READ_ID_META)),
+      FieldMeta::U64(AppendEntriesRes::TERM_META),
+      FieldMeta::U64(AppendEntriesRes::SUCCESS_META),
+      FieldMeta::U64(AppendEntriesRes::INDEX_META),
+      FieldMeta::U64(AppendEntriesRes::READ_ID_META),
     ],
   };
 
@@ -560,10 +560,10 @@ impl<'a> RequestVoteReq<'a> {
     data_size: NumWords(4),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::CANDIDATE_ID_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::LAST_LOG_INDEX_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteReq::LAST_LOG_TERM_META)),
+      FieldMeta::U64(RequestVoteReq::TERM_META),
+      FieldMeta::U64(RequestVoteReq::CANDIDATE_ID_META),
+      FieldMeta::U64(RequestVoteReq::LAST_LOG_INDEX_META),
+      FieldMeta::U64(RequestVoteReq::LAST_LOG_TERM_META),
     ],
   };
 
@@ -680,8 +680,8 @@ impl<'a> RequestVoteRes<'a> {
     data_size: NumWords(2),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteRes::TERM_META)),
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(RequestVoteRes::VOTE_GRANTED_META)),
+      FieldMeta::U64(RequestVoteRes::TERM_META),
+      FieldMeta::U64(RequestVoteRes::VOTE_GRANTED_META),
     ],
   };
 
@@ -786,7 +786,7 @@ impl<'a> StartElectionReq<'a> {
     data_size: NumWords(1),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::Primitive(PrimitiveFieldMeta::U64(StartElectionReq::TERM_META)),
+      FieldMeta::U64(StartElectionReq::TERM_META),
     ],
   };
 
@@ -911,23 +911,23 @@ impl Payload<'_> {
     variants: &[
       UnionVariantMeta{
         discriminant: Discriminant(0),
-        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::APPEND_ENTRIES_REQ_META)),
+        field_meta: FieldMeta::Struct(Payload::APPEND_ENTRIES_REQ_META),
       },
       UnionVariantMeta{
         discriminant: Discriminant(1),
-        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::APPEND_ENTRIES_RES_META)),
+        field_meta: FieldMeta::Struct(Payload::APPEND_ENTRIES_RES_META),
       },
       UnionVariantMeta{
         discriminant: Discriminant(2),
-        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::REQUEST_VOTE_REQ_META)),
+        field_meta: FieldMeta::Struct(Payload::REQUEST_VOTE_REQ_META),
       },
       UnionVariantMeta{
         discriminant: Discriminant(3),
-        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::REQUEST_VOTE_RES_META)),
+        field_meta: FieldMeta::Struct(Payload::REQUEST_VOTE_RES_META),
       },
       UnionVariantMeta{
         discriminant: Discriminant(4),
-        field_meta: FieldMeta::Pointer(PointerFieldMeta::Struct(Payload::START_ELECTION_REQ_META)),
+        field_meta: FieldMeta::Struct(Payload::START_ELECTION_REQ_META),
       },
     ],
   };

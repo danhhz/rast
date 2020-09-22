@@ -6,10 +6,10 @@ use crate::common::{
 };
 use crate::decode::SegmentPointerDecode;
 use crate::element::{
-  DataElementShared, ElementShared, ListDecodedElementShared, PointerElementShared,
-  PrimitiveElement, StructElementShared, UnionElementShared,
+  DataElementShared, ElementShared, ListDecodedElementShared, StructElementShared,
+  UnionElementShared,
 };
-use crate::element_type::{ElementType, PointerElementType, PrimitiveElementType};
+use crate::element_type::ElementType;
 use crate::error::Error;
 use crate::list::{ListElementEncoding, TypedListElementShared};
 use crate::pointer::{
@@ -139,8 +139,8 @@ pub trait StructEncode {
 
   fn set_list<T: TypedListElementShared>(&mut self, offset_e: NumElements, value: &[T]) {
     let pointer = match T::encoding() {
-      ListElementEncoding::Primitive(element_type, encode) => {
-        self.set_primitive_list(offset_e, element_type.width(), encode, value)
+      ListElementEncoding::Packed(element_type, encode) => {
+        self.set_packed_list(offset_e, element_type.width(), encode, value)
       }
       ListElementEncoding::Composite(as_untyped) => {
         self.set_composite_list(offset_e, as_untyped, value)
@@ -149,7 +149,7 @@ pub trait StructEncode {
     self.set_pointer(offset_e, pointer);
   }
 
-  fn set_primitive_list<T>(
+  fn set_packed_list<T>(
     &mut self,
     offset_e: NumElements,
     width: ElementWidth,
@@ -276,29 +276,13 @@ pub trait StructEncode {
 
   fn set_element(&mut self, offset_e: NumElements, value: &ElementShared) -> Result<(), Error> {
     match value {
-      ElementShared::Primitive(x) => Ok(self.set_primitive_element(offset_e, x)),
-      ElementShared::Pointer(x) => self.set_pointer_element(offset_e, x),
+      ElementShared::U8(x) => Ok(self.set_u8(offset_e, *x)),
+      ElementShared::U64(x) => Ok(self.set_u64(offset_e, *x)),
+      ElementShared::Data(x) => Ok(self.set_data_element(offset_e, x)),
+      ElementShared::Struct(x) => Ok(self.set_struct_element(offset_e, x)),
+      ElementShared::ListDecoded(x) => self.set_list_decoded_element(offset_e, x),
+      ElementShared::List(_) => todo!(),
       ElementShared::Union(x) => self.set_union_element(offset_e, x),
-    }
-  }
-
-  fn set_primitive_element(&mut self, offset_e: NumElements, value: &PrimitiveElement) {
-    match value {
-      PrimitiveElement::U8(x) => self.set_u8(offset_e, *x),
-      PrimitiveElement::U64(x) => self.set_u64(offset_e, *x),
-    }
-  }
-
-  fn set_pointer_element(
-    &mut self,
-    offset_e: NumElements,
-    value: &PointerElementShared,
-  ) -> Result<(), Error> {
-    match value {
-      PointerElementShared::Data(x) => Ok(self.set_data_element(offset_e, x)),
-      PointerElementShared::Struct(x) => Ok(self.set_struct_element(offset_e, x)),
-      PointerElementShared::ListDecoded(x) => self.set_list_decoded_element(offset_e, x),
-      PointerElementShared::List(_) => todo!(),
     }
   }
 
@@ -328,11 +312,11 @@ pub trait StructEncode {
     };
 
     match element_type {
-      ElementType::Primitive(PrimitiveElementType::U8) => {
+      ElementType::U8 => {
         let mut typed_value = Vec::with_capacity(value.len());
         for x in value.iter() {
           match x {
-            ElementShared::Primitive(PrimitiveElement::U8(x)) => typed_value.push(*x),
+            ElementShared::U8(x) => typed_value.push(*x),
             x => {
               return Err(Error::Usage(format!(
                 "cannot encode {:?} list containing {:?}",
@@ -345,14 +329,11 @@ pub trait StructEncode {
         self.set_list(offset_e, &typed_value);
         Ok(())
       }
-      ElementType::Pointer(PointerElementType::Struct(_)) => {
+      ElementType::Struct(_) => {
         let mut typed_value = Vec::with_capacity(value.len());
         for x in value.iter() {
           match x {
-            ElementShared::Pointer(PointerElementShared::Struct(StructElementShared(
-              _,
-              untyped,
-            ))) => {
+            ElementShared::Struct(StructElementShared(_, untyped)) => {
               // TODO: Check that the metas match.
               typed_value.push(untyped)
             }

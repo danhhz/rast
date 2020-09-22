@@ -97,14 +97,10 @@ impl FieldType for PrimitiveField {
     self.type_.to_shouty_snake_case()
   }
   fn type_element(&self) -> String {
-    format!("ElementType::Primitive(PrimitiveElementType::{})", self.type_.to_shouty_snake_case())
+    format!("ElementType::{}", self.type_.to_shouty_snake_case())
   }
   fn type_meta_class(&self, field_meta: String) -> String {
-    format!(
-      "FieldMeta::Primitive(PrimitiveFieldMeta::{}({}))",
-      self.type_.to_shouty_snake_case(),
-      field_meta
-    )
+    format!("FieldMeta::{}({})", self.type_.to_shouty_snake_case(), field_meta)
   }
 }
 
@@ -168,11 +164,10 @@ impl FieldType for DataField {
     "Data".to_string()
   }
   fn type_element(&self) -> String {
-    "ElementType::Pointer(PointerElementType::List(ListElementType {meta: &ListMeta{ FOO }}))"
-      .to_string()
+    "ElementType::List(ListElementType {meta: &ListMeta{ WIP }})".to_string()
   }
   fn type_meta_class(&self, field_meta: String) -> String {
-    format!("FieldMeta::Pointer(PointerFieldMeta::Data({}))", field_meta)
+    format!("FieldMeta::Data({})", field_meta)
   }
 }
 
@@ -205,10 +200,10 @@ impl FieldType for StructField {
     "Struct".to_string()
   }
   fn type_element(&self) -> String {
-    format!("ElementType::Pointer(PointerElementType::Struct(&{}::META))", self.type_)
+    format!("ElementType::Struct(&{}::META)", self.type_)
   }
   fn type_meta_class(&self, field_meta: String) -> String {
-    format!("FieldMeta::Pointer(PointerFieldMeta::Struct({}))", field_meta)
+    format!("FieldMeta::Struct({})", field_meta)
   }
 }
 
@@ -244,12 +239,12 @@ impl FieldType for ListField {
   }
   fn type_element(&self) -> String {
     format!(
-      "ElementType::Pointer(PointerElementType::List(ListElementType{{values: &{}}}))",
+      "ElementType::List(ListElementType{{values: &{}}})",
       self.wrapped.ftype().type_element()
     )
   }
   fn type_meta_class(&self, field_meta: String) -> String {
-    format!("FieldMeta::Pointer(PointerFieldMeta::List({}))", field_meta)
+    format!("FieldMeta::List({})", field_meta)
   }
 }
 
