@@ -75,31 +75,6 @@ bulk (from the capnp subdirectory):
 $ cargo test -p capnpc_rust golden -- -- --overwrite
 ```
 
-# Roadmap: v0.1.0-alpha.0
-
-- [x] User-facing rustdoc
-- [x] Implement random encode/decode test
-- [x] Encoding via constructor
-- [x] ListMeta
-- [x] Merge StructMeta/ListMeta and StructElementType/ListElementType
-- [x] Add context to error messages
-- [x] Mark whether an error is user handleable
-- [x] Bring back generated owned structs
-- [x] Use in Rast superproject
-- [x] Return a reference to underlying bytes for capnp bytes fields
-- [x] Bound size of rand value generation
-- [x] Combine *Meta and *ElementType
-- [x] README
-- [x] Document how to run the golden tests
-- [x] Set up CI
-- [x] Clean up runtime prelude
-- [x] Audit pub usage
-- [x] Audit TODO comments
-- [x] Resolve WIP comments
-- [x] Remove dbg!
-- [x] Remove println!
-- [x] Remove "pub use"
-
 # Roadmap: v0.1.0
 
 - [ ] Name this project
