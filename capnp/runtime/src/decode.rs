@@ -137,7 +137,7 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
     }
   }
 
-  // WIP: Dedup this with fn struct_pointer
+  // TODO: Dedup this with fn struct_pointer
   fn list_pointer(&self, offset_e: NumElements) -> Result<(ListPointer, Self), Error> {
     match self.pointer(offset_e) {
       Pointer::Null => Ok((ListPointer::empty(), Self::empty())),

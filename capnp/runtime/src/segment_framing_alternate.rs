@@ -74,7 +74,6 @@ pub fn encode<'a, W: Write, T: TypedStruct<'a>>(w: &mut W, root: &T) -> io::Resu
   let fake_len_words = (fake_len_bytes + 7) / 8;
   let padding = vec![0; fake_len_words * 8 - fake_len_bytes];
 
-  // WIP: What do we do about the segment id?
   w.write_all(&u32::to_le_bytes(0))?;
   w.write_all(&u32::to_le_bytes(fake_len_words as u32))?;
   w.write_all(&root_pointer)?;

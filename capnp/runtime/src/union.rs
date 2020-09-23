@@ -61,7 +61,7 @@ pub struct UnionMeta {
 impl UnionMeta {
   /// Returns the
   pub fn get(&self, value: Discriminant) -> Option<&UnionVariantMeta> {
-    // WIP this should be correct but feels sketchy
+    // TODO: This should be correct but feels sketchy
     self.variants.get(value.0 as usize)
   }
 }

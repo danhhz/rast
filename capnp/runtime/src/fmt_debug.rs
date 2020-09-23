@@ -6,6 +6,7 @@ use crate::common::CapnpAsRef;
 use crate::element::{
   DataElement, Element, ElementShared, ListDecodedElement, ListElement, StructElement, UnionElement,
 };
+use crate::error::UnknownDiscriminant;
 use crate::r#struct::StructMeta;
 
 impl fmt::Debug for StructMeta {
@@ -16,7 +17,7 @@ impl fmt::Debug for StructMeta {
       .field("pointer_size", &self.pointer_size)
       // NB: Can't just print out the fields here or we'll get infinite
       // recursion in self-referencing struct types.
-      .field("fields", &"WIP")
+      .field("fields", &"TODO")
       .finish()
   }
 }
@@ -105,11 +106,15 @@ impl<'a> fmt::Debug for ListDecodedElement<'a> {
 impl<'a> fmt::Debug for UnionElement<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let UnionElement(meta, discriminant, value) = self;
-    let discriminant = meta.get(*discriminant).expect("WIP");
-    f.write_str("(")?;
-    f.write_str(discriminant.field_meta.name())?;
-    f.write_str(" = ")?;
-    value.fmt(f)?;
-    f.write_str(")")
+    match meta.get(*discriminant) {
+      Some(variant) => {
+        f.write_str("(")?;
+        f.write_str(variant.field_meta.name())?;
+        f.write_str(" = ")?;
+        value.fmt(f)?;
+        f.write_str(")")
+      }
+      None => UnknownDiscriminant(*discriminant, meta.name).fmt(f),
+    }
   }
 }

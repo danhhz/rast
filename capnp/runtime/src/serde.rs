@@ -83,7 +83,7 @@ impl<'a> Serialize for ListDecodedElement<'a> {
 impl<'a> Serialize for UnionElement<'a> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     let UnionElement(meta, discriminant, value) = self;
-    let variant_meta = meta.get(*discriminant).expect("WIP");
+    let variant_meta = meta.get(*discriminant).ok_or_else(|| todo!())?;
     serializer.serialize_newtype_variant(
       meta.name,
       u32::from(variant_meta.discriminant.0),

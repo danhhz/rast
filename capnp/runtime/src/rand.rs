@@ -59,11 +59,11 @@ impl<'a, R: Rng> Rand<'a, R> {
         }
         FieldMeta::List(x) => {
           let l = self.gen_list_element(x.meta);
-          x.set_element(&mut data, &ElementShared::ListDecoded(l)).expect("WIP");
+          x.set_element(&mut data, &ElementShared::ListDecoded(l)).expect("internal logic error");
         }
         FieldMeta::Union(x) => {
           x.set_element(&mut data, &ElementShared::Union(self.gen_union_element(x.meta)))
-            .expect("WIP");
+            .expect("internal logic error");
         }
       }
     }

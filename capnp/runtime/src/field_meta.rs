@@ -44,19 +44,6 @@ impl FieldMeta {
     }
   }
 
-  /// The offset of this field
-  // WIP this shouldn't be exposed. instead move set_element from SegmentOwned
-  // to UntypedStructOwned
-  pub fn offset(&self) -> NumElements {
-    match self {
-      FieldMeta::U64(x) => x.offset,
-      FieldMeta::Data(x) => x.offset,
-      FieldMeta::Struct(x) => x.offset,
-      FieldMeta::List(x) => x.offset,
-      FieldMeta::Union(x) => x.offset,
-    }
-  }
-
   /// Schema for the element stored by this field
   pub fn element_type(&self) -> ElementType {
     match self {
@@ -385,7 +372,7 @@ impl UnionFieldMeta {
     data: &UntypedStruct<'a>,
   ) -> Result<UnionElement<'a>, Error> {
     let untyped = self.get_untyped(data);
-    let variant_meta = self.meta.get(untyped.discriminant).expect("WIP");
+    let variant_meta = self.meta.get(untyped.discriminant).expect("TODO");
     let value = variant_meta.field_meta.get_element(data)?;
     Ok(UnionElement(self.meta, variant_meta.discriminant, Box::new(value)))
   }
@@ -399,7 +386,7 @@ impl UnionFieldMeta {
       ElementShared::Union(x) => {
         // TODO: Check that the metas match?
         let UnionElementShared(_, discriminant, value) = x;
-        let variant_meta = self.meta.get(*discriminant).expect("WIP");
+        let variant_meta = self.meta.get(*discriminant).expect("TODO");
         data.set_discriminant(self.offset, variant_meta.discriminant);
         variant_meta.field_meta.set_element(data, value.as_ref())
       }

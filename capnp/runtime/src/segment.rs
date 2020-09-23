@@ -27,7 +27,7 @@ impl SegmentOwned {
   }
 
   pub fn len_words_rounded_up(&mut self) -> NumWords {
-    // WIP: Verify soundness of this i32 conversion
+    // TODO: Verify soundness of this i32 conversion
     NumWords(((self.buf.len() + WORD_BYTES - 1) / WORD_BYTES) as i32)
   }
 
@@ -44,13 +44,24 @@ impl SegmentOwned {
 
   pub fn other_reference(&mut self, other: SegmentShared) -> SegmentID {
     let mut h = DefaultHasher::new();
-    // WIP: Box so this is stable
+    // TODO: Box so this is stable
     h.write_usize(other.buf().as_ptr() as usize);
     let segment_id = SegmentID(h.finish() as u32);
-    // WIP: Is this really needed? Makes things O(n^2).
+    // TODO: Is this really needed? Makes things O(n^2).
     self.other.extend(other.all_other());
     self.other.insert(segment_id, other.buf);
     segment_id
+  }
+}
+
+impl<'a> CapnpAsRef<'a, SegmentBorrowed<'a>> for SegmentOwned {
+  fn capnp_as_ref(&'a self) -> SegmentBorrowed<'a> {
+    // TODO: Make this less expensive.
+    let mut other: HashMap<SegmentID, &'a [u8]> = HashMap::with_capacity(self.other.len());
+    for (k, v) in self.other.iter() {
+      other.insert(*k, &v);
+    }
+    SegmentBorrowed { buf: &self.buf, other: Some(Arc::new(other)) }
   }
 }
 

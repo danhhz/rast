@@ -87,27 +87,34 @@ pub(crate) trait StructEncode {
   }
 
   fn set_u8(&mut self, offset_e: NumElements, value: u8) {
-    // WIP: Check against self.pointer to see if we should even be setting anything.
+    // NB: All mutable structs are expected to have the full data and pointer
+    // sections allocated.
+    debug_assert!(self.data_fields_begin().capnp_as_ref().u8_raw(offset_e).is_some());
     self.data_fields_begin().set_u8(offset_e, value)
   }
 
   fn set_u16(&mut self, offset_e: NumElements, value: u16) {
-    // WIP: Check against self.pointer to see if we should even be setting anything.
+    // NB: All mutable structs are expected to have the full data and pointer
+    // sections allocated.
+    debug_assert!(self.data_fields_begin().capnp_as_ref().u16_raw(offset_e).is_some());
     self.data_fields_begin().set_u16(offset_e, value)
   }
 
   fn set_discriminant(&mut self, offset_e: NumElements, value: Discriminant) {
-    // WIP: Check against self.pointer to see if we should even be setting anything.
     self.data_fields_begin().set_u16(offset_e, value.0)
   }
 
   fn set_u64(&mut self, offset_e: NumElements, value: u64) {
-    // WIP: Check against self.pointer to see if we should even be setting anything.
+    // NB: All mutable structs are expected to have the full data and pointer
+    // sections allocated.
+    debug_assert!(self.data_fields_begin().capnp_as_ref().u64_raw(offset_e).is_some());
     self.data_fields_begin().set_u64(offset_e, value)
   }
 
   fn set_pointer(&mut self, offset_e: NumElements, value: Pointer) {
-    // WIP: Check against self.pointer to see if we should even be setting anything.
+    // NB: All mutable structs are expected to have the full data and pointer
+    // sections allocated.
+    debug_assert!(self.pointer_fields_begin().capnp_as_ref().u64_raw(offset_e).is_some());
     self.pointer_fields_begin().set_pointer(offset_e, value)
   }
 
@@ -239,9 +246,8 @@ pub(crate) trait StructEncode {
       // (expect for null pointers, which are filled directly).
       let segment_id = self.pointer_end().seg.other_reference(x.pointer_end.seg.clone());
       for idx in 0..x.pointer.pointer_size.0 {
-        // WIP: Hacks
         let pointer =
-          x.pointer_end.capnp_as_ref().pointer(NumElements(x.pointer.data_size.0 + idx));
+          x.pointer_end.capnp_as_ref().add(x.pointer.data_size).pointer(NumElements(idx));
         let far_pointer = match pointer {
           Pointer::Null => Pointer::Null,
           _ => Pointer::Far(FarPointer {
@@ -358,12 +364,14 @@ pub(crate) trait StructEncode {
     value: &UnionElementShared,
   ) -> Result<(), Error> {
     let UnionElementShared(meta, discriminant, _value) = value;
-    let variant_meta = meta.get(*discriminant).expect("WIP");
+    let variant_meta = meta.get(*discriminant).ok_or_else(|| {
+      Error::Usage(format!("meta does not contain {:?}: {:?}", discriminant, meta))
+    })?;
     self.set_u16(offset_e, variant_meta.discriminant.0);
     // TODO: I don't want to expose the *Encode trait on FieldMeta so
     // set_element currently requires an UntypedStructOwned, but we don't have
     // one here. Test that catches this.
-    // variant_meta.field_meta.set_element(self, value.as_ref()).expect("WIP");
+    // variant_meta.field_meta.set_element(self, value.as_ref());
     Ok(())
   }
 }

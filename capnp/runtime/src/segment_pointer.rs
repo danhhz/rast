@@ -98,6 +98,12 @@ impl<'a> SegmentPointerBorrowMut<'a> {
   }
 }
 
+impl<'a> CapnpAsRef<'a, SegmentPointer<'a>> for SegmentPointerBorrowMut<'a> {
+  fn capnp_as_ref(&'a self) -> SegmentPointer<'a> {
+    SegmentPointer { seg: self.seg.capnp_as_ref(), off: self.off }
+  }
+}
+
 impl<'a> SegmentPointerEncode for SegmentPointerBorrowMut<'a> {
   fn buf_mut(&mut self) -> &mut [u8] {
     self.seg.buf_mut()

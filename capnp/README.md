@@ -95,11 +95,10 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [x] Clean up runtime prelude
 - [x] Audit pub usage
 - [x] Audit TODO comments
-- [ ] Resolve WIP comments
+- [x] Resolve WIP comments
 - [x] Remove dbg!
 - [x] Remove println!
 - [x] Remove "pub use"
-- [ ] Test: Message evolution basics
 
 # Roadmap: v0.1.0
 
@@ -134,11 +133,12 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Security: Fuzzing tests
 - [ ] Benchmarking
   - [ ] Pointer validation in struct is lazy
-- [ ] Test for zero-sized struct encoding
-- [ ] Test for creating a cycle
-- [ ] Test for Text type and interior null byte "The encoding allows bytes other
+- [ ] Test: Zero-sized struct encoding
+- [ ] Test: Creating a cycle
+- [ ] Test: Text type and interior null byte "The encoding allows bytes other
   than the last to be zero"
-- [ ] Test union of union
+- [ ] Test: Union of union
+- [ ] Test: Message evolution basics
 
 
 # Roadmap: After v0.1.0

@@ -2,6 +2,7 @@
 
 //! Errors returned from Cap'n Proto encoding and decoding.
 
+use std::cmp::{self, Ordering};
 use std::error;
 use std::fmt;
 
@@ -36,6 +37,18 @@ impl fmt::Display for Error {
         std::fmt::Display::fmt(x, f)
       }
     }
+  }
+}
+
+impl<'a> cmp::PartialEq for Error {
+  fn eq(&self, other: &Error) -> bool {
+    self.partial_cmp(other) == Some(Ordering::Equal)
+  }
+}
+
+impl<'a> cmp::PartialOrd for Error {
+  fn partial_cmp(&self, _other: &Error) -> Option<Ordering> {
+    None
   }
 }
 

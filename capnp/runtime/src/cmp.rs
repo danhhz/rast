@@ -24,12 +24,12 @@ impl<'a> cmp::PartialOrd for StructElement<'a> {
       if field_meta.is_null(self_untyped) {
         self_field_elements.push(None);
       } else {
-        self_field_elements.push(Some(field_meta.get_element(self_untyped).expect("WIP")));
+        self_field_elements.push(Some(field_meta.get_element(self_untyped)));
       }
       if field_meta.is_null(other_untyped) {
         other_field_elements.push(None);
       } else {
-        other_field_elements.push(Some(field_meta.get_element(other_untyped).expect("WIP")));
+        other_field_elements.push(Some(field_meta.get_element(other_untyped)));
       }
     }
     self_field_elements.partial_cmp(&other_field_elements)
@@ -44,8 +44,8 @@ impl<'a> cmp::PartialEq for StructElement<'a> {
 
 impl<'a> cmp::PartialOrd for ListElement<'a> {
   fn partial_cmp(&self, other: &ListElement<'a>) -> Option<Ordering> {
-    let self_values = self.to_element_list().expect("WIP");
-    let other_values = other.to_element_list().expect("WIP");
+    let self_values = self.to_element_list();
+    let other_values = other.to_element_list();
     self_values.partial_cmp(&other_values)
   }
 }
