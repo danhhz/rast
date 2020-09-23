@@ -1,17 +1,56 @@
-Rast [Cap'n Proto]
+Rast Cap'n Proto
 ====
 
-[Cap'n Proto]: https://capnproto.org
+[![Build Status](https://travis-ci.org/danhhz/rast.svg?branch=dev)](https://travis-ci.org/danhhz/rast)
+![crates.io](https://img.shields.io/crates/v/rast.svg)
 
-- More "ergonomic" user-facing API
-- Decoding can be both fast and user friendly, encoding less so
-- Encoding is often not as much of a hot path, so make the common case easy but
-  make it possible to be fast in the hot path case
-- TODO: Implemented/not-implemented
+This is a toy implemention of the [Cap'n Proto] encoding with a focus on
+ergonomics.
 
-- jargon: message, object, value, primitive, pointer, type, blob, struct, field,
-  list, far pointer, landing pad, tag word, composite, list element, segment
-  framing
+[cap'n proto]: https://capnproto.org
+
+### This is a proof of concept and _not ready for production_ use.
+
+# Features
+
+Copied from the [Cap'n Proto] homepage:
+
+- Incremental reads: It is easy to start processing a Cap’n Proto message before
+  you have received all of it since outer objects appear entirely before inner
+  objects (as opposed to most encodings, where outer objects encompass inner
+  objects).
+- Random access/lazy decoding: You can read just one field of a message without
+  parsing the whole thing.
+- mmap: Read a large Cap’n Proto file by memory-mapping it. The OS won’t even
+  read in the parts that you don’t access.
+- Tiny generated code: Protobuf generates dedicated parsing and serialization
+  code for every message type, and this code tends to be enormous. Cap’n Proto
+  generated code is smaller by an order of magnitude or more. In fact, usually
+  it’s no more than some inline accessor methods!
+- Tiny runtime library: Due to the simplicity of the Cap’n Proto format, the
+  runtime library can be much smaller.
+
+Specific to this implementation:
+
+- More "ergonomic" user-facing API: Decoding in "zero-alloc" serialization
+  libraries can be made both fast and easy to use (especially given Rust's
+  iterators).
+
+  Encoding, however, tends to force arena allocation, which requires plumbing
+  the arena through your code. It also strongly assumes that a given message is
+  being constructed to be serialized and sent somewhere, whereas many
+  applications that adopt [Protocol Buffers] eventually start using them as
+  general purpose data containers and build library code around them.
+
+  Thankfully, encoding is often not as performance critical as decoding. This
+  means we can sacrifice some small amount of speed to make the common case easy, especially if it's possible to switch to the arena allocation implemention for hot paths.
+
+  This implementation attempts to do exactly that by making what Cap'n Proto
+  calls an "[orphan]" (and describes as an "advanced feature [that] typical
+  applications probably won’t use") into the primary interface.
+
+[protocol buffers]: https://developers.google.com/protocol-buffers
+[orphan]: https://capnproto.org/cxx.html#orphans
 
 # Samples
 
@@ -50,7 +89,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [x] Return a reference to underlying bytes for capnp bytes fields
 - [x] Bound size of rand value generation
 - [x] Combine *Meta and *ElementType
-- [ ] README
+- [x] README
 - [x] Document how to run the golden tests
 - [x] Set up CI
 - [x] Clean up runtime prelude
