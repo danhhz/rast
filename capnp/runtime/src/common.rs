@@ -54,11 +54,12 @@ impl Mul<NumElements> for NumWords {
 }
 
 /// An enum or union discriminant
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Discriminant(pub u16);
 
 pub const U8_WIDTH_BYTES: usize = mem::size_of::<u8>();
 pub const U16_WIDTH_BYTES: usize = mem::size_of::<u16>();
+pub const U32_WIDTH_BYTES: usize = mem::size_of::<u32>();
 pub const U64_WIDTH_BYTES: usize = mem::size_of::<u64>();
 
 pub const WORD_BYTES: usize = NumWords(1).as_bytes();

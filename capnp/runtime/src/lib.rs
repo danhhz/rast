@@ -95,6 +95,7 @@ mod decode;
 mod element;
 mod element_type;
 mod encode;
+mod r#enum;
 mod error;
 mod field_meta;
 mod fmt_debug;
@@ -117,9 +118,11 @@ pub mod prelude {
   pub use crate::element_type::ElementType;
   pub use crate::error::{Error, UnknownDiscriminant};
   pub use crate::field_meta::{
-    DataFieldMeta, FieldMeta, ListFieldMeta, StructFieldMeta, U64FieldMeta, UnionFieldMeta,
+    DataFieldMeta, EnumFieldMeta, FieldMeta, I32FieldMeta, ListFieldMeta, StructFieldMeta,
+    U64FieldMeta, UnionFieldMeta,
   };
   pub use crate::list::ListMeta;
+  pub use crate::r#enum::{EnumMeta, EnumerantMeta, TypedEnum};
   pub use crate::r#struct::{
     StructMeta, TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned,
     UntypedStructShared,

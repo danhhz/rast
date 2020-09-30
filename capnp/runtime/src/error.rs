@@ -5,6 +5,7 @@
 use std::cmp::{self, Ordering};
 use std::error;
 use std::fmt;
+use std::io;
 
 use crate::common::Discriminant;
 
@@ -17,6 +18,8 @@ pub enum Error {
   TODO(String),
   /// An incorrect usage of this library's APIs
   Usage(String),
+  /// An io error
+  IO(String),
 }
 
 impl error::Error for Error {}
@@ -36,6 +39,10 @@ impl fmt::Display for Error {
         f.write_str("usage: ")?;
         std::fmt::Display::fmt(x, f)
       }
+      Error::IO(x) => {
+        f.write_str("io: ")?;
+        std::fmt::Display::fmt(x, f)
+      }
     }
   }
 }
@@ -49,6 +56,12 @@ impl<'a> cmp::PartialEq for Error {
 impl<'a> cmp::PartialOrd for Error {
   fn partial_cmp(&self, _other: &Error) -> Option<Ordering> {
     None
+  }
+}
+
+impl From<io::Error> for Error {
+  fn from(x: io::Error) -> Self {
+    Error::IO(x.to_string())
   }
 }
 

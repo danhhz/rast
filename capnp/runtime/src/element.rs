@@ -4,14 +4,17 @@ use crate::common::{CapnpAsRef, Discriminant};
 use crate::element_type::ElementType;
 use crate::error::Error;
 use crate::list::{ListMeta, UntypedList, UntypedListShared};
+use crate::r#enum::EnumMeta;
 use crate::r#struct::{StructMeta, UntypedStruct, UntypedStructShared};
 use crate::union::UnionMeta;
 
 #[derive(PartialEq, PartialOrd)]
 pub enum Element<'a> {
+  I32(i32),
   U8(u8),
   U64(u64),
   Data(DataElement<'a>),
+  Enum(EnumElement),
   Struct(StructElement<'a>),
   List(ListElement<'a>),
   ListDecoded(ListDecodedElement<'a>),
@@ -21,9 +24,11 @@ pub enum Element<'a> {
 impl<'a> Element<'a> {
   pub fn element_type(&self) -> ElementType {
     match self {
+      Element::I32(_) => ElementType::I32,
       Element::U8(_) => ElementType::U8,
       Element::U64(_) => ElementType::U64,
       Element::Data(_) => ElementType::Data,
+      Element::Enum(EnumElement(meta, _)) => ElementType::Enum(meta),
       Element::Struct(StructElement(meta, _)) => ElementType::Struct(meta),
       Element::List(ListElement(meta, _)) => ElementType::List(meta),
       Element::ListDecoded(ListDecodedElement(meta, _)) => ElementType::List(meta),
@@ -34,6 +39,9 @@ impl<'a> Element<'a> {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct DataElement<'a>(pub &'a [u8]);
+
+#[derive(PartialEq, PartialOrd)]
+pub struct EnumElement(pub &'static EnumMeta, pub Discriminant);
 
 pub struct StructElement<'a>(pub &'static StructMeta, pub UntypedStruct<'a>);
 
@@ -52,9 +60,11 @@ pub struct UnionElement<'a>(pub &'static UnionMeta, pub Discriminant, pub Box<El
 // TODO: Polish, document, and expose this.
 #[allow(dead_code)]
 pub enum ElementShared {
+  I32(i32),
   U8(u8),
   U64(u64),
   Data(DataElementShared),
+  Enum(EnumElement),
   Struct(StructElementShared),
   ListDecoded(ListDecodedElementShared),
   Union(UnionElementShared),
@@ -63,9 +73,11 @@ pub enum ElementShared {
 impl<'a> CapnpAsRef<'a, Element<'a>> for ElementShared {
   fn capnp_as_ref(&'a self) -> Element<'a> {
     match self {
+      ElementShared::I32(x) => Element::I32(*x),
       ElementShared::U8(x) => Element::U8(*x),
       ElementShared::U64(x) => Element::U64(*x),
       ElementShared::Data(x) => Element::Data(x.capnp_as_ref()),
+      ElementShared::Enum(EnumElement(meta, x)) => Element::Enum(EnumElement(meta, *x)),
       ElementShared::Struct(x) => Element::Struct(x.capnp_as_ref()),
       ElementShared::ListDecoded(x) => Element::ListDecoded(x.capnp_as_ref()),
       ElementShared::Union(x) => Element::Union(x.capnp_as_ref()),

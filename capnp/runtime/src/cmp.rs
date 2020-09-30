@@ -3,6 +3,7 @@
 use std::cmp::{self, Ordering};
 
 use crate::element::{ListDecodedElement, ListElement, StructElement, UnionElement};
+use crate::r#enum::EnumMeta;
 use crate::r#struct::StructMeta;
 use crate::union::UnionMeta;
 
@@ -80,6 +81,22 @@ impl<'a> cmp::PartialOrd for UnionElement<'a> {
 
 impl<'a> cmp::PartialEq for UnionElement<'a> {
   fn eq(&self, other: &UnionElement<'a>) -> bool {
+    self.partial_cmp(other) == Some(Ordering::Equal)
+  }
+}
+
+impl<'a> cmp::PartialOrd for EnumMeta {
+  fn partial_cmp(&self, other: &EnumMeta) -> Option<Ordering> {
+    if self as *const EnumMeta == other as *const EnumMeta {
+      Some(Ordering::Equal)
+    } else {
+      None
+    }
+  }
+}
+
+impl<'a> cmp::PartialEq for EnumMeta {
+  fn eq(&self, other: &EnumMeta) -> bool {
     self.partial_cmp(other) == Some(Ordering::Equal)
   }
 }

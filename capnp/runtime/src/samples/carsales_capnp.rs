@@ -6,6 +6,11 @@ pub struct Car<'a> {
 }
 
 impl<'a> Car<'a> {
+  const COLOR_META: &'static EnumFieldMeta = &EnumFieldMeta {
+    name: "color",
+    offset: NumElements(0),
+    meta: &Color::META,
+  };
   const WHEELS_META: &'static ListFieldMeta = &ListFieldMeta {
     name: "wheels",
     offset: NumElements(2),
@@ -24,10 +29,13 @@ impl<'a> Car<'a> {
     data_size: NumWords(3),
     pointer_size: NumWords(4),
     fields: || &[
+      FieldMeta::Enum(Car::COLOR_META),
       FieldMeta::List(Car::WHEELS_META),
       FieldMeta::Struct(Car::ENGINE_META),
     ],
   };
+
+  pub fn color(&self) -> Result<Color, UnknownDiscriminant> { Car::COLOR_META.get(&self.data) }
 
   pub fn wheels(&self) -> Result<Slice<'a, Wheel<'a>>, Error> { Car::WHEELS_META.get(&self.data) }
 
@@ -82,10 +90,12 @@ pub struct CarShared {
 
 impl CarShared {
   pub fn new(
+    color: Color,
     wheels: &'_ [WheelShared],
     engine: Option<EngineShared>,
   ) -> CarShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Car::META.data_size, Car::META.pointer_size);
+    Car::COLOR_META.set(&mut data, color);
     Car::WHEELS_META.set(&mut data, wheels);
     Car::ENGINE_META.set(&mut data, engine);
     CarShared { data: data.into_shared() }
@@ -215,6 +225,86 @@ impl TypedStructShared for ParkingLotShared {
 impl<'a> CapnpAsRef<'a, ParkingLot<'a>> for ParkingLotShared {
   fn capnp_as_ref(&'a self) -> ParkingLot<'a> {
     ParkingLotShared::capnp_as_ref(self)
+  }
+}
+
+#[derive(Clone, Copy)]
+pub enum Color {
+  Black = 0,
+  White = 1,
+  Red = 2,
+  Green = 3,
+  Blue = 4,
+  Cyan = 5,
+  Magenta = 6,
+  Yellow = 7,
+  Silver = 8,
+}
+
+impl Color {
+  const META: &'static EnumMeta = &EnumMeta {
+    name: "Color",
+    enumerants: &[
+      EnumerantMeta{
+        name: "black",
+        discriminant: Discriminant(0),
+      },
+      EnumerantMeta{
+        name: "white",
+        discriminant: Discriminant(1),
+      },
+      EnumerantMeta{
+        name: "red",
+        discriminant: Discriminant(2),
+      },
+      EnumerantMeta{
+        name: "green",
+        discriminant: Discriminant(3),
+      },
+      EnumerantMeta{
+        name: "blue",
+        discriminant: Discriminant(4),
+      },
+      EnumerantMeta{
+        name: "cyan",
+        discriminant: Discriminant(5),
+      },
+      EnumerantMeta{
+        name: "magenta",
+        discriminant: Discriminant(6),
+      },
+      EnumerantMeta{
+        name: "yellow",
+        discriminant: Discriminant(7),
+      },
+      EnumerantMeta{
+        name: "silver",
+        discriminant: Discriminant(8),
+      },
+    ],
+  };
+}
+
+impl TypedEnum for Color {
+  fn meta() -> &'static EnumMeta {
+    &Color::META
+  }
+  fn from_discriminant(discriminant: Discriminant) -> Result<Self, UnknownDiscriminant> {
+   match discriminant {
+      Discriminant(0) => Ok(Color::Black),
+      Discriminant(1) => Ok(Color::White),
+      Discriminant(2) => Ok(Color::Red),
+      Discriminant(3) => Ok(Color::Green),
+      Discriminant(4) => Ok(Color::Blue),
+      Discriminant(5) => Ok(Color::Cyan),
+      Discriminant(6) => Ok(Color::Magenta),
+      Discriminant(7) => Ok(Color::Yellow),
+      Discriminant(8) => Ok(Color::Silver),
+      d => Err(UnknownDiscriminant(d, Color::META.name)),
+    }
+  }
+  fn to_discriminant(&self) -> Discriminant {
+    Discriminant(*self as u16)
   }
 }
 

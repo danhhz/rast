@@ -1,28 +1,48 @@
 (
+  int32Field = -12345678,
   uInt64Field = 12345678901234567890,
   dataField = "bar",
   structField = (
+    int32Field = -78901234,
     uInt64Field = 345678901234567890,
     dataField = "qux",
     structField = (
+      int32Field = 0,
       uInt64Field = 0,
       structField = (
+        int32Field = 0,
         uInt64Field = 0,
+        enumField = foo,
       ),
+      enumField = foo,
     ),
+    enumField = baz,
     structList = [(
+      int32Field = 0,
       uInt64Field = 0,
+      enumField = foo,
     ), (
+      int32Field = 0,
       uInt64Field = 0,
+      enumField = foo,
     ), (
+      int32Field = 0,
       uInt64Field = 0,
+      enumField = foo,
     )],
   ),
+  enumField = corge,
   structList = [(
+    int32Field = 0,
     uInt64Field = 0,
+    enumField = foo,
   ), (
+    int32Field = 0,
     uInt64Field = 0,
+    enumField = foo,
   ), (
+    int32Field = 0,
     uInt64Field = 0,
+    enumField = foo,
   )],
 )

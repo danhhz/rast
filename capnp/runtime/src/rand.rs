@@ -6,13 +6,15 @@ use std::cmp;
 
 use rand::Rng;
 
+use crate::common::Discriminant;
 use crate::element::{
-  DataElementShared, ElementShared, ListDecodedElementShared, StructElementShared,
+  DataElementShared, ElementShared, EnumElement, ListDecodedElementShared, StructElementShared,
   UnionElementShared,
 };
 use crate::element_type::ElementType;
 use crate::field_meta::FieldMeta;
 use crate::list::ListMeta;
+use crate::r#enum::EnumMeta;
 use crate::r#struct::{StructMeta, TypedStructShared, UntypedStructOwned, UntypedStructShared};
 use crate::union::UnionMeta;
 
@@ -45,10 +47,14 @@ impl<'a, R: Rng> Rand<'a, R> {
     let mut data = UntypedStructOwned::new_with_root_struct(meta.data_size, meta.pointer_size);
     for field_meta in meta.fields() {
       match field_meta {
+        FieldMeta::I32(x) => x.set(&mut data, self.rng.gen()),
         FieldMeta::U64(x) => x.set(&mut data, self.rng.gen()),
         FieldMeta::Data(x) => {
           x.set(&mut data, &self.gen_data_element().0);
         }
+        FieldMeta::Enum(x) => x
+          .set_enum_element(&mut data, &self.gen_enum_element(x.meta))
+          .expect("internal logic error"),
         FieldMeta::Struct(x) => {
           if self.rng.gen_bool(0.5) || self.max_struct_recursion == 0 {
             continue;
@@ -72,9 +78,11 @@ impl<'a, R: Rng> Rand<'a, R> {
 
   fn gen_element(&mut self, element_type: &ElementType) -> ElementShared {
     match element_type {
+      ElementType::I32 => ElementShared::I32(self.rng.gen()),
       ElementType::U8 => ElementShared::U8(self.rng.gen()),
       ElementType::U64 => ElementShared::U64(self.rng.gen()),
       ElementType::Data => ElementShared::Data(self.gen_data_element()),
+      ElementType::Enum(x) => ElementShared::Enum(self.gen_enum_element(x)),
       ElementType::Struct(x) => ElementShared::Struct(self.gen_struct_element(x)),
       ElementType::List(x) => ElementShared::ListDecoded(self.gen_list_element(x)),
       ElementType::Union(x) => ElementShared::Union(self.gen_union_element(x)),
@@ -83,6 +91,11 @@ impl<'a, R: Rng> Rand<'a, R> {
 
   fn gen_data_element(&mut self) -> DataElementShared {
     DataElementShared((0..self.rng.gen_range(0, 5)).map(|_| self.rng.gen()).collect())
+  }
+
+  fn gen_enum_element(&mut self, meta: &'static EnumMeta) -> EnumElement {
+    let discriminant = Discriminant(self.rng.gen_range(0, meta.enumerants.len() as u16));
+    EnumElement(meta, discriminant)
   }
 
   fn gen_struct_element(&mut self, meta: &'static StructMeta) -> StructElementShared {

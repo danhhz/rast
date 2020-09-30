@@ -992,23 +992,23 @@ impl<'a> TypedUnionShared<'a, Payload<'a>> for PayloadShared {
     match self {
       PayloadShared::AppendEntriesReq(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(0));
-        Payload::APPEND_ENTRIES_REQ_META.set(data, Some(x.clone()));
+        Payload::APPEND_ENTRIES_REQ_META.set(data, x.clone().into());
       }
       PayloadShared::AppendEntriesRes(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(1));
-        Payload::APPEND_ENTRIES_RES_META.set(data, Some(x.clone()));
+        Payload::APPEND_ENTRIES_RES_META.set(data, x.clone().into());
       }
       PayloadShared::RequestVoteReq(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(2));
-        Payload::REQUEST_VOTE_REQ_META.set(data, Some(x.clone()));
+        Payload::REQUEST_VOTE_REQ_META.set(data, x.clone().into());
       }
       PayloadShared::RequestVoteRes(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(3));
-        Payload::REQUEST_VOTE_RES_META.set(data, Some(x.clone()));
+        Payload::REQUEST_VOTE_RES_META.set(data, x.clone().into());
       }
       PayloadShared::StartElectionReq(x) => {
         data.set_discriminant(discriminant_offset, Discriminant(4));
-        Payload::START_ELECTION_REQ_META.set(data, Some(x.clone()));
+        Payload::START_ELECTION_REQ_META.set(data, x.clone().into());
       }
     }
   }

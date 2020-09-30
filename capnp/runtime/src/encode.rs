@@ -2,11 +2,12 @@
 
 use crate::common::{
   CapnpAsRef, Discriminant, ElementWidth, NumElements, NumWords, COMPOSITE_TAG_WIDTH_BYTES,
-  POINTER_WIDTH_BYTES, POINTER_WIDTH_WORDS, U16_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
+  POINTER_WIDTH_BYTES, POINTER_WIDTH_WORDS, U16_WIDTH_BYTES, U32_WIDTH_BYTES, U64_WIDTH_BYTES,
+  U8_WIDTH_BYTES,
 };
 use crate::decode::SegmentPointerDecode;
 use crate::element::{
-  DataElementShared, ElementShared, ListDecodedElementShared, StructElementShared,
+  DataElementShared, ElementShared, EnumElement, ListDecodedElementShared, StructElementShared,
   UnionElementShared,
 };
 use crate::element_type::ElementType;
@@ -39,6 +40,14 @@ pub(crate) trait SegmentPointerEncode {
     self.buf_mut()[begin..end].copy_from_slice(&u16::to_le_bytes(value));
   }
 
+  fn set_u32_raw(&mut self, off: NumWords, offset: NumElements, value: u32) {
+    let begin = off.as_bytes() + offset.as_bytes(U32_WIDTH_BYTES);
+    let end = begin + U32_WIDTH_BYTES;
+    self.ensure_len(end);
+    // NB: This range is guaranteed to exist because we just resized it.
+    self.buf_mut()[begin..end].copy_from_slice(&u32::to_le_bytes(value));
+  }
+
   fn set_u64_raw(&mut self, off: NumWords, offset: NumElements, value: u64) {
     let begin = off.as_bytes() + offset.as_bytes(U64_WIDTH_BYTES);
     let end = begin + U64_WIDTH_BYTES;
@@ -63,6 +72,10 @@ pub(crate) trait SegmentPointerEncode {
     self.set_u16_raw(self.offset_w(), offset_e, value);
   }
 
+  fn set_u32(&mut self, offset_e: NumElements, value: u32) {
+    self.set_u32_raw(self.offset_w(), offset_e, value as u32);
+  }
+
   fn set_u64(&mut self, offset_e: NumElements, value: u64) {
     self.set_u64_raw(self.offset_w(), offset_e, value);
   }
@@ -84,6 +97,13 @@ pub(crate) trait StructEncode {
   fn pointer_fields_begin<'a>(&'a mut self) -> SegmentPointerBorrowMut<'a> {
     let data_size = self.pointer().data_size;
     self.data_fields_begin().add(data_size)
+  }
+
+  fn set_i32(&mut self, offset_e: NumElements, value: i32) {
+    // NB: All mutable structs are expected to have the full data and pointer
+    // sections allocated.
+    debug_assert!(self.data_fields_begin().capnp_as_ref().u32_raw(offset_e).is_some());
+    self.data_fields_begin().set_u32(offset_e, value as u32)
   }
 
   fn set_u8(&mut self, offset_e: NumElements, value: u8) {
@@ -282,9 +302,11 @@ pub(crate) trait StructEncode {
 
   fn set_element(&mut self, offset_e: NumElements, value: &ElementShared) -> Result<(), Error> {
     match value {
+      ElementShared::I32(x) => Ok(self.set_i32(offset_e, *x)),
       ElementShared::U8(x) => Ok(self.set_u8(offset_e, *x)),
       ElementShared::U64(x) => Ok(self.set_u64(offset_e, *x)),
       ElementShared::Data(x) => Ok(self.set_data_element(offset_e, x)),
+      ElementShared::Enum(x) => Ok(self.set_enum_element(offset_e, x)),
       ElementShared::Struct(x) => Ok(self.set_struct_element(offset_e, x)),
       ElementShared::ListDecoded(x) => self.set_list_decoded_element(offset_e, x),
       ElementShared::Union(x) => self.set_union_element(offset_e, x),
@@ -294,6 +316,11 @@ pub(crate) trait StructEncode {
   fn set_data_element(&mut self, offset_e: NumElements, value: &DataElementShared) {
     let DataElementShared(value) = value;
     self.set_bytes(offset_e, value);
+  }
+
+  fn set_enum_element(&mut self, offset_e: NumElements, value: &EnumElement) {
+    let EnumElement(_, value) = value;
+    self.set_discriminant(offset_e, *value);
   }
 
   fn set_struct_element(&mut self, offset_e: NumElements, value: &StructElementShared) {
