@@ -1,11 +1,89 @@
 use capnp_runtime::prelude::*;
 
+#[derive(Clone, Copy)]
+pub enum TestEnum {
+  Foo = 0,
+  Bar = 1,
+  Baz = 2,
+  Qux = 3,
+  Quux = 4,
+  Corge = 5,
+  Grault = 6,
+  Garply = 7,
+}
+
+impl TestEnum {
+  const META: EnumMeta = EnumMeta {
+    name: "TestEnum",
+    enumerants: &[
+      EnumerantMeta{
+        name: "foo",
+        discriminant: Discriminant(0),
+      },
+      EnumerantMeta{
+        name: "bar",
+        discriminant: Discriminant(1),
+      },
+      EnumerantMeta{
+        name: "baz",
+        discriminant: Discriminant(2),
+      },
+      EnumerantMeta{
+        name: "qux",
+        discriminant: Discriminant(3),
+      },
+      EnumerantMeta{
+        name: "quux",
+        discriminant: Discriminant(4),
+      },
+      EnumerantMeta{
+        name: "corge",
+        discriminant: Discriminant(5),
+      },
+      EnumerantMeta{
+        name: "grault",
+        discriminant: Discriminant(6),
+      },
+      EnumerantMeta{
+        name: "garply",
+        discriminant: Discriminant(7),
+      },
+    ],
+  };
+}
+
+impl TypedEnum for TestEnum {
+  fn meta() -> &'static EnumMeta {
+    &TestEnum::META
+  }
+  fn from_discriminant(discriminant: Discriminant) -> Result<Self, UnknownDiscriminant> {
+   match discriminant {
+      Discriminant(0) => Ok(TestEnum::Foo),
+      Discriminant(1) => Ok(TestEnum::Bar),
+      Discriminant(2) => Ok(TestEnum::Baz),
+      Discriminant(3) => Ok(TestEnum::Qux),
+      Discriminant(4) => Ok(TestEnum::Quux),
+      Discriminant(5) => Ok(TestEnum::Corge),
+      Discriminant(6) => Ok(TestEnum::Grault),
+      Discriminant(7) => Ok(TestEnum::Garply),
+      d => Err(UnknownDiscriminant(d, TestEnum::META.name)),
+    }
+  }
+  fn to_discriminant(&self) -> Discriminant {
+    Discriminant(*self as u16)
+  }
+}
+
 #[derive(Clone)]
 pub struct TestAllTypes<'a> {
   data: UntypedStruct<'a>,
 }
 
 impl<'a> TestAllTypes<'a> {
+  const INT32_FIELD_META: I32FieldMeta = I32FieldMeta {
+    name: "int32_field",
+    offset: NumElements(1),
+  };
   const U_INT64_FIELD_META: U64FieldMeta = U64FieldMeta {
     name: "u_int64_field",
     offset: NumElements(3),
@@ -18,6 +96,11 @@ impl<'a> TestAllTypes<'a> {
     name: "struct_field",
     offset: NumElements(2),
     meta: &TestAllTypes::META,
+  };
+  const ENUM_FIELD_META: EnumFieldMeta = EnumFieldMeta {
+    name: "enum_field",
+    offset: NumElements(18),
+    meta: &TestEnum::META,
   };
   const STRUCT_LIST_META: ListFieldMeta = ListFieldMeta {
     name: "struct_list",
@@ -32,18 +115,24 @@ impl<'a> TestAllTypes<'a> {
     data_size: NumWords(6),
     pointer_size: NumWords(20),
     fields: || &[
+      FieldMeta::I32(TestAllTypes::INT32_FIELD_META),
       FieldMeta::U64(TestAllTypes::U_INT64_FIELD_META),
       FieldMeta::Data(TestAllTypes::DATA_FIELD_META),
       FieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META),
+      FieldMeta::Enum(TestAllTypes::ENUM_FIELD_META),
       FieldMeta::List(TestAllTypes::STRUCT_LIST_META),
     ],
   };
+
+  pub fn int32_field(&self) -> i32 { TestAllTypes::INT32_FIELD_META.get(&self.data) }
 
   pub fn u_int64_field(&self) -> u64 { TestAllTypes::U_INT64_FIELD_META.get(&self.data) }
 
   pub fn data_field(&self) -> Result<&'a [u8], Error> { TestAllTypes::DATA_FIELD_META.get(&self.data) }
 
   pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> { TestAllTypes::STRUCT_FIELD_META.get(&self.data) }
+
+  pub fn enum_field(&self) -> Result<TestEnum, UnknownDiscriminant> { TestAllTypes::ENUM_FIELD_META.get(&self.data) }
 
   pub fn struct_list(&self) -> Result<Vec<TestAllTypes<'a>>, Error> { TestAllTypes::STRUCT_LIST_META.get(&self.data) }
 
@@ -96,15 +185,19 @@ pub struct TestAllTypesShared {
 
 impl TestAllTypesShared {
   pub fn new(
+    int32_field: i32,
     u_int64_field: u64,
     data_field: &[u8],
     struct_field: Option<TestAllTypesShared>,
+    enum_field: TestEnum,
     struct_list: &'_ [TestAllTypesShared],
   ) -> TestAllTypesShared {
     let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
+    TestAllTypes::INT32_FIELD_META.set(&mut data, int32_field);
     TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);
     TestAllTypes::DATA_FIELD_META.set(&mut data, data_field);
     TestAllTypes::STRUCT_FIELD_META.set(&mut data, struct_field);
+    TestAllTypes::ENUM_FIELD_META.set(&mut data, enum_field);
     TestAllTypes::STRUCT_LIST_META.set(&mut data, struct_list);
     TestAllTypesShared { data: data.into_shared() }
   }

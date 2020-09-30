@@ -4,7 +4,8 @@ use std::fmt;
 
 use crate::common::CapnpAsRef;
 use crate::element::{
-  DataElement, Element, ElementShared, ListDecodedElement, ListElement, StructElement, UnionElement,
+  DataElement, Element, ElementShared, EnumElement, ListDecodedElement, ListElement, StructElement,
+  UnionElement,
 };
 use crate::error::UnknownDiscriminant;
 use crate::r#struct::StructMeta;
@@ -31,9 +32,11 @@ impl fmt::Debug for ElementShared {
 impl<'a> fmt::Debug for Element<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
+      Element::I32(x) => x.fmt(f),
       Element::U8(x) => x.fmt(f),
       Element::U64(x) => x.fmt(f),
       Element::Data(x) => x.fmt(f),
+      Element::Enum(x) => x.fmt(f),
       Element::Struct(x) => x.fmt(f),
       Element::List(x) => x.fmt(f),
       Element::ListDecoded(x) => x.fmt(f),
@@ -45,6 +48,16 @@ impl<'a> fmt::Debug for Element<'a> {
 impl<'a> fmt::Debug for DataElement<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     self.0.fmt(f)
+  }
+}
+
+impl fmt::Debug for EnumElement {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let EnumElement(meta, discriminant) = self;
+    match meta.get(*discriminant) {
+      Some(enumerant) => fmt::Display::fmt(enumerant.name, f),
+      None => write!(f, "UnknownDiscriminant({})", discriminant.0),
+    }
   }
 }
 

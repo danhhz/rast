@@ -6,17 +6,19 @@ mod test {
   use crate::samples::rast_capnp::{
     AppendEntriesReqShared, EntryShared, MessageShared, PayloadShared,
   };
-  use crate::samples::test_capnp::TestAllTypesShared;
+  use crate::samples::test_capnp::{TestAllTypesShared, TestEnum};
 
   #[test]
   fn init_testalltypes() -> Result<(), Box<dyn error::Error>> {
     let message = TestAllTypesShared::new(
+      -123,
       123,
       &[4, 5, 6],
-      Some(TestAllTypesShared::new(789, &[], None, &[])),
-      vec![TestAllTypesShared::new(10, &[], None, &[])].as_slice(),
+      Some(TestAllTypesShared::new(0, 789, &[], None, TestEnum::Foo, &[])),
+      TestEnum::Bar,
+      vec![TestAllTypesShared::new(0, 10, &[], None, TestEnum::Foo, &[])].as_slice(),
     );
-    let expected = "(u_int64_field = 123, data_field = [4, 5, 6], struct_field = (u_int64_field = 789), struct_list = [(u_int64_field = 10)])";
+    let expected = "(int32_field = -123, u_int64_field = 123, data_field = [4, 5, 6], struct_field = (int32_field = 0, u_int64_field = 789, enum_field = foo), enum_field = bar, struct_list = [(int32_field = 0, u_int64_field = 10, enum_field = foo)])";
     assert_eq!(format!("{:?}", message.capnp_as_ref()), expected);
     Ok(())
   }

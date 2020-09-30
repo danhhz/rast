@@ -8,16 +8,18 @@ use serde::ser::{SerializeSeq, SerializeStruct};
 use serde::{Serialize, Serializer};
 
 use crate::element::{
-  DataElement, Element, ListDecodedElement, ListElement, StructElement, UnionElement,
+  DataElement, Element, EnumElement, ListDecodedElement, ListElement, StructElement, UnionElement,
 };
 use crate::field_meta::FieldMeta;
 
 impl<'a> Serialize for Element<'a> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     match self {
+      Element::I32(x) => serializer.serialize_i32(*x),
       Element::U8(x) => serializer.serialize_u8(*x),
       Element::U64(x) => serializer.serialize_u64(*x),
       Element::Data(x) => x.serialize(serializer),
+      Element::Enum(x) => x.serialize(serializer),
       Element::Struct(x) => x.serialize(serializer),
       Element::List(x) => x.serialize(serializer),
       Element::ListDecoded(x) => x.serialize(serializer),
@@ -30,6 +32,14 @@ impl<'a> Serialize for DataElement<'a> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     let DataElement(value) = self;
     serializer.serialize_bytes(value)
+  }
+}
+
+impl Serialize for EnumElement {
+  fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    let EnumElement(meta, discriminant) = self;
+    let enumerant_meta = meta.get(*discriminant).ok_or_else(|| todo!())?;
+    serializer.serialize_str(enumerant_meta.name)
   }
 }
 

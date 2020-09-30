@@ -4,7 +4,7 @@ use std::convert::TryInto;
 
 use crate::common::{
   Discriminant, ElementWidth, NumElements, NumWords, COMPOSITE_TAG_WIDTH_WORDS,
-  POINTER_WIDTH_WORDS, U16_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
+  POINTER_WIDTH_WORDS, U16_WIDTH_BYTES, U32_WIDTH_BYTES, U64_WIDTH_BYTES, U8_WIDTH_BYTES,
 };
 use crate::element_type::ElementType;
 use crate::error::Error;
@@ -45,6 +45,15 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
   }
 
   // TODO: This gets a little nicer with const generics.
+  fn u32_raw(&self, offset_e: NumElements) -> Option<[u8; U32_WIDTH_BYTES]> {
+    let begin = self.offset_w().as_bytes() + offset_e.as_bytes(U32_WIDTH_BYTES);
+    self
+      .buf()
+      .get(begin..begin + U32_WIDTH_BYTES)
+      .map(|raw| raw.try_into().expect("internal logic error"))
+  }
+
+  // TODO: This gets a little nicer with const generics.
   fn u64_raw(&self, offset_e: NumElements) -> Option<[u8; U64_WIDTH_BYTES]> {
     let begin = self.offset_w().as_bytes() + offset_e.as_bytes(U64_WIDTH_BYTES);
     self
@@ -59,6 +68,10 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
 
   fn u16(&self, offset_e: NumElements) -> u16 {
     self.u16_raw(offset_e).map_or(0, |raw| u16::from_le_bytes(raw))
+  }
+
+  fn u32(&self, offset_e: NumElements) -> u32 {
+    self.u32_raw(offset_e).map_or(0, |raw| u32::from_le_bytes(raw))
   }
 
   fn u64(&self, offset_e: NumElements) -> u64 {
@@ -219,8 +232,16 @@ pub(crate) trait StructDecode<'a> {
     self.data_fields_begin().add(self.pointer().data_size)
   }
 
+  fn i32(&self, offset_e: NumElements) -> i32 {
+    self.data_fields_begin().u32(offset_e) as i32
+  }
+
   fn u64(&self, offset_e: NumElements) -> u64 {
     self.data_fields_begin().u64(offset_e)
+  }
+
+  fn discriminant(&self, offset_e: NumElements) -> Discriminant {
+    Discriminant(self.data_fields_begin().u16(offset_e))
   }
 
   fn pointer_raw(&self, offset_e: NumElements) -> Pointer {
@@ -256,9 +277,8 @@ pub(crate) trait StructDecode<'a> {
   }
 
   fn untyped_union(&self, offset_e: NumElements) -> UntypedUnion<'a> {
-    let discriminant = Discriminant(self.data_fields_begin().u16(offset_e));
     UntypedUnion {
-      discriminant: discriminant,
+      discriminant: self.discriminant(offset_e),
       variant_data: UntypedStruct::new(self.pointer().clone(), self.pointer_end().clone()),
     }
   }
