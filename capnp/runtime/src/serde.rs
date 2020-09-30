@@ -110,7 +110,7 @@ mod test {
   use std::fs::File;
   use std::io::Read;
 
-  use crate::samples::test_capnp::TestAllTypes;
+  use crate::samples::test_capnp::TestAllTypesRef;
   use capnp_runtime::prelude::*;
   use capnp_runtime::segment_framing_official;
 
@@ -119,7 +119,7 @@ mod test {
     let mut f = File::open("testdata/binary")?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let message: TestAllTypes = segment_framing_official::decode(&buf)?;
+    let message: TestAllTypesRef = segment_framing_official::decode(&buf)?;
 
     let mut f = File::open("testdata/short.json")?;
     let mut expected = Vec::new();

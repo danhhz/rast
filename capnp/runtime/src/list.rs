@@ -14,7 +14,7 @@ use crate::encode::{SegmentPointerEncode, StructEncode};
 use crate::error::Error;
 use crate::pointer::ListPointer;
 use crate::r#struct::{
-  TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned, UntypedStructShared,
+  TypedStructRef, TypedStructShared, UntypedStruct, UntypedStructOwned, UntypedStructShared,
 };
 use crate::segment_pointer::{SegmentPointer, SegmentPointerBorrowMut, SegmentPointerShared};
 use crate::slice::Slice;
@@ -130,7 +130,7 @@ impl TypedListElementShared for &UntypedStructShared {
   }
 }
 
-impl<'a, T: TypedStruct<'a>> TypedListElement<'a> for T {
+impl<'a, T: TypedStructRef<'a>> TypedListElement<'a> for T {
   fn decoding() -> ListElementDecoding<'a, Self> {
     ListElementDecoding::Composite(|untyped| T::from_untyped_struct(untyped))
   }

@@ -19,82 +19,89 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use crate::common::*;
-use crate::eval_capnp::{expression, evaluation_result, Operation};
+#![allow(unreachable_code)]
 
-fn make_expression(rng: &mut FastRand, mut exp: expression::Builder, depth : u32) -> i32 {
-    exp.set_op(::capnp::traits::FromU16::from_u16(rng.next_less_than( Operation::Modulus as u32 + 1) as u16).unwrap());
+use capnp_runtime::prelude::{Discriminant, Error, TypedEnum};
 
-    let left : i32 =
-    if rng.next_less_than(8) < depth {
-        let tmp = (rng.next_less_than(128) + 1) as i32;
-        exp.reborrow().get_left().set_value(tmp);
-        tmp
-    } else {
-        make_expression(rng, exp.reborrow().get_left().init_expression(), depth + 1)
-    };
+use crate::common::{self, FastRand};
+use crate::eval_capnp::{
+  EvaluationResultMeta, EvaluationResultRef, EvaluationResultShared, ExpressionMeta, ExpressionRef,
+  ExpressionShared, Left, LeftShared, Operation, Right, RightShared,
+};
 
-    let right : i32 =
-    if rng.next_less_than(8) < depth {
-        let tmp = (rng.next_less_than(128) + 1) as i32;
-        exp.reborrow().get_right().set_value(tmp);
-        tmp
-    } else {
-        make_expression(rng, exp.reborrow().get_right().init_expression(), depth + 1)
-    };
+fn make_expression(rng: &mut FastRand, depth: u32) -> (ExpressionShared, i32) {
+  let op: Operation = Operation::from_discriminant(Discriminant(
+    rng.next_less_than(Operation::meta().enumerants.len() as u32) as u16,
+  ))
+  .expect("WIP");
 
-    match exp.get_op().unwrap() {
-        Operation::Add => { return left + right }
-        Operation::Subtract => { return left - right }
-        Operation::Multiply => { return left * right }
-        Operation::Divide => { return div(left, right) }
-        Operation::Modulus => { return modulus(left, right) }
-    }
+  let left = if rng.next_less_than(8) < depth {
+    // LeftShared::Value((rng.next_less_than(128) + 1) as i32)
+    todo!()
+  } else {
+    let (expr, val) = make_expression(rng, depth + 1);
+    (LeftShared::Expression(expr), val)
+  };
+
+  let right = if rng.next_less_than(8) < depth {
+    // RightShared::Value((rng.next_less_than(128) + 1) as i32)
+    todo!()
+  } else {
+    let (expr, val) = make_expression(rng, depth + 1);
+    (RightShared::Expression(expr), val)
+  };
+
+  let expr = ExpressionShared::new(op, left.0, right.0);
+  let val = match op {
+    Operation::Add => left.1 + right.1,
+    Operation::Subtract => left.1 - right.1,
+    Operation::Multiply => left.1 * right.1,
+    Operation::Divide => common::div(left.1, right.1),
+    Operation::Modulus => common::modulus(left.1, right.1),
+  };
+  (expr, val)
 }
 
-fn evaluate_expression(exp: expression::Reader) -> ::capnp::Result<i32> {
-    let left = match exp.get_left().which()? {
-        expression::left::Value(v) => v,
-        expression::left::Expression(e) => evaluate_expression(e?)?,
-    };
-    let right = match exp.get_right().which()? {
-        expression::right::Value(v) => v,
-        expression::right::Expression(e) => evaluate_expression(e?)?,
-    };
+fn evaluate_expression(exp: &ExpressionRef) -> Result<i32, Error> {
+  let left = match exp.left()?.expect("WIP") {
+    Left::Value(v) => v,
+    Left::Expression(e) => evaluate_expression(&e)?,
+  };
+  let right = match exp.right()?.expect("WIP") {
+    Right::Value(v) => v,
+    Right::Expression(e) => evaluate_expression(&e)?,
+  };
 
-    match exp.get_op()? {
-        Operation::Add => Ok(left + right),
-        Operation::Subtract => Ok(left - right),
-        Operation::Multiply => Ok(left * right),
-        Operation::Divide => Ok(div(left, right)),
-        Operation::Modulus => Ok(modulus(left, right)),
-    }
+  match exp.op().expect("WIP") {
+    Operation::Add => Ok(left + right),
+    Operation::Subtract => Ok(left - right),
+    Operation::Multiply => Ok(left * right),
+    Operation::Divide => Ok(common::div(left, right)),
+    Operation::Modulus => Ok(common::modulus(left, right)),
+  }
 }
 
 pub struct Eval;
 
 impl crate::TestCase for Eval {
-    type Request = expression::Owned;
-    type Response = evaluation_result::Owned;
-    type Expectation = i32;
+  type Request = ExpressionMeta;
+  type Response = EvaluationResultMeta;
+  type Expectation = i32;
 
-    fn setup_request(&self, rng: &mut FastRand, request: expression::Builder) -> i32 {
-        make_expression(rng, request, 0)
-    }
+  fn setup_request(&self, rng: &mut FastRand) -> (ExpressionShared, i32) {
+    make_expression(rng, 0)
+  }
 
-    fn handle_request(&self, request: expression::Reader, mut response: evaluation_result::Builder)
-        -> ::capnp::Result<()>
-    {
-        response.set_value(evaluate_expression(request)?);
-        Ok(())
-    }
+  fn handle_request(&self, req: &ExpressionRef<'_>) -> Result<EvaluationResultShared, Error> {
+    let value = evaluate_expression(req)?;
+    Ok(EvaluationResultShared::new(value))
+  }
 
-    fn check_response(&self, response: evaluation_result::Reader, expected : i32) -> ::capnp::Result<()> {
-        if response.get_value() == expected {
-            Ok(())
-        } else {
-            Err(::capnp::Error::failed(
-                format!("check_response() expected {} but got {}", expected, response.get_value())))
-        }
+  fn check_response(&self, res: &EvaluationResultRef<'_>, expected: i32) -> Result<(), Error> {
+    if res.value() == expected {
+      Ok(())
+    } else {
+      Err(Error::Usage(format!("check_response() expected {} but got {}", expected, "WIP")))
     }
+  }
 }

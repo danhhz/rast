@@ -49,3 +49,8 @@ fn golden_test_capnp() -> Result<(), Box<dyn Error>> {
 fn golden_rast_capnp() -> Result<(), Box<dyn Error>> {
   golden_capnp("rast")
 }
+
+#[test]
+fn golden_eval_capnp() -> Result<(), Box<dyn Error>> {
+  golden_capnp("eval")
+}

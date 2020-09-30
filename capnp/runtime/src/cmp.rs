@@ -140,7 +140,7 @@ mod test {
   use std::fs::File;
   use std::io::Read;
 
-  use crate::samples::test_capnp::TestAllTypes;
+  use crate::samples::test_capnp::TestAllTypesRef;
   use capnp_runtime::segment_framing_official;
 
   #[test]
@@ -148,12 +148,12 @@ mod test {
     let mut f = File::open("testdata/binary")?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let binary: TestAllTypes = segment_framing_official::decode(&buf)?;
+    let binary: TestAllTypesRef = segment_framing_official::decode(&buf)?;
 
     let mut f = File::open("testdata/segmented")?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let segmented: TestAllTypes = segment_framing_official::decode(&buf)?;
+    let segmented: TestAllTypesRef = segment_framing_official::decode(&buf)?;
 
     assert_eq!(binary.partial_cmp(&segmented), Some(Ordering::Equal));
     assert_eq!(binary == segmented, true);

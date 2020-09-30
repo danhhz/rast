@@ -13,7 +13,7 @@ use crate::list::{ListMeta, TypedList, TypedListElementShared, UntypedList};
 use crate::pointer::Pointer;
 use crate::r#enum::{EnumMeta, TypedEnum};
 use crate::r#struct::{
-  StructMeta, TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned,
+  StructMeta, TypedStructRef, TypedStructShared, UntypedStruct, UntypedStructOwned,
   UntypedStructShared,
 };
 use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UntypedUnion};
@@ -329,7 +329,7 @@ impl StructFieldMeta {
 
   /// Returns the value of this field in the given struct (or the default value
   /// if it's missing or null).
-  pub fn get<'a, T: TypedStruct<'a>>(&self, data: &UntypedStruct<'a>) -> Result<T, Error> {
+  pub fn get<'a, T: TypedStructRef<'a>>(&self, data: &UntypedStruct<'a>) -> Result<T, Error> {
     // TODO: Spec allows returning default value in the case of an out-of-bounds
     // pointer.
     self.get_untyped(data).map(|x| T::from_untyped_struct(x))

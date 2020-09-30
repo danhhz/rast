@@ -48,8 +48,16 @@ impl StructMeta {
   }
 }
 
+pub trait TypedStruct<'a> {
+  type Ref: TypedStructRef<'a>;
+  type Shared: TypedStructShared + CapnpAsRef<'a, Self::Ref>;
+
+  /// The schema of this struct
+  fn meta() -> &'static StructMeta;
+}
+
 /// A borrowed codegen'd Cap'n Proto struct
-pub trait TypedStruct<'a>: Sized {
+pub trait TypedStructRef<'a>: Sized {
   /// The schema of this struct
   fn meta() -> &'static StructMeta;
   /// Returns an instance of this struct using the given data.

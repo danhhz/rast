@@ -131,8 +131,8 @@ mod test {
   use rand;
   use std::error::Error;
 
-  use crate::samples::rast_capnp::{Message, MessageShared};
-  use crate::samples::test_capnp::{TestAllTypes, TestAllTypesShared};
+  use crate::samples::rast_capnp::{MessageRef, MessageShared};
+  use crate::samples::test_capnp::{TestAllTypesRef, TestAllTypesShared};
   use capnp_runtime::segment_framing_alternate;
 
   #[test]
@@ -141,7 +141,7 @@ mod test {
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
     segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-    let after: TestAllTypes = segment_framing_alternate::decode(&buf)?;
+    let after: TestAllTypesRef = segment_framing_alternate::decode(&buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }
@@ -152,7 +152,7 @@ mod test {
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
     segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-    let after: Message = segment_framing_alternate::decode(&buf)?;
+    let after: MessageRef = segment_framing_alternate::decode(&buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }
