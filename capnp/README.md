@@ -97,6 +97,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Fully decode message into ^^, all accesses are error free
 - [ ] Set list field in one message to list field from another message
 - [ ] Audit const usage (make them &'static?)
+- [x] Alternate "pretty" debug format
 - [ ] Cleanups
   - [ ] Rename the meta things to schema
 - [ ] Clean up codegen code structure

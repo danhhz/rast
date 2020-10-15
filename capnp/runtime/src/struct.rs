@@ -49,7 +49,7 @@ impl StructMeta {
 }
 
 /// A borrowed codegen'd Cap'n Proto struct
-pub trait TypedStruct<'a> {
+pub trait TypedStruct<'a>: Sized {
   /// The schema of this struct
   fn meta() -> &'static StructMeta;
   /// Returns an instance of this struct using the given data.
@@ -67,7 +67,7 @@ pub trait TypedStruct<'a> {
 }
 
 /// A reference-counted codegen'd Cap'n Proto struct
-pub trait TypedStructShared {
+pub trait TypedStructShared: Sized {
   /// The schema of this struct
   fn meta() -> &'static StructMeta;
   /// Returns an instance of this struct using the given data.

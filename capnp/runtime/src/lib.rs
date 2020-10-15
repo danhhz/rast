@@ -9,8 +9,8 @@
 //! code generator sibling project uses these to creates thin wrappers around
 //! this runtime library.
 //!
-//! [cap'n proto]: https://capnproto.org
-//! [schema language]: https://capnproto.org/language.html
+//! [cap'n proto]: https://capnproto.org [schema language]:
+//! https://capnproto.org/language.html
 //!
 //! A struct schema `Foo` outputs the following:
 //!  - A `Foo` struct with borrow semantics: This may be constructed from an
@@ -49,6 +49,34 @@
 //! - <a name="segment"></a> *[Segment]*: A flat blob of bytes (`[u8]`).
 //!
 //!   [segment]: https://capnproto.org/encoding.html#messages
+//!
+//! # fmt
+//!
+//! Each generated struct implements Debug.
+//!
+//! ```rust
+//! # mod samples;
+//! # use samples::rast_capnp::EntryShared;
+//! # fn main() {
+//! assert_eq!(
+//!   "(term = 1, index = 2, payload = [03, 04])",
+//!   format!("{:?}", EntryShared::new(1, 2, vec![3, 4].as_slice()).capnp_as_ref()),
+//! );
+//! # }
+//! ```
+//!
+//! The alternate flag can be used to pretty print.
+//!
+//! ```rust
+//! # mod samples;
+//! # use samples::rast_capnp::EntryShared;
+//! # fn main() {
+//! assert_eq!(
+//!   "(\n  term = 1,\n  index = 2,\n  payload = [03, 04],\n)",
+//!   format!("{:#?}", EntryShared::new(1, 2, vec![3, 4].as_slice()).capnp_as_ref()),
+//! );
+//! # }
+//! ```
 
 // TODO: message, object, value, primitive, pointer, type, blob, field, far
 //   pointer, landing pad, tag word, composite, list element, framing
