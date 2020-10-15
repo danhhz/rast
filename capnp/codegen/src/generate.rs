@@ -17,6 +17,7 @@ use crate::schema_capnp::{code_generator_request, field, node, type_, value};
 struct Field {
   doc_comment: Option<String>,
   name: String,
+  name_raw: String,
   type_: FieldTypeEnum,
   offset: u32,
 }
@@ -300,7 +301,7 @@ impl Struct {
     #[rustfmt::skip]
     write!(w, "  const {}_META: &'static {}FieldMeta = &{}FieldMeta {{\n",
       field.meta_name(), field.ftype().type_meta(), field.ftype().type_meta())?;
-    write!(w, "    name: \"{}\",\n", field.name)?;
+    write!(w, "    name: \"{}\",\n", field.name_raw)?;
     write!(w, "    offset: NumElements({}),\n", field.offset)?;
     match &field.type_ {
       FieldTypeEnum::Struct(_) => {
@@ -735,7 +736,8 @@ impl<'a> Generator<'a> {
   }
 
   fn field(&self, field: field::Reader<'a>, doc_comment: Option<String>) -> Result<Option<Field>> {
-    let name = Field::name(field.get_name()?);
+    let name_raw = field.get_name()?;
+    let name = Field::name(name_raw);
     let ret = match field.which()? {
       field::Which::Slot(slot) => {
         let field_type: FieldTypeEnum = match slot.get_type()?.which()? {
@@ -781,7 +783,13 @@ impl<'a> Generator<'a> {
           None => field_type,
         };
 
-        Field { name: name, doc_comment: doc_comment, type_: field_type, offset: slot.get_offset() }
+        Field {
+          name: name,
+          name_raw: name_raw.to_string(),
+          doc_comment: doc_comment,
+          type_: field_type,
+          offset: slot.get_offset(),
+        }
       }
       field::Which::Group(group) => {
         let type_name = self.names.get(&group.get_type_id()).expect("WIP");
@@ -795,7 +803,13 @@ impl<'a> Generator<'a> {
         let offset = union.discriminant_offset;
         let type_ =
           FieldTypeEnum::Union(UnionField { name: type_name.to_camel_case(), union: union });
-        Field { name: name, doc_comment: doc_comment, type_: type_, offset: offset }
+        Field {
+          name: name,
+          name_raw: name_raw.to_string(),
+          doc_comment: doc_comment,
+          type_: type_,
+          offset: offset,
+        }
       }
     };
 

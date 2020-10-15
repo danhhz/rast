@@ -7,20 +7,20 @@ pub struct TestAllTypes<'a> {
 
 impl<'a> TestAllTypes<'a> {
   const U_INT64_FIELD_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "u_int64_field",
+    name: "uInt64Field",
     offset: NumElements(3),
   };
   const DATA_FIELD_META: &'static DataFieldMeta = &DataFieldMeta {
-    name: "data_field",
+    name: "dataField",
     offset: NumElements(1),
   };
   const STRUCT_FIELD_META: &'static StructFieldMeta = &StructFieldMeta {
-    name: "struct_field",
+    name: "structField",
     offset: NumElements(2),
     meta: &TestAllTypes::META,
   };
   const STRUCT_LIST_META: &'static ListFieldMeta = &ListFieldMeta {
-    name: "struct_list",
+    name: "structList",
     offset: NumElements(17),
     meta: &ListMeta {
       value_type: ElementType::Struct(&TestAllTypes::META)

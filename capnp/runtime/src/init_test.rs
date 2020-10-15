@@ -16,7 +16,7 @@ mod test {
       Some(TestAllTypesShared::new(789, &[], None, &[])),
       vec![TestAllTypesShared::new(10, &[], None, &[])].as_slice(),
     );
-    let expected = "(u_int64_field = 123, data_field = [4, 5, 6], struct_field = (u_int64_field = 789), struct_list = [(u_int64_field = 10)])";
+    let expected = "(uInt64Field = 123, dataField = [04, 05, 06], structField = (uInt64Field = 789), structList = [(uInt64Field = 10)])";
     assert_eq!(format!("{:?}", message.capnp_as_ref()), expected);
     Ok(())
   }
@@ -24,7 +24,7 @@ mod test {
   #[test]
   fn init_rast() -> Result<(), Box<dyn error::Error>> {
     let entry = EntryShared::new(Term(9), Index(10), &[11, 12]);
-    assert_eq!(format!("{:?}", entry.capnp_as_ref()), "(term = 9, index = 10, payload = [11, 12])");
+    assert_eq!(format!("{:?}", entry.capnp_as_ref()), "(term = 9, index = 10, payload = [0b, 0c])");
     let entries = vec![entry, EntryShared::new(Term(13), Index(14), &[15])];
     let req = AppendEntriesReqShared::new(
       Term(3),
@@ -36,7 +36,7 @@ mod test {
       entries.as_slice(),
     );
     let message = MessageShared::new(NodeID(1), NodeID(2), PayloadShared::AppendEntriesReq(req));
-    let expected = "(src = 1, dest = 2, payload = (append_entries_req = (term = 3, leader_id = 4, prev_log_index = 5, prev_log_term = 6, leader_commit = 7, read_id = 8, entries = [(term = 9, index = 10, payload = [11, 12]), (term = 13, index = 14, payload = [15])])))";
+    let expected = "(src = 1, dest = 2, payload = (appendEntriesReq = (term = 3, leaderId = 4, prevLogIndex = 5, prevLogTerm = 6, leaderCommit = 7, readId = 8, entries = [(term = 9, index = 10, payload = [0b, 0c]), (term = 13, index = 14, payload = [0f])])))";
     assert_eq!(format!("{:?}", message.capnp_as_ref()), expected);
     Ok(())
   }

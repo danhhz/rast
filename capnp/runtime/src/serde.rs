@@ -97,8 +97,6 @@ impl<'a> Serialize for UnionElement<'a> {
 mod test {
   use serde_json;
   use std::error;
-  use std::fs::File;
-  use std::io::Read;
 
   use crate::samples::test_capnp::TestAllTypes;
   use capnp_runtime::prelude::*;
@@ -106,16 +104,9 @@ mod test {
 
   #[test]
   fn serialize_json() -> Result<(), Box<dyn error::Error>> {
-    let mut f = File::open("testdata/binary")?;
-    let mut buf = Vec::new();
-    f.read_to_end(&mut buf)?;
-    let message: TestAllTypes = segment_framing_official::decode(&buf)?;
-
-    let mut f = File::open("testdata/short.json")?;
-    let mut expected = Vec::new();
-    f.read_to_end(&mut expected)?;
-    let expected = String::from_utf8(expected)?;
-
+    let buf = include_bytes!("../testdata/binary");
+    let message: TestAllTypes = segment_framing_official::decode(buf)?;
+    let expected = include_str!("../testdata/short.json");
     let actual = serde_json::ser::to_string(&message.as_element())?;
     assert_eq!(actual, expected);
     Ok(())

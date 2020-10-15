@@ -257,23 +257,23 @@ impl<'a> AppendEntriesReq<'a> {
     offset: NumElements(0),
   };
   const LEADER_ID_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "leader_id",
+    name: "leaderId",
     offset: NumElements(1),
   };
   const PREV_LOG_INDEX_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "prev_log_index",
+    name: "prevLogIndex",
     offset: NumElements(2),
   };
   const PREV_LOG_TERM_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "prev_log_term",
+    name: "prevLogTerm",
     offset: NumElements(3),
   };
   const LEADER_COMMIT_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "leader_commit",
+    name: "leaderCommit",
     offset: NumElements(4),
   };
   const READ_ID_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "read_id",
+    name: "readId",
     offset: NumElements(5),
   };
   const ENTRIES_META: &'static ListFieldMeta = &ListFieldMeta {
@@ -423,7 +423,7 @@ impl<'a> AppendEntriesRes<'a> {
     offset: NumElements(2),
   };
   const READ_ID_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "read_id",
+    name: "readId",
     offset: NumElements(3),
   };
 
@@ -543,15 +543,15 @@ impl<'a> RequestVoteReq<'a> {
     offset: NumElements(0),
   };
   const CANDIDATE_ID_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "candidate_id",
+    name: "candidateId",
     offset: NumElements(1),
   };
   const LAST_LOG_INDEX_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "last_log_index",
+    name: "lastLogIndex",
     offset: NumElements(2),
   };
   const LAST_LOG_TERM_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "last_log_term",
+    name: "lastLogTerm",
     offset: NumElements(3),
   };
 
@@ -671,7 +671,7 @@ impl<'a> RequestVoteRes<'a> {
     offset: NumElements(0),
   };
   const VOTE_GRANTED_META: &'static U64FieldMeta = &U64FieldMeta {
-    name: "vote_granted",
+    name: "voteGranted",
     offset: NumElements(1),
   };
 
@@ -882,27 +882,27 @@ pub enum Payload<'a> {
 
 impl Payload<'_> {
   const APPEND_ENTRIES_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
-    name: "append_entries_req",
+    name: "appendEntriesReq",
     offset: NumElements(0),
     meta: &AppendEntriesReq::META,
   };
   const APPEND_ENTRIES_RES_META: &'static StructFieldMeta = &StructFieldMeta {
-    name: "append_entries_res",
+    name: "appendEntriesRes",
     offset: NumElements(0),
     meta: &AppendEntriesRes::META,
   };
   const REQUEST_VOTE_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
-    name: "request_vote_req",
+    name: "requestVoteReq",
     offset: NumElements(0),
     meta: &RequestVoteReq::META,
   };
   const REQUEST_VOTE_RES_META: &'static StructFieldMeta = &StructFieldMeta {
-    name: "request_vote_res",
+    name: "requestVoteRes",
     offset: NumElements(0),
     meta: &RequestVoteRes::META,
   };
   const START_ELECTION_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
-    name: "start_election_req",
+    name: "startElectionReq",
     offset: NumElements(0),
     meta: &StartElectionReq::META,
   };

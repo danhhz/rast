@@ -120,23 +120,17 @@ impl<'a> cmp::PartialEq for UnionMeta {
 mod test {
   use std::cmp::Ordering;
   use std::error;
-  use std::fs::File;
-  use std::io::Read;
 
   use crate::samples::test_capnp::TestAllTypes;
   use capnp_runtime::segment_framing_official;
 
   #[test]
   fn cmp_equal() -> Result<(), Box<dyn error::Error>> {
-    let mut f = File::open("testdata/binary")?;
-    let mut buf = Vec::new();
-    f.read_to_end(&mut buf)?;
-    let binary: TestAllTypes = segment_framing_official::decode(&buf)?;
+    let buf = include_bytes!("../testdata/binary");
+    let binary: TestAllTypes = segment_framing_official::decode(buf)?;
 
-    let mut f = File::open("testdata/segmented")?;
-    let mut buf = Vec::new();
-    f.read_to_end(&mut buf)?;
-    let segmented: TestAllTypes = segment_framing_official::decode(&buf)?;
+    let buf = include_bytes!("../testdata/segmented");
+    let segmented: TestAllTypes = segment_framing_official::decode(buf)?;
 
     assert_eq!(binary.partial_cmp(&segmented), Some(Ordering::Equal));
     assert_eq!(binary == segmented, true);

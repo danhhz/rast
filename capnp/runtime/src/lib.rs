@@ -49,6 +49,34 @@
 //! - <a name="segment"></a> *[Segment]*: A flat blob of bytes (`[u8]`).
 //!
 //!   [segment]: https://capnproto.org/encoding.html#messages
+//!
+//! # fmt
+//!
+//! Each generated struct implements Debug.
+//!
+//! ```rust
+//! # mod samples;
+//! # use samples::rast_capnp::{EntryShared, Term, Index};
+//! # fn main() {
+//! assert_eq!(
+//!   "(term = 1, index = 2, payload = [03, 04])",
+//!   format!("{:?}", EntryShared::new(Term(1), Index(2), vec![3, 4].as_slice()).capnp_as_ref()),
+//! );
+//! # }
+//! ```
+//!
+//! The alternate flag can be used to pretty print.
+//!
+//! ```rust
+//! # mod samples;
+//! # use samples::rast_capnp::{EntryShared, Term, Index};
+//! # fn main() {
+//! assert_eq!(
+//!   "(\n  term = 1,\n  index = 2,\n  payload = [03, 04],\n)",
+//!   format!("{:#?}", EntryShared::new(Term(1), Index(2), vec![3, 4].as_slice()).capnp_as_ref()),
+//! );
+//! # }
+//! ```
 
 // TODO: message, object, value, primitive, pointer, type, blob, field, far
 //   pointer, landing pad, tag word, composite, list element, framing

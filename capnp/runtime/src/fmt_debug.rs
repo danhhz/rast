@@ -1,6 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
-use std::fmt;
+use std::fmt::{self, Write};
+use std::str;
 
 use crate::common::CapnpAsRef;
 use crate::element::{
@@ -44,7 +45,24 @@ impl<'a> fmt::Debug for Element<'a> {
 
 impl<'a> fmt::Debug for DataElement<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    self.0.fmt(f)
+    match str::from_utf8(self.0) {
+      // Attempt to print the bytes as a string if that seems "reasonable".
+      Ok(x) if x.chars().all(|x| x.is_alphanumeric()) => x.fmt(f),
+      // Otherwise print it as hex. This disagrees with the official capnp
+      // format, which prints all bytes types as strings.
+      _ => {
+        f.write_str("[")?;
+        let mut first_value = true;
+        for x in self.0 {
+          if !first_value {
+            f.write_str(", ")?;
+          }
+          first_value = false;
+          write!(f, "{:02x}", x)?;
+        }
+        f.write_str("]")
+      }
+    }
   }
 }
 
@@ -57,18 +75,35 @@ impl<'a> fmt::Debug for StructElement<'a> {
       if field_meta.is_null(untyped) {
         continue;
       }
-      if has_fields {
-        f.write_str(", ")?;
-      }
+      let first_field = !has_fields;
       has_fields = true;
-      f.write_str(field_meta.name())?;
-      f.write_str(" = ")?;
-      match field_meta.get_element(untyped) {
-        Ok(x) => x.fmt(f)?,
-        x => x.fmt(f)?,
-      };
+      if f.alternate() {
+        f.write_str("\n")?;
+        let mut writer = PaddedWriter::new(f);
+        writer.write_str(field_meta.name())?;
+        writer.write_str(" = ")?;
+        match field_meta.get_element(untyped) {
+          Ok(x) => write!(&mut writer, "{:#?}", x)?,
+          x => write!(&mut writer, "{:#?}", x)?,
+        };
+        writer.write_str(",")?;
+      } else {
+        if !first_field {
+          f.write_str(", ")?;
+        }
+        f.write_str(field_meta.name())?;
+        f.write_str(" = ")?;
+        match field_meta.get_element(untyped) {
+          Ok(x) => x.fmt(f)?,
+          x => x.fmt(f)?,
+        };
+      }
     }
-    f.write_str(")")
+    if f.alternate() {
+      f.write_str("\n)")
+    } else {
+      f.write_str(")")
+    }
   }
 }
 
@@ -116,5 +151,72 @@ impl<'a> fmt::Debug for UnionElement<'a> {
       }
       None => UnknownDiscriminant(*discriminant, meta.name).fmt(f),
     }
+  }
+}
+
+// The following is forked from the rust stdlib PadAdapter.
+
+struct PaddedWriter<'a, 'b> {
+  fmt: &'b mut fmt::Formatter<'a>,
+  on_newline: bool,
+}
+
+impl<'a, 'b> PaddedWriter<'a, 'b> {
+  fn new(fmt: &'b mut fmt::Formatter<'a>) -> Self {
+    PaddedWriter { fmt: fmt, on_newline: true }
+  }
+}
+
+impl fmt::Write for PaddedWriter<'_, '_> {
+  fn write_str(&mut self, mut s: &str) -> fmt::Result {
+    while !s.is_empty() {
+      if self.on_newline {
+        self.fmt.write_str("  ")?;
+      }
+
+      let split = match s.find('\n') {
+        Some(pos) => {
+          self.on_newline = true;
+          pos + 1
+        }
+        None => {
+          self.on_newline = false;
+          s.len()
+        }
+      };
+      self.fmt.write_str(&s[..split])?;
+      s = &s[split..];
+    }
+
+    Ok(())
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use std::error;
+
+  use crate::samples::test_capnp::TestAllTypes;
+
+  use capnp_runtime::segment_framing_official;
+
+  #[test]
+  fn fmt_debug_short() -> Result<(), Box<dyn error::Error>> {
+    let buf = include_bytes!("../testdata/binary");
+    let message: TestAllTypes = segment_framing_official::decode(buf)?;
+    let expected = include_str!("../testdata/short.txt");
+    assert_eq!(format!("{:?}", message), expected);
+    Ok(())
+  }
+
+  #[test]
+  fn fmt_debug_pretty() -> Result<(), Box<dyn error::Error>> {
+    let buf = include_bytes!("../testdata/binary");
+    let message: TestAllTypes = segment_framing_official::decode(buf)?;
+    // TODO: This doesn't exactly match the official capnp pretty format, which
+    // does some work to smush things on one line if they fit.
+    let expected = include_str!("../testdata/pretty.txt");
+    assert_eq!(format!("{:#?}", message), expected);
+    Ok(())
   }
 }
