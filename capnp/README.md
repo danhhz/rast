@@ -86,7 +86,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Implement canonicalization
 - [ ] Default values
 - [ ] Copy struct without knowing type
-- [ ] Packing
+- [x] Packing
 - [ ] Replace Vec in list in/out types with iterators
 - [ ] Accept Struct or &Struct in constructor (same for struct lists)
 - [ ] Wrapped fields
