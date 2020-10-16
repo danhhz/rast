@@ -99,6 +99,7 @@ mod error;
 mod field_meta;
 mod fmt_debug;
 mod list;
+pub mod packed;
 mod pointer;
 mod segment;
 pub mod segment_framing_alternate;
