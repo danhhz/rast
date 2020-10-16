@@ -986,8 +986,9 @@ impl State {
     // If an existing entry conflicts with a new one (same index but different
     // terms), delete the existing entry and all that follow it (§5.3). Append
     // any new entries not already in the log
-    let entries: Vec<_> = req.entries().expect("WIP");
+    let entries = req.entries().expect("WIP");
     if entries.len() > 0 {
+      let entries = entries.iter().collect::<Vec<_>>();
       follower.shared.log.extend(&entries);
       let msg = PersistReq {
         leader_id: NodeID(req.leader_id()),

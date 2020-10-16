@@ -144,7 +144,7 @@ mod test {
 
   #[test]
   fn packed_read() -> Result<(), Box<dyn Error>> {
-    assert_eq!(unpack(&[])?, vec![]);
+    assert_eq!(unpack(&[])?, vec![0; 0]);
     assert_eq!(unpack(&[0, 0])?, vec![0; 8]);
     assert_eq!(unpack(&[0, 1])?, vec![0; 16]);
     assert_eq!(unpack(&[0, 3])?, vec![0; 32]);

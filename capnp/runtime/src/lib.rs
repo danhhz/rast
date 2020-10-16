@@ -81,7 +81,7 @@
 // TODO: message, object, value, primitive, pointer, type, blob, field, far
 //   pointer, landing pad, tag word, composite, list element, framing
 
-#![warn(missing_docs, unsafe_code)]
+#![warn(/*missing_docs,*/ unsafe_code)]
 #![warn(
   clippy::correctness,
   clippy::perf,
@@ -106,6 +106,7 @@ mod segment;
 pub mod segment_framing_alternate;
 pub mod segment_framing_official;
 mod segment_pointer;
+pub mod slice;
 mod r#struct;
 mod union;
 
@@ -126,6 +127,7 @@ pub mod prelude {
     StructMeta, TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned,
     UntypedStructShared,
   };
+  pub use crate::slice::Slice;
   pub use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UnionVariantMeta, UntypedUnion};
 }
 

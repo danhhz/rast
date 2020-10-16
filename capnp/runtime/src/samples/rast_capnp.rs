@@ -311,7 +311,7 @@ impl<'a> AppendEntriesReq<'a> {
 
   pub fn read_id(&self) -> u64 { AppendEntriesReq::READ_ID_META.get(&self.data) }
 
-  pub fn entries(&self) -> Result<Vec<Entry<'a>>, Error> { AppendEntriesReq::ENTRIES_META.get(&self.data) }
+  pub fn entries(&self) -> Result<Slice<'a, Entry<'a>>, Error> { AppendEntriesReq::ENTRIES_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> AppendEntriesReqShared {
     AppendEntriesReqShared { data: self.data.capnp_to_owned() }
