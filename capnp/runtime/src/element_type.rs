@@ -5,6 +5,7 @@ use crate::element::{Element, StructElement};
 use crate::error::Error;
 use crate::list::{ListMeta, TypedList, UntypedList};
 use crate::r#struct::{StructMeta, UntypedStruct};
+use crate::slice::Slice;
 use crate::union::UnionMeta;
 
 /// Schema for a Cap'n Proto [element]
@@ -43,12 +44,12 @@ impl ElementType {
   /// Intreprets the given encoded list as elements of this type.
   pub fn to_element_list<'a>(&self, untyped: &UntypedList<'a>) -> Result<Vec<Element<'a>>, Error> {
     match self {
-      ElementType::U8 => Vec::<u8>::from_untyped_list(untyped)
+      ElementType::U8 => Slice::<u8>::from_untyped_list(untyped)
         .map(|xs| xs.into_iter().map(|x| Element::U8(x)).collect()),
-      ElementType::U64 => Vec::<u64>::from_untyped_list(untyped)
+      ElementType::U64 => Slice::<u64>::from_untyped_list(untyped)
         .map(|xs| xs.into_iter().map(|x| Element::U64(x)).collect()),
       ElementType::Data => todo!(),
-      ElementType::Struct(meta) => Vec::<UntypedStruct<'a>>::from_untyped_list(untyped)
+      ElementType::Struct(meta) => Slice::<UntypedStruct<'a>>::from_untyped_list(untyped)
         .map(|xs| xs.into_iter().map(|x| Element::Struct(StructElement(meta, x))).collect()),
       ElementType::List(_) => todo!(),
       ElementType::Union(_) => todo!(),

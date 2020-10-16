@@ -220,7 +220,7 @@ impl FieldType for ListField {
     None
   }
   fn type_out(&self) -> String {
-    format!("Vec<{}>", self.wrapped.ftype().type_out())
+    format!("Slice<'a, {}>", self.wrapped.ftype().type_out())
   }
   fn type_out_result(&self) -> bool {
     true
@@ -232,7 +232,7 @@ impl FieldType for ListField {
     false
   }
   fn type_owned(&self) -> String {
-    format!("Vec<<{}>>", self.wrapped.ftype().type_in())
+    format!("Slice<'a, <{}>>", self.wrapped.ftype().type_in())
   }
   fn type_meta(&self) -> String {
     "List".to_string()

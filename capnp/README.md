@@ -87,7 +87,8 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Default values
 - [ ] Copy struct without knowing type
 - [ ] Packing
-- [ ] Replace Vec in list in/out types with iterators
+- [ ] Replace Vec in list in types with iterators
+- [x] Replace Vec in list out types with iterators
 - [ ] Accept Struct or &Struct in constructor (same for struct lists)
 - [x] Wrapped primitive fields
 - [ ] Match up API naming with the official capnp

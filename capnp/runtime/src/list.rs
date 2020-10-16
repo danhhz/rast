@@ -17,6 +17,7 @@ use crate::r#struct::{
   TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned, UntypedStructShared,
 };
 use crate::segment_pointer::{SegmentPointer, SegmentPointerBorrowMut, SegmentPointerShared};
+use crate::slice::Slice;
 
 /// Metadata for intrepreting an encoded Cap'n Proto list
 ///
@@ -32,7 +33,7 @@ pub trait TypedList<'a>: Sized {
   fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error>;
 }
 
-impl<'a, T: TypedListElement<'a>> TypedList<'a> for Vec<T> {
+impl<'a, T: TypedListElement<'a>> TypedList<'a> for Slice<'a, T> {
   fn from_untyped_list(untyped: &UntypedList<'a>) -> Result<Self, Error> {
     untyped.list()
   }

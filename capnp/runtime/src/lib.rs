@@ -76,6 +76,7 @@ mod segment;
 pub mod segment_framing_alternate;
 pub mod segment_framing_official;
 mod segment_pointer;
+pub mod slice;
 mod r#struct;
 mod union;
 
@@ -94,6 +95,7 @@ pub mod prelude {
     StructMeta, TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned,
     UntypedStructShared,
   };
+  pub use crate::slice::Slice;
   pub use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UnionVariantMeta, UntypedUnion};
 }
 

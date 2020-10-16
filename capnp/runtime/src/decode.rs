@@ -15,6 +15,7 @@ use crate::pointer::{
 use crate::r#struct::UntypedStruct;
 use crate::segment::{SegmentBorrowed, SegmentID};
 use crate::segment_pointer::SegmentPointer;
+use crate::slice::Slice;
 use crate::union::UntypedUnion;
 
 pub(crate) trait SegmentPointerDecode<'a>: Sized {
@@ -272,7 +273,7 @@ pub(crate) trait ListDecode<'a> {
     self.pointer_end().add(self.pointer().off)
   }
 
-  fn list<T: TypedListElement<'a>>(&self) -> Result<Vec<T>, Error> {
+  fn list<T: TypedListElement<'a>>(&self) -> Result<Slice<'a, T>, Error> {
     match T::decoding() {
       ListElementDecoding::Packed(element_type, decode) => self.packed_list(element_type, decode),
       ListElementDecoding::Composite(from_untyped_struct) => {
@@ -285,11 +286,11 @@ pub(crate) trait ListDecode<'a> {
     &self,
     element_type: ElementType,
     decode: fn(&SegmentPointer<'a>, NumElements) -> T,
-  ) -> Result<Vec<T>, Error> {
+  ) -> Result<Slice<'a, T>, Error> {
     let num_elements = match &self.pointer().layout {
       ListLayout::Packed(NumElements(0), ElementWidth::Void) => {
         // NB: NumElements(0), ElementWidth::Void is a null pointer.
-        return Ok(vec![]);
+        return Ok(Slice::empty());
       }
       ListLayout::Packed(num_elements, width) => {
         if width != &element_type.width() {
@@ -309,21 +310,17 @@ pub(crate) trait ListDecode<'a> {
       }
     };
     let list_data_begin = self.list_data_begin();
-    let mut ret = Vec::new();
-    for idx in 0..num_elements.0 {
-      ret.push(decode(&list_data_begin, NumElements(idx)));
-    }
-    Ok(ret)
+    Ok(Slice::packed(*num_elements, list_data_begin, decode))
   }
 
   fn composite_list<T>(
     &self,
     from_untyped_struct: fn(UntypedStruct<'a>) -> T,
-  ) -> Result<Vec<T>, Error> {
+  ) -> Result<Slice<'a, T>, Error> {
     let pointer_declared_len = match &self.pointer().layout {
       ListLayout::Packed(NumElements(0), ElementWidth::Void) => {
         // NB: NumElements(0), ElementWidth::Void is a null pointer.
-        return Ok(vec![]);
+        return Ok(Slice::empty());
       }
       ListLayout::Composite(num_words) => *num_words,
       x => {
@@ -339,13 +336,6 @@ pub(crate) trait ListDecode<'a> {
       )));
     }
 
-    let mut ret = Vec::with_capacity(tag.num_elements.0 as usize);
-    for idx in 0..tag.num_elements.0 {
-      let offset_w = (tag.data_size + tag.pointer_size) * NumElements(idx);
-      let pointer =
-        StructPointer { off: offset_w, data_size: tag.data_size, pointer_size: tag.pointer_size };
-      ret.push(from_untyped_struct(UntypedStruct::new(pointer, tag_end.clone())));
-    }
-    Ok(ret)
+    Ok(Slice::composite(tag, tag_end, from_untyped_struct))
   }
 }

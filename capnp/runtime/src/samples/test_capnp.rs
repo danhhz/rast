@@ -45,7 +45,7 @@ impl<'a> TestAllTypes<'a> {
 
   pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> { TestAllTypes::STRUCT_FIELD_META.get(&self.data) }
 
-  pub fn struct_list(&self) -> Result<Vec<TestAllTypes<'a>>, Error> { TestAllTypes::STRUCT_LIST_META.get(&self.data) }
+  pub fn struct_list(&self) -> Result<Slice<'a, TestAllTypes<'a>>, Error> { TestAllTypes::STRUCT_LIST_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> TestAllTypesShared {
     TestAllTypesShared { data: self.data.capnp_to_owned() }

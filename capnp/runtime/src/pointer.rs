@@ -180,7 +180,7 @@ impl FarPointer {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListCompositeTag {
   pub num_elements: NumElements,
   pub data_size: NumWords,
