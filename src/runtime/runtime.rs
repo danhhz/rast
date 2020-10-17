@@ -134,7 +134,7 @@ impl Runtime {
           let msg = PersistRes {
             leader_id: req.leader_id,
             read_id: req.read_id,
-            log_index: Index(req.entries.last().unwrap().capnp_as_ref().index()),
+            log_index: req.entries.last().unwrap().capnp_as_ref().index(),
           };
           cmds.push_back(Input::PersistRes(msg).into());
         }
@@ -146,7 +146,7 @@ impl Runtime {
           cmds.push_back(Input::ReadStateMachineRes(msg).into());
         }
         Output::Message(message) => {
-          let dest = NodeID(message.capnp_as_ref().dest());
+          let dest = message.capnp_as_ref().dest();
           let conn = conns.entry(dest).or_insert_with(|| rpc.dial(dest));
           conn.send(message.capnp_as_ref());
         }

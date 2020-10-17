@@ -1,6 +1,6 @@
 ( nodes = [
     ( id = 16874471828495282811,
-      displayName = "codegen/src/samples/rast.capnp",
+      displayName = "runtime/src/samples/rast.capnp",
       displayNamePrefixLength = 25,
       scopeId = 0,
       nestedNodes = [
@@ -27,7 +27,7 @@
       file = void,
       isGeneric = false ),
     ( id = 18130567482446939652,
-      displayName = "codegen/src/samples/rast.capnp:newType",
+      displayName = "runtime/src/samples/rast.capnp:newType",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -47,7 +47,7 @@
         targetsAnnotation = false ),
       isGeneric = false ),
     ( id = 10717728920622891826,
-      displayName = "codegen/src/samples/rast.capnp:Entry",
+      displayName = "runtime/src/samples/rast.capnp:Entry",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -63,8 +63,7 @@
             codeOrder = 0,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Term" ),
+                value = (text = "Term"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -77,8 +76,7 @@
             codeOrder = 1,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Index" ),
+                value = (text = "Index"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -98,7 +96,7 @@
             ordinal = (explicit = 2) ) ] ),
       isGeneric = false ),
     ( id = 18094119717735953140,
-      displayName = "codegen/src/samples/rast.capnp:foo",
+      displayName = "runtime/src/samples/rast.capnp:foo",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -110,7 +108,7 @@
           struct = <opaque pointer> ) ),
       isGeneric = false ),
     ( id = 13452895597489961930,
-      displayName = "codegen/src/samples/rast.capnp:Message",
+      displayName = "runtime/src/samples/rast.capnp:Message",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -126,8 +124,7 @@
             codeOrder = 0,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::NodeID" ),
+                value = (text = "NodeID"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -140,8 +137,7 @@
             codeOrder = 1,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::NodeID" ),
+                value = (text = "NodeID"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -158,7 +154,7 @@
             ordinal = (implicit = void) ) ] ),
       isGeneric = false ),
     ( id = 14030475471173032715,
-      displayName = "codegen/src/samples/rast.capnp:bar",
+      displayName = "runtime/src/samples/rast.capnp:bar",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -170,7 +166,7 @@
           struct = <opaque pointer> ) ),
       isGeneric = false ),
     ( id = 16140508695499817341,
-      displayName = "codegen/src/samples/rast.capnp:AppendEntriesReq",
+      displayName = "runtime/src/samples/rast.capnp:AppendEntriesReq",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -186,8 +182,7 @@
             codeOrder = 0,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Term" ),
+                value = (text = "Term"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -200,8 +195,7 @@
             codeOrder = 1,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::NodeID" ),
+                value = (text = "NodeID"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -214,8 +208,7 @@
             codeOrder = 2,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Index" ),
+                value = (text = "Index"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -228,8 +221,7 @@
             codeOrder = 3,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Term" ),
+                value = (text = "Term"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -242,8 +234,7 @@
             codeOrder = 4,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Index" ),
+                value = (text = "Index"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -256,8 +247,7 @@
             codeOrder = 5,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::ReadID" ),
+                value = (text = "ReadID"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -281,7 +271,7 @@
             ordinal = (explicit = 6) ) ] ),
       isGeneric = false ),
     ( id = 16272961686722197015,
-      displayName = "codegen/src/samples/rast.capnp:AppendEntriesRes",
+      displayName = "runtime/src/samples/rast.capnp:AppendEntriesRes",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -297,8 +287,7 @@
             codeOrder = 0,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Term" ),
+                value = (text = "Term"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -320,8 +309,7 @@
             codeOrder = 2,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Index" ),
+                value = (text = "Index"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -334,8 +322,7 @@
             codeOrder = 3,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::ReadID" ),
+                value = (text = "ReadID"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -346,7 +333,7 @@
             ordinal = (explicit = 3) ) ] ),
       isGeneric = false ),
     ( id = 12776182069474766313,
-      displayName = "codegen/src/samples/rast.capnp:RequestVoteReq",
+      displayName = "runtime/src/samples/rast.capnp:RequestVoteReq",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -362,8 +349,7 @@
             codeOrder = 0,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Term" ),
+                value = (text = "Term"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -376,8 +362,7 @@
             codeOrder = 1,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::NodeID" ),
+                value = (text = "NodeID"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -390,8 +375,7 @@
             codeOrder = 2,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Index" ),
+                value = (text = "Index"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -404,8 +388,7 @@
             codeOrder = 3,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Term" ),
+                value = (text = "Term"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -416,7 +399,7 @@
             ordinal = (explicit = 3) ) ] ),
       isGeneric = false ),
     ( id = 15421694966296231756,
-      displayName = "codegen/src/samples/rast.capnp:RequestVoteRes",
+      displayName = "runtime/src/samples/rast.capnp:RequestVoteRes",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -432,8 +415,7 @@
             codeOrder = 0,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Term" ),
+                value = (text = "Term"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -453,7 +435,7 @@
             ordinal = (explicit = 1) ) ] ),
       isGeneric = false ),
     ( id = 15064074613835076056,
-      displayName = "codegen/src/samples/rast.capnp:StartElectionReq",
+      displayName = "runtime/src/samples/rast.capnp:StartElectionReq",
       displayNamePrefixLength = 31,
       scopeId = 16874471828495282811,
       nestedNodes = [],
@@ -469,8 +451,7 @@
             codeOrder = 0,
             annotations = [
               ( id = 18130567482446939652,
-                value = (
-                  text = "crate::serde::Term" ),
+                value = (text = "Term"),
                 brand = () ) ],
             discriminantValue = 65535,
             slot = (
@@ -481,7 +462,7 @@
             ordinal = (explicit = 0) ) ] ),
       isGeneric = false ),
     ( id = 10884016977193442101,
-      displayName = "codegen/src/samples/rast.capnp:Message.payload",
+      displayName = "runtime/src/samples/rast.capnp:Message.payload",
       displayNamePrefixLength = 39,
       scopeId = 13452895597489961930,
       struct = (
@@ -555,7 +536,7 @@
       isGeneric = false ) ],
   requestedFiles = [
     ( id = 16874471828495282811,
-      filename = "codegen/src/samples/rast.capnp",
+      filename = "runtime/src/samples/rast.capnp",
       imports = [] ) ],
   capnpVersion = (major = 0, minor = 8, micro = 0),
   sourceInfo = [

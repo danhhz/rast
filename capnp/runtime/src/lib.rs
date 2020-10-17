@@ -56,11 +56,11 @@
 //!
 //! ```rust
 //! # mod samples;
-//! # use samples::rast_capnp::EntryShared;
+//! # use samples::rast_capnp::{EntryShared, Term, Index};
 //! # fn main() {
 //! assert_eq!(
 //!   "(term = 1, index = 2, payload = [03, 04])",
-//!   format!("{:?}", EntryShared::new(1, 2, vec![3, 4].as_slice()).capnp_as_ref()),
+//!   format!("{:?}", EntryShared::new(Term(1), Index(2), vec![3, 4].as_slice()).capnp_as_ref()),
 //! );
 //! # }
 //! ```
@@ -69,11 +69,11 @@
 //!
 //! ```rust
 //! # mod samples;
-//! # use samples::rast_capnp::EntryShared;
+//! # use samples::rast_capnp::{EntryShared, Term, Index};
 //! # fn main() {
 //! assert_eq!(
 //!   "(\n  term = 1,\n  index = 2,\n  payload = [03, 04],\n)",
-//!   format!("{:#?}", EntryShared::new(1, 2, vec![3, 4].as_slice()).capnp_as_ref()),
+//!   format!("{:#?}", EntryShared::new(Term(1), Index(2), vec![3, 4].as_slice()).capnp_as_ref()),
 //! );
 //! # }
 //! ```

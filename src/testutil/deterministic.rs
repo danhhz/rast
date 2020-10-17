@@ -252,7 +252,7 @@ fn drain_outputs(nodes: &mut HashMap<NodeID, &mut DeterministicNode>) {
     }
   }
   for msg in rpcs.drain(..) {
-    let dest = NodeID(msg.capnp_as_ref().dest());
+    let dest = msg.capnp_as_ref().dest();
     nodes
       .get_mut(&dest)
       .iter_mut()

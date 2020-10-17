@@ -5,6 +5,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::iter::Extend;
 use std::time::{Duration, Instant};
 
+use capnp_runtime::slice::Slice;
+
 use super::compressed_log::CompressedLog;
 pub use super::error::*;
 pub use super::future::*;
@@ -317,9 +319,9 @@ impl Raft {
   /// Instruct the (possibly remote) node to gracefully become the new leader.
   pub fn start_election(&mut self, output: &mut impl Extend<Output>, new_leader: NodeID) {
     let current_term = self.state_ref().shared().current_term;
-    let msg = PayloadShared::StartElectionReq(StartElectionReqShared::new(current_term.0));
-    let msg = MessageShared::new(self.id().0, new_leader.0, msg);
-    if NodeID(msg.capnp_as_ref().dest()) == self.id() {
+    let msg = PayloadShared::StartElectionReq(StartElectionReqShared::new(current_term));
+    let msg = MessageShared::new(self.id(), new_leader, msg);
+    if msg.capnp_as_ref().dest() == self.id() {
       self.step(output, Input::Message(msg.capnp_as_ref()));
     } else {
       output.extend(vec![Output::Message(msg)]);
@@ -585,17 +587,14 @@ impl State {
       .enumerate()
       .map(|(offset, (payload, res))| {
         let entry = EntryShared::new(
-          leader.shared.current_term.0,
-          (prev_log_index + offset as u64 + 1).0,
+          leader.shared.current_term,
+          prev_log_index + offset as u64 + 1,
           &payload,
         );
         let entry_ref: Entry = entry.capnp_as_ref();
-        debug_assert!(leader
-          .write_buffer
-          .get(&(Term(entry_ref.term()), Index(entry_ref.index())))
-          .is_none());
+        debug_assert!(leader.write_buffer.get(&(entry_ref.term(), entry_ref.index())).is_none());
         if let Some(res) = res {
-          leader.write_buffer.insert((Term(entry_ref.term()), Index(entry_ref.index())), res);
+          leader.write_buffer.insert((entry_ref.term(), entry_ref.index()), res);
         }
         entry
       })
@@ -614,12 +613,12 @@ impl State {
       leader = State::ack_term_index(leader, output, id, prev_log_index, read_id);
     }
     let payload = PayloadShared::AppendEntriesReq(AppendEntriesReqShared::new(
-      leader.shared.current_term.0,
-      leader.shared.id.0,
-      prev_log_index.0,
-      prev_log_term.0,
-      leader.shared.commit_index.0,
-      read_id.0,
+      leader.shared.current_term,
+      leader.shared.id,
+      prev_log_index,
+      prev_log_term,
+      leader.shared.commit_index,
+      read_id,
       &entries,
     ));
     State::message_to_all_other_nodes(&leader.shared, output, payload);
@@ -769,12 +768,12 @@ impl State {
 
   fn persist_res(self, output: &mut impl Extend<Output>, res: PersistRes) -> State {
     let payload = PayloadShared::AppendEntriesRes(AppendEntriesResShared::new(
-      self.shared().current_term.0,
+      self.shared().current_term,
       1, // WIP true
-      res.log_index.0,
-      res.read_id.0,
+      res.log_index,
+      res.read_id,
     ));
-    let msg = MessageShared::new(self.id().0, res.leader_id.0, payload);
+    let msg = MessageShared::new(self.id(), res.leader_id, payload);
     if msg.capnp_as_ref().src() == msg.capnp_as_ref().dest() {
       return State::step(self, output, Input::Message(msg.capnp_as_ref()));
     }
@@ -833,11 +832,11 @@ impl State {
     {
       let mut shared = self.shared_mut();
       let term = match &message.payload().expect("WIP").expect("WIP") {
-        Payload::AppendEntriesReq(req) => Term(req.term()),
-        Payload::AppendEntriesRes(res) => Term(res.term()),
-        Payload::RequestVoteReq(req) => Term(req.term()),
-        Payload::RequestVoteRes(res) => Term(res.term()),
-        Payload::StartElectionReq(req) => Term(req.term()),
+        Payload::AppendEntriesReq(req) => req.term(),
+        Payload::AppendEntriesRes(res) => res.term(),
+        Payload::RequestVoteReq(req) => req.term(),
+        Payload::RequestVoteRes(res) => res.term(),
+        Payload::StartElectionReq(req) => req.term(),
       };
       if term > shared.current_term {
         // All Servers: If rpc request or response contains term T >
@@ -847,7 +846,7 @@ impl State {
         shared.voted_for = None;
         // TODO: do we really convert to follower on a RequestVoteReq with a
         // higher term?
-        self = State::Follower(self.convert_to_follower(output, NodeID(message.src())));
+        self = State::Follower(self.convert_to_follower(output, message.src()));
       }
     }
     match self {
@@ -867,18 +866,17 @@ impl State {
         State::candidate_process_request_vote_res(candidate, output, res)
       }
       Payload::AppendEntriesReq(req) => {
-        if Term(req.term()) > candidate.shared.current_term {
+        if req.term() > candidate.shared.current_term {
           // Candidates (§5.2): If AppendEntries rpc received from new leader:
           // convert to follower
-          let follower =
-            State::candidate_convert_to_follower(candidate, output, NodeID(message.src()));
+          let follower = State::candidate_convert_to_follower(candidate, output, message.src());
           return State::Follower(follower).step(output, Input::Message(message));
         }
         State::Candidate(candidate)
       }
       Payload::RequestVoteReq(req) => State::Candidate(candidate).process_request_vote(output, req),
       Payload::StartElectionReq(req) => {
-        if Term(req.term()) < candidate.shared.current_term {
+        if req.term() < candidate.shared.current_term {
           // Stale request, ignore.
           return State::Candidate(candidate);
         }
@@ -905,7 +903,7 @@ impl State {
         State::Follower(follower)
       }
       Payload::StartElectionReq(req) => {
-        if Term(req.term()) < follower.shared.current_term {
+        if req.term() < follower.shared.current_term {
           // Stale request, ignore.
           return State::Follower(follower);
         }
@@ -925,7 +923,7 @@ impl State {
   ) -> State {
     match message.payload().expect("WIP").expect("WIP") {
       Payload::AppendEntriesRes(res) => {
-        State::Leader(State::leader_append_entries_res(leader, output, NodeID(message.src()), res))
+        State::Leader(State::leader_append_entries_res(leader, output, message.src(), res))
       }
       Payload::RequestVoteRes(_) => {
         // Already the leader, nothing to do here.
@@ -945,14 +943,14 @@ impl State {
     req: AppendEntriesReq<'a>,
   ) -> Follower {
     // Reply false if term < currentTerm (§5.1)
-    if Term(req.term()) < follower.shared.current_term {
+    if req.term() < follower.shared.current_term {
       let payload = PayloadShared::AppendEntriesRes(AppendEntriesResShared::new(
-        follower.shared.current_term.0,
+        follower.shared.current_term,
         0, // WIP false
-        Index(0).0,
+        Index(0),
         req.read_id(),
       ));
-      let msg = MessageShared::new(follower.shared.id.0, req.leader_id(), payload);
+      let msg = MessageShared::new(follower.shared.id, req.leader_id(), payload);
       output.extend(vec![Output::Message(msg)]);
       return follower;
     }
@@ -968,17 +966,17 @@ impl State {
     let log_match = follower
       .shared
       .log
-      .index_term(Index(req.prev_log_index()))
-      .map_or(false, |term| term == Term(req.prev_log_term()));
+      .index_term(req.prev_log_index())
+      .map_or(false, |term| term == req.prev_log_term());
     if !log_match {
       // TODO: send back a hint of what we do have
       let payload = PayloadShared::AppendEntriesRes(AppendEntriesResShared::new(
-        follower.shared.current_term.0,
+        follower.shared.current_term,
         0, // WIP false
-        Index(0).0,
+        Index(0),
         req.read_id(),
       ));
-      let msg = MessageShared::new(follower.shared.id.0, req.leader_id(), payload);
+      let msg = MessageShared::new(follower.shared.id, req.leader_id(), payload);
       output.extend(vec![Output::Message(msg)]);
       return follower;
     }
@@ -986,33 +984,33 @@ impl State {
     // If an existing entry conflicts with a new one (same index but different
     // terms), delete the existing entry and all that follow it (§5.3). Append
     // any new entries not already in the log
-    let entries = req.entries().expect("WIP");
+    let entries: Slice<_> = req.entries().expect("WIP");
     if entries.len() > 0 {
-      let entries = entries.iter().collect::<Vec<_>>();
+      let entries = entries.into_iter().collect::<Vec<_>>();
       follower.shared.log.extend(&entries);
       let msg = PersistReq {
-        leader_id: NodeID(req.leader_id()),
-        read_id: ReadID(req.read_id()),
+        leader_id: req.leader_id(),
+        read_id: req.read_id(),
         entries: entries.iter().map(|e| e.capnp_to_owned()).collect(),
       };
       output.extend(vec![Output::PersistReq(msg)]);
     } else {
       // TODO: duplicated with persist_res
       let payload = PayloadShared::AppendEntriesRes(AppendEntriesResShared::new(
-        follower.shared.current_term.0,
+        follower.shared.current_term,
         1,                    // WIP true
         req.prev_log_index(), // TODO: is this right?
         req.read_id(),
       ));
-      let msg = MessageShared::new(follower.shared.id.0, req.leader_id(), payload);
+      let msg = MessageShared::new(follower.shared.id, req.leader_id(), payload);
       output.extend(vec![Output::Message(msg)]);
     }
 
     // If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index
     // of last new entry)
-    if Index(req.leader_commit()) > follower.shared.commit_index {
+    if req.leader_commit() > follower.shared.commit_index {
       let last_entry_index = follower.shared.log.last().1;
-      follower.shared.commit_index = cmp::min(Index(req.leader_commit()), last_entry_index);
+      follower.shared.commit_index = cmp::min(req.leader_commit(), last_entry_index);
       follower = State::follower_maybe_apply(follower, output);
     }
     follower
@@ -1026,7 +1024,7 @@ impl State {
   ) -> Leader {
     // If successful: update nextIndex and matchIndex for follower (§5.3)
     if res.success() > 0 {
-      return State::ack_term_index(leader, output, src, Index(res.index()), ReadID(res.read_id()));
+      return State::ack_term_index(leader, output, src, res.index(), res.read_id());
     }
     // If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
     todo!()
@@ -1132,10 +1130,10 @@ impl State {
       shared.id.0, shared.voted_for, req
     );
     // Reply false if term < currentTerm (§5.1)
-    if Term(req.term()) < shared.current_term {
+    if req.term() < shared.current_term {
       let payload =
-        PayloadShared::RequestVoteRes(RequestVoteResShared::new(shared.current_term.0, 0));
-      let msg = MessageShared::new(self.id().0, req.candidate_id(), payload);
+        PayloadShared::RequestVoteRes(RequestVoteResShared::new(shared.current_term, 0));
+      let msg = MessageShared::new(self.id(), req.candidate_id(), payload);
       output.extend(vec![Output::Message(msg)]);
       return self;
     }
@@ -1143,13 +1141,13 @@ impl State {
     // up-to-date as receiver’s log, grant vote (§5.2, §5.4)
     let should_grant = match shared.voted_for {
       None => true,
-      Some(voted_for) => voted_for == NodeID(req.candidate_id()),
+      Some(voted_for) => voted_for == req.candidate_id(),
     };
     if should_grant {
-      shared.voted_for = Some(NodeID(req.candidate_id()));
+      shared.voted_for = Some(req.candidate_id());
       let payload =
-        PayloadShared::RequestVoteRes(RequestVoteResShared::new(shared.current_term.0, 1));
-      let msg = MessageShared::new(shared.id.0, req.candidate_id(), payload);
+        PayloadShared::RequestVoteRes(RequestVoteResShared::new(shared.current_term, 1));
+      let msg = MessageShared::new(shared.id, req.candidate_id(), payload);
       output.extend(vec![Output::Message(msg)]);
     }
     self
@@ -1186,15 +1184,15 @@ impl State {
     // Send RequestVote rpcs to all other servers
     let (last_log_term, last_log_index) = candidate.shared.log.last();
     let payload = PayloadShared::RequestVoteReq(RequestVoteReqShared::new(
-      candidate.shared.current_term.0,
-      candidate.shared.id.0,
-      last_log_index.0,
-      last_log_term.0,
+      candidate.shared.current_term,
+      candidate.shared.id,
+      last_log_index,
+      last_log_term,
     ));
     debug!("  {:3}: reqvote {:?}", candidate.shared.id.0, payload);
     State::message_to_all_other_nodes(&candidate.shared, output, payload);
     // Vote for self
-    let res = RequestVoteResShared::new(candidate.shared.current_term.0, 1);
+    let res = RequestVoteResShared::new(candidate.shared.current_term, 1);
     return State::candidate_process_request_vote_res(candidate, output, res.capnp_as_ref());
   }
 
@@ -1208,7 +1206,7 @@ impl State {
         .peers
         .iter()
         .filter(|peer| **peer != shared.id)
-        .map(|node| Output::Message(MessageShared::new(shared.id.0, (*node).0, payload.clone()))),
+        .map(|node| Output::Message(MessageShared::new(shared.id, *node, payload.clone()))),
     )
   }
 

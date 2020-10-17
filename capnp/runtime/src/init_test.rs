@@ -4,7 +4,7 @@ mod test {
   use std::error;
 
   use crate::samples::rast_capnp::{
-    AppendEntriesReqShared, EntryShared, MessageShared, PayloadShared,
+    AppendEntriesReqShared, EntryShared, Index, MessageShared, NodeID, PayloadShared, ReadID, Term,
   };
   use crate::samples::test_capnp::{TestAllTypesShared, TestEnum};
 
@@ -25,11 +25,19 @@ mod test {
 
   #[test]
   fn init_rast() -> Result<(), Box<dyn error::Error>> {
-    let entry = EntryShared::new(9, 10, &[11, 12]);
+    let entry = EntryShared::new(Term(9), Index(10), &[11, 12]);
     assert_eq!(format!("{:?}", entry.capnp_as_ref()), "(term = 9, index = 10, payload = [0b, 0c])");
-    let entries = vec![entry, EntryShared::new(13, 14, &[15])];
-    let req = AppendEntriesReqShared::new(3, 4, 5, 6, 7, 8, entries.as_slice());
-    let message = MessageShared::new(1, 2, PayloadShared::AppendEntriesReq(req));
+    let entries = vec![entry, EntryShared::new(Term(13), Index(14), &[15])];
+    let req = AppendEntriesReqShared::new(
+      Term(3),
+      NodeID(4),
+      Index(5),
+      Term(6),
+      Index(7),
+      ReadID(8),
+      entries.as_slice(),
+    );
+    let message = MessageShared::new(NodeID(1), NodeID(2), PayloadShared::AppendEntriesReq(req));
     let expected = "(src = 1, dest = 2, payload = (append_entries_req = (term = 3, leader_id = 4, prev_log_index = 5, prev_log_term = 6, leader_commit = 7, read_id = 8, entries = [(term = 9, index = 10, payload = [0b, 0c]), (term = 13, index = 14, payload = [0f])])))";
     assert_eq!(format!("{:?}", message.capnp_as_ref()), expected);
     Ok(())
