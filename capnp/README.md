@@ -96,12 +96,11 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Constructor with named args (likely via generated struct)
 - [ ] Fully decode message into ^^, all accesses are error free
 - [ ] Set list field in one message to list field from another message
-- [ ] Audit const usage (make them &'static?)
+- [x] Audit const usage (make them &'static)
 - [ ] Cleanups
   - [ ] Rename the meta things to schema
 - [ ] Clean up codegen code structure
 - [ ] Port remaining capnp testdata tests
-- [ ] Run generated output through rustfmt
 - [ ] Security: Pointer validation (tests)
 - [ ] Security: Amplification attack
 - [ ] Security: Stack overflow DoS attack
@@ -124,6 +123,8 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Namespaces
 - [ ] Keep all underlying buffers word-aligned
 - [ ] Support no_std
+- [ ] Wrapped non-primitive fields
+- [ ] Run generated output through rustfmt
 - [ ] Test for pass-through behavior (proxy/cache)
   - [ ] Test: Read message with later schema, store in list, encode, read with
     later schema

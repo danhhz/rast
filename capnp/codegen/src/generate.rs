@@ -298,7 +298,7 @@ impl Struct {
 
   fn render_field_meta(w: &mut dyn Write, field: &Field) -> io::Result<()> {
     #[rustfmt::skip]
-    write!(w, "  const {}_META: {}FieldMeta = {}FieldMeta {{\n",
+    write!(w, "  const {}_META: &'static {}FieldMeta = &{}FieldMeta {{\n",
       field.meta_name(), field.ftype().type_meta(), field.ftype().type_meta())?;
     write!(w, "    name: \"{}\",\n", field.name)?;
     write!(w, "    offset: NumElements({}),\n", field.offset)?;
@@ -338,7 +338,7 @@ impl Struct {
     }
     write!(w, "\n")?;
 
-    write!(w, "  const META: StructMeta = StructMeta {{\n")?;
+    write!(w, "  const META: &'static StructMeta = &StructMeta {{\n")?;
     write!(w, "    name: \"{}\",\n", struct_name)?;
     write!(w, "    data_size: NumWords({}),\n", self.data_words)?;
     write!(w, "    pointer_size: NumWords({}),\n", self.pointer_words)?;
@@ -498,7 +498,7 @@ impl Union {
     for variant in &self.variants {
       Struct::render_field_meta(w, &variant.field)?;
     }
-    write!(w, "  const META: UnionMeta = UnionMeta {{\n")?;
+    write!(w, "  const META: &'static UnionMeta = &UnionMeta {{\n")?;
     write!(w, "    name: \"{}\",\n", &self.name)?;
     write!(w, "    variants: &[\n")?;
     for variant in self.variants.iter() {

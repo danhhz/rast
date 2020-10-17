@@ -6,20 +6,20 @@ pub struct TestAllTypes<'a> {
 }
 
 impl<'a> TestAllTypes<'a> {
-  const U_INT64_FIELD_META: U64FieldMeta = U64FieldMeta {
+  const U_INT64_FIELD_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "u_int64_field",
     offset: NumElements(3),
   };
-  const DATA_FIELD_META: DataFieldMeta = DataFieldMeta {
+  const DATA_FIELD_META: &'static DataFieldMeta = &DataFieldMeta {
     name: "data_field",
     offset: NumElements(1),
   };
-  const STRUCT_FIELD_META: StructFieldMeta = StructFieldMeta {
+  const STRUCT_FIELD_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "struct_field",
     offset: NumElements(2),
     meta: &TestAllTypes::META,
   };
-  const STRUCT_LIST_META: ListFieldMeta = ListFieldMeta {
+  const STRUCT_LIST_META: &'static ListFieldMeta = &ListFieldMeta {
     name: "struct_list",
     offset: NumElements(17),
     meta: &ListMeta {
@@ -27,7 +27,7 @@ impl<'a> TestAllTypes<'a> {
     },
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "TestAllTypes",
     data_size: NumWords(6),
     pointer_size: NumWords(20),
