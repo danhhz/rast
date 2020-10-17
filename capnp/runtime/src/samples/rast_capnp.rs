@@ -32,10 +32,10 @@ impl<'a> Entry<'a> {
   };
 
   /// The term of the entry.
-  pub fn term(&self) -> u64 { Entry::TERM_META.get(&self.data) }
+  pub fn term(&self) -> Term { Term(Entry::TERM_META.get(&self.data)) }
 
   /// The index of the entry.
-  pub fn index(&self) -> u64 { Entry::INDEX_META.get(&self.data) }
+  pub fn index(&self) -> Index { Index(Entry::INDEX_META.get(&self.data)) }
 
   /// The opaque user payload of the entry.
   pub fn payload(&self) -> Result<&'a [u8], Error> { Entry::PAYLOAD_META.get(&self.data) }
@@ -89,13 +89,13 @@ pub struct EntryShared {
 
 impl EntryShared {
   pub fn new(
-    term: u64,
-    index: u64,
+    term: Term,
+    index: Index,
     payload: &[u8],
   ) -> EntryShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Entry::META.data_size, Entry::META.pointer_size);
-    Entry::TERM_META.set(&mut data, term);
-    Entry::INDEX_META.set(&mut data, index);
+    Entry::TERM_META.set(&mut data, term.0);
+    Entry::INDEX_META.set(&mut data, index.0);
     Entry::PAYLOAD_META.set(&mut data, payload);
     EntryShared { data: data.into_shared() }
   }
@@ -156,10 +156,10 @@ impl<'a> Message<'a> {
   };
 
   /// The node sending this rpc.
-  pub fn src(&self) -> u64 { Message::SRC_META.get(&self.data) }
+  pub fn src(&self) -> NodeID { NodeID(Message::SRC_META.get(&self.data)) }
 
   /// The node to receive this rpc.
-  pub fn dest(&self) -> u64 { Message::DEST_META.get(&self.data) }
+  pub fn dest(&self) -> NodeID { NodeID(Message::DEST_META.get(&self.data)) }
 
   pub fn payload(&self) -> Result<Result<Payload<'a>, UnknownDiscriminant>,Error> { Message::PAYLOAD_META.get(&self.data) }
 
@@ -212,13 +212,13 @@ pub struct MessageShared {
 
 impl MessageShared {
   pub fn new(
-    src: u64,
-    dest: u64,
+    src: NodeID,
+    dest: NodeID,
     payload: PayloadShared,
   ) -> MessageShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Message::META.data_size, Message::META.pointer_size);
-    Message::SRC_META.set(&mut data, src);
-    Message::DEST_META.set(&mut data, dest);
+    Message::SRC_META.set(&mut data, src.0);
+    Message::DEST_META.set(&mut data, dest.0);
     Message::PAYLOAD_META.set(&mut data, payload);
     MessageShared { data: data.into_shared() }
   }
@@ -299,17 +299,17 @@ impl<'a> AppendEntriesReq<'a> {
     ],
   };
 
-  pub fn term(&self) -> u64 { AppendEntriesReq::TERM_META.get(&self.data) }
+  pub fn term(&self) -> Term { Term(AppendEntriesReq::TERM_META.get(&self.data)) }
 
-  pub fn leader_id(&self) -> u64 { AppendEntriesReq::LEADER_ID_META.get(&self.data) }
+  pub fn leader_id(&self) -> NodeID { NodeID(AppendEntriesReq::LEADER_ID_META.get(&self.data)) }
 
-  pub fn prev_log_index(&self) -> u64 { AppendEntriesReq::PREV_LOG_INDEX_META.get(&self.data) }
+  pub fn prev_log_index(&self) -> Index { Index(AppendEntriesReq::PREV_LOG_INDEX_META.get(&self.data)) }
 
-  pub fn prev_log_term(&self) -> u64 { AppendEntriesReq::PREV_LOG_TERM_META.get(&self.data) }
+  pub fn prev_log_term(&self) -> Term { Term(AppendEntriesReq::PREV_LOG_TERM_META.get(&self.data)) }
 
-  pub fn leader_commit(&self) -> u64 { AppendEntriesReq::LEADER_COMMIT_META.get(&self.data) }
+  pub fn leader_commit(&self) -> Index { Index(AppendEntriesReq::LEADER_COMMIT_META.get(&self.data)) }
 
-  pub fn read_id(&self) -> u64 { AppendEntriesReq::READ_ID_META.get(&self.data) }
+  pub fn read_id(&self) -> ReadID { ReadID(AppendEntriesReq::READ_ID_META.get(&self.data)) }
 
   pub fn entries(&self) -> Result<Vec<Entry<'a>>, Error> { AppendEntriesReq::ENTRIES_META.get(&self.data) }
 
@@ -362,21 +362,21 @@ pub struct AppendEntriesReqShared {
 
 impl AppendEntriesReqShared {
   pub fn new(
-    term: u64,
-    leader_id: u64,
-    prev_log_index: u64,
-    prev_log_term: u64,
-    leader_commit: u64,
-    read_id: u64,
+    term: Term,
+    leader_id: NodeID,
+    prev_log_index: Index,
+    prev_log_term: Term,
+    leader_commit: Index,
+    read_id: ReadID,
     entries: &'_ [EntryShared],
   ) -> AppendEntriesReqShared {
     let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesReq::META.data_size, AppendEntriesReq::META.pointer_size);
-    AppendEntriesReq::TERM_META.set(&mut data, term);
-    AppendEntriesReq::LEADER_ID_META.set(&mut data, leader_id);
-    AppendEntriesReq::PREV_LOG_INDEX_META.set(&mut data, prev_log_index);
-    AppendEntriesReq::PREV_LOG_TERM_META.set(&mut data, prev_log_term);
-    AppendEntriesReq::LEADER_COMMIT_META.set(&mut data, leader_commit);
-    AppendEntriesReq::READ_ID_META.set(&mut data, read_id);
+    AppendEntriesReq::TERM_META.set(&mut data, term.0);
+    AppendEntriesReq::LEADER_ID_META.set(&mut data, leader_id.0);
+    AppendEntriesReq::PREV_LOG_INDEX_META.set(&mut data, prev_log_index.0);
+    AppendEntriesReq::PREV_LOG_TERM_META.set(&mut data, prev_log_term.0);
+    AppendEntriesReq::LEADER_COMMIT_META.set(&mut data, leader_commit.0);
+    AppendEntriesReq::READ_ID_META.set(&mut data, read_id.0);
     AppendEntriesReq::ENTRIES_META.set(&mut data, entries);
     AppendEntriesReqShared { data: data.into_shared() }
   }
@@ -439,13 +439,13 @@ impl<'a> AppendEntriesRes<'a> {
     ],
   };
 
-  pub fn term(&self) -> u64 { AppendEntriesRes::TERM_META.get(&self.data) }
+  pub fn term(&self) -> Term { Term(AppendEntriesRes::TERM_META.get(&self.data)) }
 
   pub fn success(&self) -> u64 { AppendEntriesRes::SUCCESS_META.get(&self.data) }
 
-  pub fn index(&self) -> u64 { AppendEntriesRes::INDEX_META.get(&self.data) }
+  pub fn index(&self) -> Index { Index(AppendEntriesRes::INDEX_META.get(&self.data)) }
 
-  pub fn read_id(&self) -> u64 { AppendEntriesRes::READ_ID_META.get(&self.data) }
+  pub fn read_id(&self) -> ReadID { ReadID(AppendEntriesRes::READ_ID_META.get(&self.data)) }
 
   pub fn capnp_to_owned(&self) -> AppendEntriesResShared {
     AppendEntriesResShared { data: self.data.capnp_to_owned() }
@@ -496,16 +496,16 @@ pub struct AppendEntriesResShared {
 
 impl AppendEntriesResShared {
   pub fn new(
-    term: u64,
+    term: Term,
     success: u64,
-    index: u64,
-    read_id: u64,
+    index: Index,
+    read_id: ReadID,
   ) -> AppendEntriesResShared {
     let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesRes::META.data_size, AppendEntriesRes::META.pointer_size);
-    AppendEntriesRes::TERM_META.set(&mut data, term);
+    AppendEntriesRes::TERM_META.set(&mut data, term.0);
     AppendEntriesRes::SUCCESS_META.set(&mut data, success);
-    AppendEntriesRes::INDEX_META.set(&mut data, index);
-    AppendEntriesRes::READ_ID_META.set(&mut data, read_id);
+    AppendEntriesRes::INDEX_META.set(&mut data, index.0);
+    AppendEntriesRes::READ_ID_META.set(&mut data, read_id.0);
     AppendEntriesResShared { data: data.into_shared() }
   }
 
@@ -567,13 +567,13 @@ impl<'a> RequestVoteReq<'a> {
     ],
   };
 
-  pub fn term(&self) -> u64 { RequestVoteReq::TERM_META.get(&self.data) }
+  pub fn term(&self) -> Term { Term(RequestVoteReq::TERM_META.get(&self.data)) }
 
-  pub fn candidate_id(&self) -> u64 { RequestVoteReq::CANDIDATE_ID_META.get(&self.data) }
+  pub fn candidate_id(&self) -> NodeID { NodeID(RequestVoteReq::CANDIDATE_ID_META.get(&self.data)) }
 
-  pub fn last_log_index(&self) -> u64 { RequestVoteReq::LAST_LOG_INDEX_META.get(&self.data) }
+  pub fn last_log_index(&self) -> Index { Index(RequestVoteReq::LAST_LOG_INDEX_META.get(&self.data)) }
 
-  pub fn last_log_term(&self) -> u64 { RequestVoteReq::LAST_LOG_TERM_META.get(&self.data) }
+  pub fn last_log_term(&self) -> Term { Term(RequestVoteReq::LAST_LOG_TERM_META.get(&self.data)) }
 
   pub fn capnp_to_owned(&self) -> RequestVoteReqShared {
     RequestVoteReqShared { data: self.data.capnp_to_owned() }
@@ -624,16 +624,16 @@ pub struct RequestVoteReqShared {
 
 impl RequestVoteReqShared {
   pub fn new(
-    term: u64,
-    candidate_id: u64,
-    last_log_index: u64,
-    last_log_term: u64,
+    term: Term,
+    candidate_id: NodeID,
+    last_log_index: Index,
+    last_log_term: Term,
   ) -> RequestVoteReqShared {
     let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteReq::META.data_size, RequestVoteReq::META.pointer_size);
-    RequestVoteReq::TERM_META.set(&mut data, term);
-    RequestVoteReq::CANDIDATE_ID_META.set(&mut data, candidate_id);
-    RequestVoteReq::LAST_LOG_INDEX_META.set(&mut data, last_log_index);
-    RequestVoteReq::LAST_LOG_TERM_META.set(&mut data, last_log_term);
+    RequestVoteReq::TERM_META.set(&mut data, term.0);
+    RequestVoteReq::CANDIDATE_ID_META.set(&mut data, candidate_id.0);
+    RequestVoteReq::LAST_LOG_INDEX_META.set(&mut data, last_log_index.0);
+    RequestVoteReq::LAST_LOG_TERM_META.set(&mut data, last_log_term.0);
     RequestVoteReqShared { data: data.into_shared() }
   }
 
@@ -685,7 +685,7 @@ impl<'a> RequestVoteRes<'a> {
     ],
   };
 
-  pub fn term(&self) -> u64 { RequestVoteRes::TERM_META.get(&self.data) }
+  pub fn term(&self) -> Term { Term(RequestVoteRes::TERM_META.get(&self.data)) }
 
   pub fn vote_granted(&self) -> u64 { RequestVoteRes::VOTE_GRANTED_META.get(&self.data) }
 
@@ -738,11 +738,11 @@ pub struct RequestVoteResShared {
 
 impl RequestVoteResShared {
   pub fn new(
-    term: u64,
+    term: Term,
     vote_granted: u64,
   ) -> RequestVoteResShared {
     let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteRes::META.data_size, RequestVoteRes::META.pointer_size);
-    RequestVoteRes::TERM_META.set(&mut data, term);
+    RequestVoteRes::TERM_META.set(&mut data, term.0);
     RequestVoteRes::VOTE_GRANTED_META.set(&mut data, vote_granted);
     RequestVoteResShared { data: data.into_shared() }
   }
@@ -790,7 +790,7 @@ impl<'a> StartElectionReq<'a> {
     ],
   };
 
-  pub fn term(&self) -> u64 { StartElectionReq::TERM_META.get(&self.data) }
+  pub fn term(&self) -> Term { Term(StartElectionReq::TERM_META.get(&self.data)) }
 
   pub fn capnp_to_owned(&self) -> StartElectionReqShared {
     StartElectionReqShared { data: self.data.capnp_to_owned() }
@@ -841,10 +841,10 @@ pub struct StartElectionReqShared {
 
 impl StartElectionReqShared {
   pub fn new(
-    term: u64,
+    term: Term,
   ) -> StartElectionReqShared {
     let mut data = UntypedStructOwned::new_with_root_struct(StartElectionReq::META.data_size, StartElectionReq::META.pointer_size);
-    StartElectionReq::TERM_META.set(&mut data, term);
+    StartElectionReq::TERM_META.set(&mut data, term.0);
     StartElectionReqShared { data: data.into_shared() }
   }
 

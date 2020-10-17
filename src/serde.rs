@@ -106,13 +106,15 @@ pub struct ReadRes {
 mod generated {
   use std::fmt;
 
+  use super::{Index, NodeID, ReadID, Term};
+
   include!("../capnp/runtime/src/samples/rast_capnp.rs");
 
   impl<'a> fmt::Display for Entry<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       match std::str::from_utf8(&self.payload().expect("WIP")) {
-        Ok(payload) => write!(f, "({:}.{:} {:?})", self.term(), self.index(), payload),
-        Err(_) => write!(f, "({:}.{:} {:?})", self.term(), self.index(), self.payload()),
+        Ok(payload) => write!(f, "({:}.{:} {:?})", self.term().0, self.index().0, payload),
+        Err(_) => write!(f, "({:}.{:} {:?})", self.term().0, self.index().0, self.payload()),
       }
     }
   }
@@ -158,12 +160,12 @@ mod generated {
       write!(
         f,
         "app({:}.{:} p{:}.{:} lc{:} r{:} {:?})",
-        self.term(),
-        self.leader_id(),
-        self.prev_log_index(),
-        self.prev_log_term(),
-        self.leader_commit(),
-        self.read_id(),
+        self.term().0,
+        self.leader_id().0,
+        self.prev_log_index().0,
+        self.prev_log_term().0,
+        self.leader_commit().0,
+        self.read_id().0,
         self.entries(),
       )
     }
@@ -177,7 +179,7 @@ mod generated {
 
   impl fmt::Display for AppendEntriesRes<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-      write!(f, "appRes({:} r{:} success={:?})", self.term(), self.read_id(), self.success())
+      write!(f, "appRes({:} r{:} success={:?})", self.term().0, self.read_id().0, self.success())
     }
   }
 
@@ -192,10 +194,10 @@ mod generated {
       write!(
         f,
         "vote({:} p{:}.{:} candidate={:})",
-        self.term(),
-        self.last_log_index(),
-        self.last_log_term(),
-        self.candidate_id(),
+        self.term().0,
+        self.last_log_index().0,
+        self.last_log_term().0,
+        self.candidate_id().0,
       )
     }
   }
@@ -208,7 +210,7 @@ mod generated {
 
   impl fmt::Display for RequestVoteRes<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-      write!(f, "voteRes({:} granted={:?})", self.term(), self.vote_granted())
+      write!(f, "voteRes({:} granted={:?})", self.term().0, self.vote_granted())
     }
   }
 
@@ -220,7 +222,7 @@ mod generated {
 
   impl fmt::Display for StartElectionReq<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-      write!(f, "election({:})", self.term())
+      write!(f, "election({:})", self.term().0)
     }
   }
 

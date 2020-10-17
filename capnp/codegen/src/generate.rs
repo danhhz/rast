@@ -364,7 +364,15 @@ impl Struct {
       } else {
         write!(w, "{}", field.ftype().type_out())?;
       }
-      write!(w, " {{ {}::{}_META.get(&self.data) }}\n", struct_name, field.meta_name())?;
+      write!(w, " {{ ")?;
+      if let FieldTypeEnum::Wrapped(wrapped) = &field.type_ {
+        write!(w, "{}(", wrapped.wrap_type)?;
+      }
+      write!(w, "{}::{}_META.get(&self.data)", struct_name, field.meta_name())?;
+      if let FieldTypeEnum::Wrapped(_) = &field.type_ {
+        write!(w, ")")?;
+      }
+      write!(w, " }}\n")?;
     }
 
     write!(w, "\n  pub fn capnp_to_owned(&self) -> {}Shared {{\n", struct_name)?;
@@ -431,7 +439,11 @@ impl Struct {
       struct_name, struct_name)?;
     for field in self.fields.iter() {
       #[rustfmt::skip]
-      write!(w, "    {}::{}_META.set(&mut data, {});\n", struct_name, field.meta_name(), field.name)?;
+      write!(w, "    {}::{}_META.set(&mut data, {}", struct_name, field.meta_name(), field.name)?;
+      if let FieldTypeEnum::Wrapped(_) = &field.type_ {
+        write!(w, ".0")?;
+      }
+      write!(w, ");\n")?;
     }
     write!(w, "    {}Shared {{ data: data.into_shared() }}\n", struct_name)?;
     write!(w, "  }}\n")?;
@@ -759,9 +771,12 @@ impl<'a> Generator<'a> {
           ret
         });
         let field_type: FieldTypeEnum = match custom_type {
-          Some(custom_type) => FieldTypeEnum::Wrapped(WrappedField {
-            wrap_type: custom_type,
-            wrapped: Box::new(field_type),
+          Some(custom_type) => FieldTypeEnum::Wrapped({
+            match field_type {
+              FieldTypeEnum::Primitive(_) => {} // No-op.
+              _ => todo!("custom_types are only currently supported on primitive types"),
+            };
+            WrappedField { wrap_type: custom_type, wrapped: Box::new(field_type) }
           }),
           None => field_type,
         };

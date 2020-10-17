@@ -36,7 +36,7 @@ impl CompressedLog {
   // TODO: figure out how to accept either of Entry or EntryShared
   pub fn extend(&mut self, entries: &[Entry<'_>]) {
     if let Some(entry) = entries.first() {
-      self.trim(Index(entry.index() - 1));
+      self.trim(Index(entry.index().0 - 1));
     }
     self.extend_trimmed(entries);
   }
@@ -62,18 +62,13 @@ impl CompressedLog {
   fn extend_trimmed(&mut self, entries: &[Entry<'_>]) {
     for entry in entries {
       if self.begin == None {
-        self.begin = Some((Term(entry.term()), Index(entry.index())));
+        self.begin = Some((entry.term(), entry.index()));
       }
       // TODO: return an error instead
-      debug_assert_eq!(Index(entry.index()), Index(self.end.map_or(0, |(_, i)| i.0) + 1));
-      self.end = Some((Term(entry.term()), Index(entry.index())));
-      if self
-        .term_changes
-        .last()
-        .copied()
-        .map_or(true, |(tc_term, _)| Term(entry.term()) != tc_term)
-      {
-        self.term_changes.push((Term(entry.term()), Index(entry.index())));
+      debug_assert_eq!(entry.index(), Index(self.end.map_or(0, |(_, i)| i.0) + 1));
+      self.end = Some((entry.term(), entry.index()));
+      if self.term_changes.last().copied().map_or(true, |(tc_term, _)| entry.term() != tc_term) {
+        self.term_changes.push((entry.term(), entry.index()));
       }
     }
   }
@@ -181,7 +176,7 @@ mod tests {
     let entries = history
       .iter()
       .copied()
-      .map(|(term, index)| EntryShared::new(term.0, index.0, &[]))
+      .map(|(term, index)| EntryShared::new(term, index, &[]))
       .collect::<Vec<_>>();
 
     log.extend(&entries.iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());
@@ -210,7 +205,7 @@ mod tests {
     let entries = history
       .iter()
       .copied()
-      .map(|(term, index)| EntryShared::new(term.0, index.0, &[]))
+      .map(|(term, index)| EntryShared::new(term, index, &[]))
       .collect::<Vec<_>>();
 
     log.extend(&entries.iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());
@@ -226,7 +221,7 @@ mod tests {
     let alt_entries = alt_history
       .iter()
       .copied()
-      .map(|(term, index)| EntryShared::new(term.0, index.0, &[]))
+      .map(|(term, index)| EntryShared::new(term, index, &[]))
       .collect::<Vec<_>>();
 
     log.extend(&alt_entries[1..].iter().map(|x| x.capnp_as_ref()).collect::<Vec<_>>());

@@ -2,5 +2,19 @@
 
 #![allow(dead_code)]
 
-pub mod rast_capnp;
+pub mod rast_capnp {
+  #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  pub struct Term(pub u64);
+
+  #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  pub struct Index(pub u64);
+
+  #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+  pub struct NodeID(pub u64);
+
+  #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+  pub struct ReadID(pub u64);
+
+  include!("rast_capnp.rs");
+}
 pub mod test_capnp;
