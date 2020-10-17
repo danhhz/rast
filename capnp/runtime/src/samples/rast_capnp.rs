@@ -7,20 +7,20 @@ pub struct Entry<'a> {
 }
 
 impl<'a> Entry<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
+  const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
   };
-  const INDEX_META: U64FieldMeta = U64FieldMeta {
+  const INDEX_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "index",
     offset: NumElements(1),
   };
-  const PAYLOAD_META: DataFieldMeta = DataFieldMeta {
+  const PAYLOAD_META: &'static DataFieldMeta = &DataFieldMeta {
     name: "payload",
     offset: NumElements(0),
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "Entry",
     data_size: NumWords(2),
     pointer_size: NumWords(1),
@@ -132,21 +132,21 @@ pub struct Message<'a> {
 }
 
 impl<'a> Message<'a> {
-  const SRC_META: U64FieldMeta = U64FieldMeta {
+  const SRC_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "src",
     offset: NumElements(0),
   };
-  const DEST_META: U64FieldMeta = U64FieldMeta {
+  const DEST_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "dest",
     offset: NumElements(1),
   };
-  const PAYLOAD_META: UnionFieldMeta = UnionFieldMeta {
+  const PAYLOAD_META: &'static UnionFieldMeta = &UnionFieldMeta {
     name: "payload",
     offset: NumElements(8),
     meta: &Payload::META,
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "Message",
     data_size: NumWords(3),
     pointer_size: NumWords(1),
@@ -256,31 +256,31 @@ pub struct AppendEntriesReq<'a> {
 }
 
 impl<'a> AppendEntriesReq<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
+  const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
   };
-  const LEADER_ID_META: U64FieldMeta = U64FieldMeta {
+  const LEADER_ID_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "leader_id",
     offset: NumElements(1),
   };
-  const PREV_LOG_INDEX_META: U64FieldMeta = U64FieldMeta {
+  const PREV_LOG_INDEX_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "prev_log_index",
     offset: NumElements(2),
   };
-  const PREV_LOG_TERM_META: U64FieldMeta = U64FieldMeta {
+  const PREV_LOG_TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "prev_log_term",
     offset: NumElements(3),
   };
-  const LEADER_COMMIT_META: U64FieldMeta = U64FieldMeta {
+  const LEADER_COMMIT_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "leader_commit",
     offset: NumElements(4),
   };
-  const READ_ID_META: U64FieldMeta = U64FieldMeta {
+  const READ_ID_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "read_id",
     offset: NumElements(5),
   };
-  const ENTRIES_META: ListFieldMeta = ListFieldMeta {
+  const ENTRIES_META: &'static ListFieldMeta = &ListFieldMeta {
     name: "entries",
     offset: NumElements(0),
     meta: &ListMeta {
@@ -288,7 +288,7 @@ impl<'a> AppendEntriesReq<'a> {
     },
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "AppendEntriesReq",
     data_size: NumWords(6),
     pointer_size: NumWords(1),
@@ -420,24 +420,24 @@ pub struct AppendEntriesRes<'a> {
 }
 
 impl<'a> AppendEntriesRes<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
+  const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
   };
-  const SUCCESS_META: U64FieldMeta = U64FieldMeta {
+  const SUCCESS_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "success",
     offset: NumElements(1),
   };
-  const INDEX_META: U64FieldMeta = U64FieldMeta {
+  const INDEX_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "index",
     offset: NumElements(2),
   };
-  const READ_ID_META: U64FieldMeta = U64FieldMeta {
+  const READ_ID_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "read_id",
     offset: NumElements(3),
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "AppendEntriesRes",
     data_size: NumWords(4),
     pointer_size: NumWords(0),
@@ -551,24 +551,24 @@ pub struct RequestVoteReq<'a> {
 }
 
 impl<'a> RequestVoteReq<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
+  const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
   };
-  const CANDIDATE_ID_META: U64FieldMeta = U64FieldMeta {
+  const CANDIDATE_ID_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "candidate_id",
     offset: NumElements(1),
   };
-  const LAST_LOG_INDEX_META: U64FieldMeta = U64FieldMeta {
+  const LAST_LOG_INDEX_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "last_log_index",
     offset: NumElements(2),
   };
-  const LAST_LOG_TERM_META: U64FieldMeta = U64FieldMeta {
+  const LAST_LOG_TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "last_log_term",
     offset: NumElements(3),
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "RequestVoteReq",
     data_size: NumWords(4),
     pointer_size: NumWords(0),
@@ -683,16 +683,16 @@ pub struct RequestVoteRes<'a> {
 }
 
 impl<'a> RequestVoteRes<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
+  const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
   };
-  const VOTE_GRANTED_META: U64FieldMeta = U64FieldMeta {
+  const VOTE_GRANTED_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "vote_granted",
     offset: NumElements(1),
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "RequestVoteRes",
     data_size: NumWords(2),
     pointer_size: NumWords(0),
@@ -794,12 +794,12 @@ pub struct StartElectionReq<'a> {
 }
 
 impl<'a> StartElectionReq<'a> {
-  const TERM_META: U64FieldMeta = U64FieldMeta {
+  const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "StartElectionReq",
     data_size: NumWords(1),
     pointer_size: NumWords(0),
@@ -900,32 +900,32 @@ pub enum Payload<'a> {
 }
 
 impl Payload<'_> {
-  const APPEND_ENTRIES_REQ_META: StructFieldMeta = StructFieldMeta {
+  const APPEND_ENTRIES_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "append_entries_req",
     offset: NumElements(0),
     meta: &AppendEntriesReq::META,
   };
-  const APPEND_ENTRIES_RES_META: StructFieldMeta = StructFieldMeta {
+  const APPEND_ENTRIES_RES_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "append_entries_res",
     offset: NumElements(0),
     meta: &AppendEntriesRes::META,
   };
-  const REQUEST_VOTE_REQ_META: StructFieldMeta = StructFieldMeta {
+  const REQUEST_VOTE_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "request_vote_req",
     offset: NumElements(0),
     meta: &RequestVoteReq::META,
   };
-  const REQUEST_VOTE_RES_META: StructFieldMeta = StructFieldMeta {
+  const REQUEST_VOTE_RES_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "request_vote_res",
     offset: NumElements(0),
     meta: &RequestVoteRes::META,
   };
-  const START_ELECTION_REQ_META: StructFieldMeta = StructFieldMeta {
+  const START_ELECTION_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "start_election_req",
     offset: NumElements(0),
     meta: &StartElectionReq::META,
   };
-  const META: UnionMeta = UnionMeta {
+  const META: &'static UnionMeta = &UnionMeta {
     name: "Payload",
     variants: &[
       UnionVariantMeta{

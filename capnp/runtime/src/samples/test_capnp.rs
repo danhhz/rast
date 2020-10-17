@@ -13,41 +13,17 @@ pub enum TestEnum {
 }
 
 impl TestEnum {
-  const META: EnumMeta = EnumMeta {
+  const META: &'static EnumMeta = &EnumMeta {
     name: "TestEnum",
     enumerants: &[
-      EnumerantMeta{
-        name: "foo",
-        discriminant: Discriminant(0),
-      },
-      EnumerantMeta{
-        name: "bar",
-        discriminant: Discriminant(1),
-      },
-      EnumerantMeta{
-        name: "baz",
-        discriminant: Discriminant(2),
-      },
-      EnumerantMeta{
-        name: "qux",
-        discriminant: Discriminant(3),
-      },
-      EnumerantMeta{
-        name: "quux",
-        discriminant: Discriminant(4),
-      },
-      EnumerantMeta{
-        name: "corge",
-        discriminant: Discriminant(5),
-      },
-      EnumerantMeta{
-        name: "grault",
-        discriminant: Discriminant(6),
-      },
-      EnumerantMeta{
-        name: "garply",
-        discriminant: Discriminant(7),
-      },
+      EnumerantMeta { name: "foo", discriminant: Discriminant(0) },
+      EnumerantMeta { name: "bar", discriminant: Discriminant(1) },
+      EnumerantMeta { name: "baz", discriminant: Discriminant(2) },
+      EnumerantMeta { name: "qux", discriminant: Discriminant(3) },
+      EnumerantMeta { name: "quux", discriminant: Discriminant(4) },
+      EnumerantMeta { name: "corge", discriminant: Discriminant(5) },
+      EnumerantMeta { name: "grault", discriminant: Discriminant(6) },
+      EnumerantMeta { name: "garply", discriminant: Discriminant(7) },
     ],
   };
 }
@@ -57,7 +33,7 @@ impl TypedEnum for TestEnum {
     &TestEnum::META
   }
   fn from_discriminant(discriminant: Discriminant) -> Result<Self, UnknownDiscriminant> {
-   match discriminant {
+    match discriminant {
       Discriminant(0) => Ok(TestEnum::Foo),
       Discriminant(1) => Ok(TestEnum::Bar),
       Discriminant(2) => Ok(TestEnum::Baz),
@@ -80,61 +56,61 @@ pub struct TestAllTypes<'a> {
 }
 
 impl<'a> TestAllTypes<'a> {
-  const INT32_FIELD_META: I32FieldMeta = I32FieldMeta {
-    name: "int32_field",
-    offset: NumElements(1),
-  };
-  const U_INT64_FIELD_META: U64FieldMeta = U64FieldMeta {
-    name: "u_int64_field",
-    offset: NumElements(3),
-  };
-  const DATA_FIELD_META: DataFieldMeta = DataFieldMeta {
-    name: "data_field",
-    offset: NumElements(1),
-  };
-  const STRUCT_FIELD_META: StructFieldMeta = StructFieldMeta {
-    name: "struct_field",
-    offset: NumElements(2),
-    meta: &TestAllTypes::META,
-  };
-  const ENUM_FIELD_META: EnumFieldMeta = EnumFieldMeta {
-    name: "enum_field",
-    offset: NumElements(18),
-    meta: &TestEnum::META,
-  };
-  const STRUCT_LIST_META: ListFieldMeta = ListFieldMeta {
+  const INT32_FIELD_META: &'static I32FieldMeta =
+    &I32FieldMeta { name: "int32_field", offset: NumElements(1) };
+  const U_INT64_FIELD_META: &'static U64FieldMeta =
+    &U64FieldMeta { name: "u_int64_field", offset: NumElements(3) };
+  const DATA_FIELD_META: &'static DataFieldMeta =
+    &DataFieldMeta { name: "data_field", offset: NumElements(1) };
+  const STRUCT_FIELD_META: &'static StructFieldMeta =
+    &StructFieldMeta { name: "struct_field", offset: NumElements(2), meta: &TestAllTypes::META };
+  const ENUM_FIELD_META: &'static EnumFieldMeta =
+    &EnumFieldMeta { name: "enum_field", offset: NumElements(18), meta: &TestEnum::META };
+  const STRUCT_LIST_META: &'static ListFieldMeta = &ListFieldMeta {
     name: "struct_list",
     offset: NumElements(17),
-    meta: &ListMeta {
-      value_type: ElementType::Struct(&TestAllTypes::META)
-    },
+    meta: &ListMeta { value_type: ElementType::Struct(&TestAllTypes::META) },
   };
 
-  const META: StructMeta = StructMeta {
+  const META: &'static StructMeta = &StructMeta {
     name: "TestAllTypes",
     data_size: NumWords(6),
     pointer_size: NumWords(20),
-    fields: || &[
-      FieldMeta::I32(TestAllTypes::INT32_FIELD_META),
-      FieldMeta::U64(TestAllTypes::U_INT64_FIELD_META),
-      FieldMeta::Data(TestAllTypes::DATA_FIELD_META),
-      FieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META),
-      FieldMeta::Enum(TestAllTypes::ENUM_FIELD_META),
-      FieldMeta::List(TestAllTypes::STRUCT_LIST_META),
-    ],
+    fields: || {
+      &[
+        FieldMeta::I32(TestAllTypes::INT32_FIELD_META),
+        FieldMeta::U64(TestAllTypes::U_INT64_FIELD_META),
+        FieldMeta::Data(TestAllTypes::DATA_FIELD_META),
+        FieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META),
+        FieldMeta::Enum(TestAllTypes::ENUM_FIELD_META),
+        FieldMeta::List(TestAllTypes::STRUCT_LIST_META),
+      ]
+    },
   };
 
-  pub fn int32_field(&self) -> i32 { TestAllTypes::INT32_FIELD_META.get(&self.data) }
+  pub fn int32_field(&self) -> i32 {
+    TestAllTypes::INT32_FIELD_META.get(&self.data)
+  }
 
-  pub fn u_int64_field(&self) -> u64 { TestAllTypes::U_INT64_FIELD_META.get(&self.data) }
+  pub fn u_int64_field(&self) -> u64 {
+    TestAllTypes::U_INT64_FIELD_META.get(&self.data)
+  }
 
-  pub fn data_field(&self) -> Result<&'a [u8], Error> { TestAllTypes::DATA_FIELD_META.get(&self.data) }
+  pub fn data_field(&self) -> Result<&'a [u8], Error> {
+    TestAllTypes::DATA_FIELD_META.get(&self.data)
+  }
 
-  pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> { TestAllTypes::STRUCT_FIELD_META.get(&self.data) }
+  pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> {
+    TestAllTypes::STRUCT_FIELD_META.get(&self.data)
+  }
 
-  pub fn enum_field(&self) -> Result<TestEnum, UnknownDiscriminant> { TestAllTypes::ENUM_FIELD_META.get(&self.data) }
+  pub fn enum_field(&self) -> Result<TestEnum, UnknownDiscriminant> {
+    TestAllTypes::ENUM_FIELD_META.get(&self.data)
+  }
 
-  pub fn struct_list(&self) -> Result<Slice<'a, TestAllTypes<'a>>, Error> { TestAllTypes::STRUCT_LIST_META.get(&self.data) }
+  pub fn struct_list(&self) -> Result<Slice<'a, TestAllTypes<'a>>, Error> {
+    TestAllTypes::STRUCT_LIST_META.get(&self.data)
+  }
 
   pub fn capnp_to_owned(&self) -> TestAllTypesShared {
     TestAllTypesShared { data: self.data.capnp_to_owned() }
@@ -192,7 +168,10 @@ impl TestAllTypesShared {
     enum_field: TestEnum,
     struct_list: &'_ [TestAllTypesShared],
   ) -> TestAllTypesShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
+    let mut data = UntypedStructOwned::new_with_root_struct(
+      TestAllTypes::META.data_size,
+      TestAllTypes::META.pointer_size,
+    );
     TestAllTypes::INT32_FIELD_META.set(&mut data, int32_field);
     TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);
     TestAllTypes::DATA_FIELD_META.set(&mut data, data_field);

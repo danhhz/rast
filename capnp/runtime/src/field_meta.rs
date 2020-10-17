@@ -22,19 +22,19 @@ use crate::union::{TypedUnion, TypedUnionShared, UnionMeta, UntypedUnion};
 #[derive(Debug)]
 pub enum FieldMeta {
   /// Schema for an `i32` field in a Cap'n Proto struct
-  I32(I32FieldMeta),
+  I32(&'static I32FieldMeta),
   /// Schema for a `u64` field in a Cap'n Proto struct
-  U64(U64FieldMeta),
+  U64(&'static U64FieldMeta),
   /// Schema for a `[u8]` field in a Cap'n Proto struct
-  Data(DataFieldMeta),
+  Data(&'static DataFieldMeta),
   /// Schema for an enum field in a Cap'n Proto struct
-  Enum(EnumFieldMeta),
+  Enum(&'static EnumFieldMeta),
   /// Schema for a struct field in a Cap'n Proto struct
-  Struct(StructFieldMeta),
+  Struct(&'static StructFieldMeta),
   /// Schema for a list field in a Cap'n Proto struct
-  List(ListFieldMeta),
+  List(&'static ListFieldMeta),
   /// Schema for a union field in a Cap'n Proto struct
-  Union(UnionFieldMeta),
+  Union(&'static UnionFieldMeta),
 }
 
 impl FieldMeta {
