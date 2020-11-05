@@ -82,7 +82,7 @@ $ cargo test -p capnpc_rust golden -- -- --overwrite
 - [ ] Add version check for generated code vs the runtime crate it gets
 - [ ] Use StringTree for generated code
 - [ ] Support the remaining capnp field types
-- [ ] Connect generated ref and owned structs with associated types
+- [X] Connect generated ref and owned structs with associated types
 - [ ] Implement canonicalization
 - [ ] Default values
 - [ ] Copy struct without knowing type

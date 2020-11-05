@@ -1,12 +1,8 @@
 use capnp_runtime::prelude::*;
 
-/// An entry in the Raft log.
-#[derive(Clone)]
-pub struct Entry<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct EntryMeta;
 
-impl<'a> Entry<'a> {
+impl EntryMeta {
   const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
@@ -25,59 +21,100 @@ impl<'a> Entry<'a> {
     data_size: NumWords(2),
     pointer_size: NumWords(1),
     fields: || &[
-      FieldMeta::U64(Entry::TERM_META),
-      FieldMeta::U64(Entry::INDEX_META),
-      FieldMeta::Data(Entry::PAYLOAD_META),
+      FieldMeta::U64(EntryMeta::TERM_META),
+      FieldMeta::U64(EntryMeta::INDEX_META),
+      FieldMeta::Data(EntryMeta::PAYLOAD_META),
     ],
   };
+}
+
+impl<'a> TypedStruct<'a> for EntryMeta {
+  type Ref = EntryRef<'a>;
+  type Shared = EntryShared;
+  fn meta() -> &'static StructMeta {
+    &EntryMeta::META
+  }
+}
+
+pub trait Entry {
 
   /// The term of the entry.
-  pub fn term(&self) -> Term { Term(Entry::TERM_META.get(&self.data)) }
+  fn term<'a>(&'a self) -> Term;
 
   /// The index of the entry.
-  pub fn index(&self) -> Index { Index(Entry::INDEX_META.get(&self.data)) }
+  fn index<'a>(&'a self) -> Index;
 
   /// The opaque user payload of the entry.
-  pub fn payload(&self) -> Result<&'a [u8], Error> { Entry::PAYLOAD_META.get(&self.data) }
+  fn payload<'a>(&'a self) -> Result<&'a [u8], Error>;
+}
+
+/// An entry in the Raft log.
+#[derive(Clone)]
+pub struct EntryRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> EntryRef<'a> {
+
+  /// The term of the entry.
+  pub fn term(&self) -> Term {Term(EntryMeta::TERM_META.get(&self.data)) }
+
+  /// The index of the entry.
+  pub fn index(&self) -> Index {Index(EntryMeta::INDEX_META.get(&self.data)) }
+
+  /// The opaque user payload of the entry.
+  pub fn payload(&self) -> Result<&'a [u8], Error> {EntryMeta::PAYLOAD_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> EntryShared {
     EntryShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for Entry<'a> {
+impl Entry for EntryRef<'_> {
+  fn term<'a>(&'a self) -> Term {
+    self.term()
+ }
+  fn index<'a>(&'a self) -> Index {
+    self.index()
+ }
+  fn payload<'a>(&'a self) -> Result<&'a [u8], Error> {
+    self.payload()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for EntryRef<'a> {
   fn meta() -> &'static StructMeta {
-    &Entry::META
+    &EntryMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    Entry { data: data }
+    EntryRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for Entry<'a> {
+impl<'a> CapnpToOwned<'a> for EntryRef<'a> {
   type Owned = EntryShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    Entry::capnp_to_owned(self)
+    EntryRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for Entry<'a> {
+impl<'a> std::fmt::Debug for EntryRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for Entry<'a> {
-  fn partial_cmp(&self, other: &Entry<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for EntryRef<'a> {
+  fn partial_cmp(&self, other: &EntryRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for Entry<'a> {
-  fn eq(&self, other: &Entry<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for EntryRef<'a> {
+  fn eq(&self, other: &EntryRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -93,21 +130,21 @@ impl EntryShared {
     index: Index,
     payload: &[u8],
   ) -> EntryShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(Entry::META.data_size, Entry::META.pointer_size);
-    Entry::TERM_META.set(&mut data, term.0);
-    Entry::INDEX_META.set(&mut data, index.0);
-    Entry::PAYLOAD_META.set(&mut data, payload);
+    let mut data = UntypedStructOwned::new_with_root_struct(EntryMeta::META.data_size, EntryMeta::META.pointer_size);
+    EntryMeta::TERM_META.set(&mut data, term.0);
+    EntryMeta::INDEX_META.set(&mut data, index.0);
+    EntryMeta::PAYLOAD_META.set(&mut data, payload);
     EntryShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> Entry<'a> {
-    Entry { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> EntryRef<'a> {
+    EntryRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for EntryShared {
   fn meta() -> &'static StructMeta {
-    &Entry::META
+    &EntryMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     EntryShared { data: data }
@@ -117,19 +154,15 @@ impl TypedStructShared for EntryShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, Entry<'a>> for EntryShared {
-  fn capnp_as_ref(&'a self) -> Entry<'a> {
+impl<'a> CapnpAsRef<'a, EntryRef<'a>> for EntryShared {
+  fn capnp_as_ref(&'a self) -> EntryRef<'a> {
     EntryShared::capnp_as_ref(self)
   }
 }
 
-/// An rpc message.
-#[derive(Clone)]
-pub struct Message<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct MessageMeta;
 
-impl<'a> Message<'a> {
+impl MessageMeta {
   const SRC_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "src",
     offset: NumElements(0),
@@ -149,58 +182,98 @@ impl<'a> Message<'a> {
     data_size: NumWords(3),
     pointer_size: NumWords(1),
     fields: || &[
-      FieldMeta::U64(Message::SRC_META),
-      FieldMeta::U64(Message::DEST_META),
-      FieldMeta::Union(Message::PAYLOAD_META),
+      FieldMeta::U64(MessageMeta::SRC_META),
+      FieldMeta::U64(MessageMeta::DEST_META),
+      FieldMeta::Union(MessageMeta::PAYLOAD_META),
     ],
   };
+}
+
+impl<'a> TypedStruct<'a> for MessageMeta {
+  type Ref = MessageRef<'a>;
+  type Shared = MessageShared;
+  fn meta() -> &'static StructMeta {
+    &MessageMeta::META
+  }
+}
+
+pub trait Message {
 
   /// The node sending this rpc.
-  pub fn src(&self) -> NodeID { NodeID(Message::SRC_META.get(&self.data)) }
+  fn src<'a>(&'a self) -> NodeID;
 
   /// The node to receive this rpc.
-  pub fn dest(&self) -> NodeID { NodeID(Message::DEST_META.get(&self.data)) }
+  fn dest<'a>(&'a self) -> NodeID;
 
-  pub fn payload(&self) -> Result<Result<Payload<'a>, UnknownDiscriminant>,Error> { Message::PAYLOAD_META.get(&self.data) }
+  fn payload<'a>(&'a self) -> Result<Result<Payload<'a>, UnknownDiscriminant>,Error>;
+}
+
+/// An rpc message.
+#[derive(Clone)]
+pub struct MessageRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> MessageRef<'a> {
+
+  /// The node sending this rpc.
+  pub fn src(&self) -> NodeID {NodeID(MessageMeta::SRC_META.get(&self.data)) }
+
+  /// The node to receive this rpc.
+  pub fn dest(&self) -> NodeID {NodeID(MessageMeta::DEST_META.get(&self.data)) }
+
+  pub fn payload(&self) -> Result<Result<Payload<'a>, UnknownDiscriminant>,Error> {MessageMeta::PAYLOAD_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> MessageShared {
     MessageShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for Message<'a> {
+impl Message for MessageRef<'_> {
+  fn src<'a>(&'a self) -> NodeID {
+    self.src()
+ }
+  fn dest<'a>(&'a self) -> NodeID {
+    self.dest()
+ }
+  fn payload<'a>(&'a self) -> Result<Result<Payload<'a>, UnknownDiscriminant>,Error> {
+    self.payload()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for MessageRef<'a> {
   fn meta() -> &'static StructMeta {
-    &Message::META
+    &MessageMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    Message { data: data }
+    MessageRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for Message<'a> {
+impl<'a> CapnpToOwned<'a> for MessageRef<'a> {
   type Owned = MessageShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    Message::capnp_to_owned(self)
+    MessageRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for Message<'a> {
+impl<'a> std::fmt::Debug for MessageRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for Message<'a> {
-  fn partial_cmp(&self, other: &Message<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for MessageRef<'a> {
+  fn partial_cmp(&self, other: &MessageRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for Message<'a> {
-  fn eq(&self, other: &Message<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for MessageRef<'a> {
+  fn eq(&self, other: &MessageRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -216,21 +289,21 @@ impl MessageShared {
     dest: NodeID,
     payload: PayloadShared,
   ) -> MessageShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(Message::META.data_size, Message::META.pointer_size);
-    Message::SRC_META.set(&mut data, src.0);
-    Message::DEST_META.set(&mut data, dest.0);
-    Message::PAYLOAD_META.set(&mut data, payload);
+    let mut data = UntypedStructOwned::new_with_root_struct(MessageMeta::META.data_size, MessageMeta::META.pointer_size);
+    MessageMeta::SRC_META.set(&mut data, src.0);
+    MessageMeta::DEST_META.set(&mut data, dest.0);
+    MessageMeta::PAYLOAD_META.set(&mut data, payload);
     MessageShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> Message<'a> {
-    Message { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> MessageRef<'a> {
+    MessageRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for MessageShared {
   fn meta() -> &'static StructMeta {
-    &Message::META
+    &MessageMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     MessageShared { data: data }
@@ -240,18 +313,15 @@ impl TypedStructShared for MessageShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, Message<'a>> for MessageShared {
-  fn capnp_as_ref(&'a self) -> Message<'a> {
+impl<'a> CapnpAsRef<'a, MessageRef<'a>> for MessageShared {
+  fn capnp_as_ref(&'a self) -> MessageRef<'a> {
     MessageShared::capnp_as_ref(self)
   }
 }
 
-#[derive(Clone)]
-pub struct AppendEntriesReq<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct AppendEntriesReqMeta;
 
-impl<'a> AppendEntriesReq<'a> {
+impl AppendEntriesReqMeta {
   const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
@@ -280,7 +350,7 @@ impl<'a> AppendEntriesReq<'a> {
     name: "entries",
     offset: NumElements(0),
     meta: &ListMeta {
-      value_type: ElementType::Struct(&Entry::META)
+      value_type: ElementType::Struct(&EntryMeta::META)
     },
   };
 
@@ -289,68 +359,125 @@ impl<'a> AppendEntriesReq<'a> {
     data_size: NumWords(6),
     pointer_size: NumWords(1),
     fields: || &[
-      FieldMeta::U64(AppendEntriesReq::TERM_META),
-      FieldMeta::U64(AppendEntriesReq::LEADER_ID_META),
-      FieldMeta::U64(AppendEntriesReq::PREV_LOG_INDEX_META),
-      FieldMeta::U64(AppendEntriesReq::PREV_LOG_TERM_META),
-      FieldMeta::U64(AppendEntriesReq::LEADER_COMMIT_META),
-      FieldMeta::U64(AppendEntriesReq::READ_ID_META),
-      FieldMeta::List(AppendEntriesReq::ENTRIES_META),
+      FieldMeta::U64(AppendEntriesReqMeta::TERM_META),
+      FieldMeta::U64(AppendEntriesReqMeta::LEADER_ID_META),
+      FieldMeta::U64(AppendEntriesReqMeta::PREV_LOG_INDEX_META),
+      FieldMeta::U64(AppendEntriesReqMeta::PREV_LOG_TERM_META),
+      FieldMeta::U64(AppendEntriesReqMeta::LEADER_COMMIT_META),
+      FieldMeta::U64(AppendEntriesReqMeta::READ_ID_META),
+      FieldMeta::List(AppendEntriesReqMeta::ENTRIES_META),
     ],
   };
+}
 
-  pub fn term(&self) -> Term { Term(AppendEntriesReq::TERM_META.get(&self.data)) }
+impl<'a> TypedStruct<'a> for AppendEntriesReqMeta {
+  type Ref = AppendEntriesReqRef<'a>;
+  type Shared = AppendEntriesReqShared;
+  fn meta() -> &'static StructMeta {
+    &AppendEntriesReqMeta::META
+  }
+}
 
-  pub fn leader_id(&self) -> NodeID { NodeID(AppendEntriesReq::LEADER_ID_META.get(&self.data)) }
+pub trait AppendEntriesReq {
 
-  pub fn prev_log_index(&self) -> Index { Index(AppendEntriesReq::PREV_LOG_INDEX_META.get(&self.data)) }
+  fn term<'a>(&'a self) -> Term;
 
-  pub fn prev_log_term(&self) -> Term { Term(AppendEntriesReq::PREV_LOG_TERM_META.get(&self.data)) }
+  fn leader_id<'a>(&'a self) -> NodeID;
 
-  pub fn leader_commit(&self) -> Index { Index(AppendEntriesReq::LEADER_COMMIT_META.get(&self.data)) }
+  fn prev_log_index<'a>(&'a self) -> Index;
 
-  pub fn read_id(&self) -> ReadID { ReadID(AppendEntriesReq::READ_ID_META.get(&self.data)) }
+  fn prev_log_term<'a>(&'a self) -> Term;
 
-  pub fn entries(&self) -> Result<Slice<'a, Entry<'a>>, Error> { AppendEntriesReq::ENTRIES_META.get(&self.data) }
+  fn leader_commit<'a>(&'a self) -> Index;
+
+  fn read_id<'a>(&'a self) -> ReadID;
+
+  fn entries<'a>(&'a self) -> Result<Slice<'a, EntryRef<'a>>, Error>;
+}
+
+#[derive(Clone)]
+pub struct AppendEntriesReqRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> AppendEntriesReqRef<'a> {
+
+  pub fn term(&self) -> Term {Term(AppendEntriesReqMeta::TERM_META.get(&self.data)) }
+
+  pub fn leader_id(&self) -> NodeID {NodeID(AppendEntriesReqMeta::LEADER_ID_META.get(&self.data)) }
+
+  pub fn prev_log_index(&self) -> Index {Index(AppendEntriesReqMeta::PREV_LOG_INDEX_META.get(&self.data)) }
+
+  pub fn prev_log_term(&self) -> Term {Term(AppendEntriesReqMeta::PREV_LOG_TERM_META.get(&self.data)) }
+
+  pub fn leader_commit(&self) -> Index {Index(AppendEntriesReqMeta::LEADER_COMMIT_META.get(&self.data)) }
+
+  pub fn read_id(&self) -> ReadID {ReadID(AppendEntriesReqMeta::READ_ID_META.get(&self.data)) }
+
+  pub fn entries(&self) -> Result<Slice<'a, EntryRef<'a>>, Error> {AppendEntriesReqMeta::ENTRIES_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> AppendEntriesReqShared {
     AppendEntriesReqShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for AppendEntriesReq<'a> {
+impl AppendEntriesReq for AppendEntriesReqRef<'_> {
+  fn term<'a>(&'a self) -> Term {
+    self.term()
+ }
+  fn leader_id<'a>(&'a self) -> NodeID {
+    self.leader_id()
+ }
+  fn prev_log_index<'a>(&'a self) -> Index {
+    self.prev_log_index()
+ }
+  fn prev_log_term<'a>(&'a self) -> Term {
+    self.prev_log_term()
+ }
+  fn leader_commit<'a>(&'a self) -> Index {
+    self.leader_commit()
+ }
+  fn read_id<'a>(&'a self) -> ReadID {
+    self.read_id()
+ }
+  fn entries<'a>(&'a self) -> Result<Slice<'a, EntryRef<'a>>, Error> {
+    self.entries()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for AppendEntriesReqRef<'a> {
   fn meta() -> &'static StructMeta {
-    &AppendEntriesReq::META
+    &AppendEntriesReqMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    AppendEntriesReq { data: data }
+    AppendEntriesReqRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for AppendEntriesReq<'a> {
+impl<'a> CapnpToOwned<'a> for AppendEntriesReqRef<'a> {
   type Owned = AppendEntriesReqShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    AppendEntriesReq::capnp_to_owned(self)
+    AppendEntriesReqRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for AppendEntriesReq<'a> {
+impl<'a> std::fmt::Debug for AppendEntriesReqRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for AppendEntriesReq<'a> {
-  fn partial_cmp(&self, other: &AppendEntriesReq<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for AppendEntriesReqRef<'a> {
+  fn partial_cmp(&self, other: &AppendEntriesReqRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for AppendEntriesReq<'a> {
-  fn eq(&self, other: &AppendEntriesReq<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for AppendEntriesReqRef<'a> {
+  fn eq(&self, other: &AppendEntriesReqRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -370,25 +497,25 @@ impl AppendEntriesReqShared {
     read_id: ReadID,
     entries: &'_ [EntryShared],
   ) -> AppendEntriesReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesReq::META.data_size, AppendEntriesReq::META.pointer_size);
-    AppendEntriesReq::TERM_META.set(&mut data, term.0);
-    AppendEntriesReq::LEADER_ID_META.set(&mut data, leader_id.0);
-    AppendEntriesReq::PREV_LOG_INDEX_META.set(&mut data, prev_log_index.0);
-    AppendEntriesReq::PREV_LOG_TERM_META.set(&mut data, prev_log_term.0);
-    AppendEntriesReq::LEADER_COMMIT_META.set(&mut data, leader_commit.0);
-    AppendEntriesReq::READ_ID_META.set(&mut data, read_id.0);
-    AppendEntriesReq::ENTRIES_META.set(&mut data, entries);
+    let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesReqMeta::META.data_size, AppendEntriesReqMeta::META.pointer_size);
+    AppendEntriesReqMeta::TERM_META.set(&mut data, term.0);
+    AppendEntriesReqMeta::LEADER_ID_META.set(&mut data, leader_id.0);
+    AppendEntriesReqMeta::PREV_LOG_INDEX_META.set(&mut data, prev_log_index.0);
+    AppendEntriesReqMeta::PREV_LOG_TERM_META.set(&mut data, prev_log_term.0);
+    AppendEntriesReqMeta::LEADER_COMMIT_META.set(&mut data, leader_commit.0);
+    AppendEntriesReqMeta::READ_ID_META.set(&mut data, read_id.0);
+    AppendEntriesReqMeta::ENTRIES_META.set(&mut data, entries);
     AppendEntriesReqShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> AppendEntriesReq<'a> {
-    AppendEntriesReq { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> AppendEntriesReqRef<'a> {
+    AppendEntriesReqRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for AppendEntriesReqShared {
   fn meta() -> &'static StructMeta {
-    &AppendEntriesReq::META
+    &AppendEntriesReqMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     AppendEntriesReqShared { data: data }
@@ -398,18 +525,15 @@ impl TypedStructShared for AppendEntriesReqShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, AppendEntriesReq<'a>> for AppendEntriesReqShared {
-  fn capnp_as_ref(&'a self) -> AppendEntriesReq<'a> {
+impl<'a> CapnpAsRef<'a, AppendEntriesReqRef<'a>> for AppendEntriesReqShared {
+  fn capnp_as_ref(&'a self) -> AppendEntriesReqRef<'a> {
     AppendEntriesReqShared::capnp_as_ref(self)
   }
 }
 
-#[derive(Clone)]
-pub struct AppendEntriesRes<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct AppendEntriesResMeta;
 
-impl<'a> AppendEntriesRes<'a> {
+impl AppendEntriesResMeta {
   const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
@@ -432,59 +556,101 @@ impl<'a> AppendEntriesRes<'a> {
     data_size: NumWords(4),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::U64(AppendEntriesRes::TERM_META),
-      FieldMeta::U64(AppendEntriesRes::SUCCESS_META),
-      FieldMeta::U64(AppendEntriesRes::INDEX_META),
-      FieldMeta::U64(AppendEntriesRes::READ_ID_META),
+      FieldMeta::U64(AppendEntriesResMeta::TERM_META),
+      FieldMeta::U64(AppendEntriesResMeta::SUCCESS_META),
+      FieldMeta::U64(AppendEntriesResMeta::INDEX_META),
+      FieldMeta::U64(AppendEntriesResMeta::READ_ID_META),
     ],
   };
+}
 
-  pub fn term(&self) -> Term { Term(AppendEntriesRes::TERM_META.get(&self.data)) }
+impl<'a> TypedStruct<'a> for AppendEntriesResMeta {
+  type Ref = AppendEntriesResRef<'a>;
+  type Shared = AppendEntriesResShared;
+  fn meta() -> &'static StructMeta {
+    &AppendEntriesResMeta::META
+  }
+}
 
-  pub fn success(&self) -> u64 { AppendEntriesRes::SUCCESS_META.get(&self.data) }
+pub trait AppendEntriesRes {
 
-  pub fn index(&self) -> Index { Index(AppendEntriesRes::INDEX_META.get(&self.data)) }
+  fn term<'a>(&'a self) -> Term;
 
-  pub fn read_id(&self) -> ReadID { ReadID(AppendEntriesRes::READ_ID_META.get(&self.data)) }
+  fn success<'a>(&'a self) -> u64;
+
+  fn index<'a>(&'a self) -> Index;
+
+  fn read_id<'a>(&'a self) -> ReadID;
+}
+
+#[derive(Clone)]
+pub struct AppendEntriesResRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> AppendEntriesResRef<'a> {
+
+  pub fn term(&self) -> Term {Term(AppendEntriesResMeta::TERM_META.get(&self.data)) }
+
+  pub fn success(&self) -> u64 {AppendEntriesResMeta::SUCCESS_META.get(&self.data) }
+
+  pub fn index(&self) -> Index {Index(AppendEntriesResMeta::INDEX_META.get(&self.data)) }
+
+  pub fn read_id(&self) -> ReadID {ReadID(AppendEntriesResMeta::READ_ID_META.get(&self.data)) }
 
   pub fn capnp_to_owned(&self) -> AppendEntriesResShared {
     AppendEntriesResShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for AppendEntriesRes<'a> {
+impl AppendEntriesRes for AppendEntriesResRef<'_> {
+  fn term<'a>(&'a self) -> Term {
+    self.term()
+ }
+  fn success<'a>(&'a self) -> u64 {
+    self.success()
+ }
+  fn index<'a>(&'a self) -> Index {
+    self.index()
+ }
+  fn read_id<'a>(&'a self) -> ReadID {
+    self.read_id()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for AppendEntriesResRef<'a> {
   fn meta() -> &'static StructMeta {
-    &AppendEntriesRes::META
+    &AppendEntriesResMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    AppendEntriesRes { data: data }
+    AppendEntriesResRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for AppendEntriesRes<'a> {
+impl<'a> CapnpToOwned<'a> for AppendEntriesResRef<'a> {
   type Owned = AppendEntriesResShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    AppendEntriesRes::capnp_to_owned(self)
+    AppendEntriesResRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for AppendEntriesRes<'a> {
+impl<'a> std::fmt::Debug for AppendEntriesResRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for AppendEntriesRes<'a> {
-  fn partial_cmp(&self, other: &AppendEntriesRes<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for AppendEntriesResRef<'a> {
+  fn partial_cmp(&self, other: &AppendEntriesResRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for AppendEntriesRes<'a> {
-  fn eq(&self, other: &AppendEntriesRes<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for AppendEntriesResRef<'a> {
+  fn eq(&self, other: &AppendEntriesResRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -501,22 +667,22 @@ impl AppendEntriesResShared {
     index: Index,
     read_id: ReadID,
   ) -> AppendEntriesResShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesRes::META.data_size, AppendEntriesRes::META.pointer_size);
-    AppendEntriesRes::TERM_META.set(&mut data, term.0);
-    AppendEntriesRes::SUCCESS_META.set(&mut data, success);
-    AppendEntriesRes::INDEX_META.set(&mut data, index.0);
-    AppendEntriesRes::READ_ID_META.set(&mut data, read_id.0);
+    let mut data = UntypedStructOwned::new_with_root_struct(AppendEntriesResMeta::META.data_size, AppendEntriesResMeta::META.pointer_size);
+    AppendEntriesResMeta::TERM_META.set(&mut data, term.0);
+    AppendEntriesResMeta::SUCCESS_META.set(&mut data, success);
+    AppendEntriesResMeta::INDEX_META.set(&mut data, index.0);
+    AppendEntriesResMeta::READ_ID_META.set(&mut data, read_id.0);
     AppendEntriesResShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> AppendEntriesRes<'a> {
-    AppendEntriesRes { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> AppendEntriesResRef<'a> {
+    AppendEntriesResRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for AppendEntriesResShared {
   fn meta() -> &'static StructMeta {
-    &AppendEntriesRes::META
+    &AppendEntriesResMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     AppendEntriesResShared { data: data }
@@ -526,18 +692,15 @@ impl TypedStructShared for AppendEntriesResShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, AppendEntriesRes<'a>> for AppendEntriesResShared {
-  fn capnp_as_ref(&'a self) -> AppendEntriesRes<'a> {
+impl<'a> CapnpAsRef<'a, AppendEntriesResRef<'a>> for AppendEntriesResShared {
+  fn capnp_as_ref(&'a self) -> AppendEntriesResRef<'a> {
     AppendEntriesResShared::capnp_as_ref(self)
   }
 }
 
-#[derive(Clone)]
-pub struct RequestVoteReq<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct RequestVoteReqMeta;
 
-impl<'a> RequestVoteReq<'a> {
+impl RequestVoteReqMeta {
   const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
@@ -560,59 +723,101 @@ impl<'a> RequestVoteReq<'a> {
     data_size: NumWords(4),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::U64(RequestVoteReq::TERM_META),
-      FieldMeta::U64(RequestVoteReq::CANDIDATE_ID_META),
-      FieldMeta::U64(RequestVoteReq::LAST_LOG_INDEX_META),
-      FieldMeta::U64(RequestVoteReq::LAST_LOG_TERM_META),
+      FieldMeta::U64(RequestVoteReqMeta::TERM_META),
+      FieldMeta::U64(RequestVoteReqMeta::CANDIDATE_ID_META),
+      FieldMeta::U64(RequestVoteReqMeta::LAST_LOG_INDEX_META),
+      FieldMeta::U64(RequestVoteReqMeta::LAST_LOG_TERM_META),
     ],
   };
+}
 
-  pub fn term(&self) -> Term { Term(RequestVoteReq::TERM_META.get(&self.data)) }
+impl<'a> TypedStruct<'a> for RequestVoteReqMeta {
+  type Ref = RequestVoteReqRef<'a>;
+  type Shared = RequestVoteReqShared;
+  fn meta() -> &'static StructMeta {
+    &RequestVoteReqMeta::META
+  }
+}
 
-  pub fn candidate_id(&self) -> NodeID { NodeID(RequestVoteReq::CANDIDATE_ID_META.get(&self.data)) }
+pub trait RequestVoteReq {
 
-  pub fn last_log_index(&self) -> Index { Index(RequestVoteReq::LAST_LOG_INDEX_META.get(&self.data)) }
+  fn term<'a>(&'a self) -> Term;
 
-  pub fn last_log_term(&self) -> Term { Term(RequestVoteReq::LAST_LOG_TERM_META.get(&self.data)) }
+  fn candidate_id<'a>(&'a self) -> NodeID;
+
+  fn last_log_index<'a>(&'a self) -> Index;
+
+  fn last_log_term<'a>(&'a self) -> Term;
+}
+
+#[derive(Clone)]
+pub struct RequestVoteReqRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> RequestVoteReqRef<'a> {
+
+  pub fn term(&self) -> Term {Term(RequestVoteReqMeta::TERM_META.get(&self.data)) }
+
+  pub fn candidate_id(&self) -> NodeID {NodeID(RequestVoteReqMeta::CANDIDATE_ID_META.get(&self.data)) }
+
+  pub fn last_log_index(&self) -> Index {Index(RequestVoteReqMeta::LAST_LOG_INDEX_META.get(&self.data)) }
+
+  pub fn last_log_term(&self) -> Term {Term(RequestVoteReqMeta::LAST_LOG_TERM_META.get(&self.data)) }
 
   pub fn capnp_to_owned(&self) -> RequestVoteReqShared {
     RequestVoteReqShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for RequestVoteReq<'a> {
+impl RequestVoteReq for RequestVoteReqRef<'_> {
+  fn term<'a>(&'a self) -> Term {
+    self.term()
+ }
+  fn candidate_id<'a>(&'a self) -> NodeID {
+    self.candidate_id()
+ }
+  fn last_log_index<'a>(&'a self) -> Index {
+    self.last_log_index()
+ }
+  fn last_log_term<'a>(&'a self) -> Term {
+    self.last_log_term()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for RequestVoteReqRef<'a> {
   fn meta() -> &'static StructMeta {
-    &RequestVoteReq::META
+    &RequestVoteReqMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    RequestVoteReq { data: data }
+    RequestVoteReqRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for RequestVoteReq<'a> {
+impl<'a> CapnpToOwned<'a> for RequestVoteReqRef<'a> {
   type Owned = RequestVoteReqShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    RequestVoteReq::capnp_to_owned(self)
+    RequestVoteReqRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for RequestVoteReq<'a> {
+impl<'a> std::fmt::Debug for RequestVoteReqRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for RequestVoteReq<'a> {
-  fn partial_cmp(&self, other: &RequestVoteReq<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for RequestVoteReqRef<'a> {
+  fn partial_cmp(&self, other: &RequestVoteReqRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for RequestVoteReq<'a> {
-  fn eq(&self, other: &RequestVoteReq<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for RequestVoteReqRef<'a> {
+  fn eq(&self, other: &RequestVoteReqRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -629,22 +834,22 @@ impl RequestVoteReqShared {
     last_log_index: Index,
     last_log_term: Term,
   ) -> RequestVoteReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteReq::META.data_size, RequestVoteReq::META.pointer_size);
-    RequestVoteReq::TERM_META.set(&mut data, term.0);
-    RequestVoteReq::CANDIDATE_ID_META.set(&mut data, candidate_id.0);
-    RequestVoteReq::LAST_LOG_INDEX_META.set(&mut data, last_log_index.0);
-    RequestVoteReq::LAST_LOG_TERM_META.set(&mut data, last_log_term.0);
+    let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteReqMeta::META.data_size, RequestVoteReqMeta::META.pointer_size);
+    RequestVoteReqMeta::TERM_META.set(&mut data, term.0);
+    RequestVoteReqMeta::CANDIDATE_ID_META.set(&mut data, candidate_id.0);
+    RequestVoteReqMeta::LAST_LOG_INDEX_META.set(&mut data, last_log_index.0);
+    RequestVoteReqMeta::LAST_LOG_TERM_META.set(&mut data, last_log_term.0);
     RequestVoteReqShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> RequestVoteReq<'a> {
-    RequestVoteReq { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> RequestVoteReqRef<'a> {
+    RequestVoteReqRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for RequestVoteReqShared {
   fn meta() -> &'static StructMeta {
-    &RequestVoteReq::META
+    &RequestVoteReqMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     RequestVoteReqShared { data: data }
@@ -654,18 +859,15 @@ impl TypedStructShared for RequestVoteReqShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, RequestVoteReq<'a>> for RequestVoteReqShared {
-  fn capnp_as_ref(&'a self) -> RequestVoteReq<'a> {
+impl<'a> CapnpAsRef<'a, RequestVoteReqRef<'a>> for RequestVoteReqShared {
+  fn capnp_as_ref(&'a self) -> RequestVoteReqRef<'a> {
     RequestVoteReqShared::capnp_as_ref(self)
   }
 }
 
-#[derive(Clone)]
-pub struct RequestVoteRes<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct RequestVoteResMeta;
 
-impl<'a> RequestVoteRes<'a> {
+impl RequestVoteResMeta {
   const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
@@ -680,53 +882,85 @@ impl<'a> RequestVoteRes<'a> {
     data_size: NumWords(2),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::U64(RequestVoteRes::TERM_META),
-      FieldMeta::U64(RequestVoteRes::VOTE_GRANTED_META),
+      FieldMeta::U64(RequestVoteResMeta::TERM_META),
+      FieldMeta::U64(RequestVoteResMeta::VOTE_GRANTED_META),
     ],
   };
+}
 
-  pub fn term(&self) -> Term { Term(RequestVoteRes::TERM_META.get(&self.data)) }
+impl<'a> TypedStruct<'a> for RequestVoteResMeta {
+  type Ref = RequestVoteResRef<'a>;
+  type Shared = RequestVoteResShared;
+  fn meta() -> &'static StructMeta {
+    &RequestVoteResMeta::META
+  }
+}
 
-  pub fn vote_granted(&self) -> u64 { RequestVoteRes::VOTE_GRANTED_META.get(&self.data) }
+pub trait RequestVoteRes {
+
+  fn term<'a>(&'a self) -> Term;
+
+  fn vote_granted<'a>(&'a self) -> u64;
+}
+
+#[derive(Clone)]
+pub struct RequestVoteResRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> RequestVoteResRef<'a> {
+
+  pub fn term(&self) -> Term {Term(RequestVoteResMeta::TERM_META.get(&self.data)) }
+
+  pub fn vote_granted(&self) -> u64 {RequestVoteResMeta::VOTE_GRANTED_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> RequestVoteResShared {
     RequestVoteResShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for RequestVoteRes<'a> {
+impl RequestVoteRes for RequestVoteResRef<'_> {
+  fn term<'a>(&'a self) -> Term {
+    self.term()
+ }
+  fn vote_granted<'a>(&'a self) -> u64 {
+    self.vote_granted()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for RequestVoteResRef<'a> {
   fn meta() -> &'static StructMeta {
-    &RequestVoteRes::META
+    &RequestVoteResMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    RequestVoteRes { data: data }
+    RequestVoteResRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for RequestVoteRes<'a> {
+impl<'a> CapnpToOwned<'a> for RequestVoteResRef<'a> {
   type Owned = RequestVoteResShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    RequestVoteRes::capnp_to_owned(self)
+    RequestVoteResRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for RequestVoteRes<'a> {
+impl<'a> std::fmt::Debug for RequestVoteResRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for RequestVoteRes<'a> {
-  fn partial_cmp(&self, other: &RequestVoteRes<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for RequestVoteResRef<'a> {
+  fn partial_cmp(&self, other: &RequestVoteResRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for RequestVoteRes<'a> {
-  fn eq(&self, other: &RequestVoteRes<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for RequestVoteResRef<'a> {
+  fn eq(&self, other: &RequestVoteResRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -741,20 +975,20 @@ impl RequestVoteResShared {
     term: Term,
     vote_granted: u64,
   ) -> RequestVoteResShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteRes::META.data_size, RequestVoteRes::META.pointer_size);
-    RequestVoteRes::TERM_META.set(&mut data, term.0);
-    RequestVoteRes::VOTE_GRANTED_META.set(&mut data, vote_granted);
+    let mut data = UntypedStructOwned::new_with_root_struct(RequestVoteResMeta::META.data_size, RequestVoteResMeta::META.pointer_size);
+    RequestVoteResMeta::TERM_META.set(&mut data, term.0);
+    RequestVoteResMeta::VOTE_GRANTED_META.set(&mut data, vote_granted);
     RequestVoteResShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> RequestVoteRes<'a> {
-    RequestVoteRes { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> RequestVoteResRef<'a> {
+    RequestVoteResRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for RequestVoteResShared {
   fn meta() -> &'static StructMeta {
-    &RequestVoteRes::META
+    &RequestVoteResMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     RequestVoteResShared { data: data }
@@ -764,18 +998,15 @@ impl TypedStructShared for RequestVoteResShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, RequestVoteRes<'a>> for RequestVoteResShared {
-  fn capnp_as_ref(&'a self) -> RequestVoteRes<'a> {
+impl<'a> CapnpAsRef<'a, RequestVoteResRef<'a>> for RequestVoteResShared {
+  fn capnp_as_ref(&'a self) -> RequestVoteResRef<'a> {
     RequestVoteResShared::capnp_as_ref(self)
   }
 }
 
-#[derive(Clone)]
-pub struct StartElectionReq<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct StartElectionReqMeta;
 
-impl<'a> StartElectionReq<'a> {
+impl StartElectionReqMeta {
   const TERM_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "term",
     offset: NumElements(0),
@@ -786,50 +1017,77 @@ impl<'a> StartElectionReq<'a> {
     data_size: NumWords(1),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::U64(StartElectionReq::TERM_META),
+      FieldMeta::U64(StartElectionReqMeta::TERM_META),
     ],
   };
+}
 
-  pub fn term(&self) -> Term { Term(StartElectionReq::TERM_META.get(&self.data)) }
+impl<'a> TypedStruct<'a> for StartElectionReqMeta {
+  type Ref = StartElectionReqRef<'a>;
+  type Shared = StartElectionReqShared;
+  fn meta() -> &'static StructMeta {
+    &StartElectionReqMeta::META
+  }
+}
+
+pub trait StartElectionReq {
+
+  fn term<'a>(&'a self) -> Term;
+}
+
+#[derive(Clone)]
+pub struct StartElectionReqRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> StartElectionReqRef<'a> {
+
+  pub fn term(&self) -> Term {Term(StartElectionReqMeta::TERM_META.get(&self.data)) }
 
   pub fn capnp_to_owned(&self) -> StartElectionReqShared {
     StartElectionReqShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for StartElectionReq<'a> {
+impl StartElectionReq for StartElectionReqRef<'_> {
+  fn term<'a>(&'a self) -> Term {
+    self.term()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for StartElectionReqRef<'a> {
   fn meta() -> &'static StructMeta {
-    &StartElectionReq::META
+    &StartElectionReqMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    StartElectionReq { data: data }
+    StartElectionReqRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for StartElectionReq<'a> {
+impl<'a> CapnpToOwned<'a> for StartElectionReqRef<'a> {
   type Owned = StartElectionReqShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    StartElectionReq::capnp_to_owned(self)
+    StartElectionReqRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for StartElectionReq<'a> {
+impl<'a> std::fmt::Debug for StartElectionReqRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for StartElectionReq<'a> {
-  fn partial_cmp(&self, other: &StartElectionReq<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for StartElectionReqRef<'a> {
+  fn partial_cmp(&self, other: &StartElectionReqRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for StartElectionReq<'a> {
-  fn eq(&self, other: &StartElectionReq<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for StartElectionReqRef<'a> {
+  fn eq(&self, other: &StartElectionReqRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -843,19 +1101,19 @@ impl StartElectionReqShared {
   pub fn new(
     term: Term,
   ) -> StartElectionReqShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(StartElectionReq::META.data_size, StartElectionReq::META.pointer_size);
-    StartElectionReq::TERM_META.set(&mut data, term.0);
+    let mut data = UntypedStructOwned::new_with_root_struct(StartElectionReqMeta::META.data_size, StartElectionReqMeta::META.pointer_size);
+    StartElectionReqMeta::TERM_META.set(&mut data, term.0);
     StartElectionReqShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> StartElectionReq<'a> {
-    StartElectionReq { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> StartElectionReqRef<'a> {
+    StartElectionReqRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for StartElectionReqShared {
   fn meta() -> &'static StructMeta {
-    &StartElectionReq::META
+    &StartElectionReqMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     StartElectionReqShared { data: data }
@@ -865,46 +1123,46 @@ impl TypedStructShared for StartElectionReqShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, StartElectionReq<'a>> for StartElectionReqShared {
-  fn capnp_as_ref(&'a self) -> StartElectionReq<'a> {
+impl<'a> CapnpAsRef<'a, StartElectionReqRef<'a>> for StartElectionReqShared {
+  fn capnp_as_ref(&'a self) -> StartElectionReqRef<'a> {
     StartElectionReqShared::capnp_as_ref(self)
   }
 }
 
 #[derive(Clone)]
 pub enum Payload<'a> {
-  AppendEntriesReq(AppendEntriesReq<'a>),
-  AppendEntriesRes(AppendEntriesRes<'a>),
-  RequestVoteReq(RequestVoteReq<'a>),
-  RequestVoteRes(RequestVoteRes<'a>),
-  StartElectionReq(StartElectionReq<'a>),
+  AppendEntriesReq(AppendEntriesReqRef<'a>),
+  AppendEntriesRes(AppendEntriesResRef<'a>),
+  RequestVoteReq(RequestVoteReqRef<'a>),
+  RequestVoteRes(RequestVoteResRef<'a>),
+  StartElectionReq(StartElectionReqRef<'a>),
 }
 
 impl Payload<'_> {
   const APPEND_ENTRIES_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "appendEntriesReq",
     offset: NumElements(0),
-    meta: &AppendEntriesReq::META,
+    meta: &AppendEntriesReqMeta::META,
   };
   const APPEND_ENTRIES_RES_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "appendEntriesRes",
     offset: NumElements(0),
-    meta: &AppendEntriesRes::META,
+    meta: &AppendEntriesResMeta::META,
   };
   const REQUEST_VOTE_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "requestVoteReq",
     offset: NumElements(0),
-    meta: &RequestVoteReq::META,
+    meta: &RequestVoteReqMeta::META,
   };
   const REQUEST_VOTE_RES_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "requestVoteRes",
     offset: NumElements(0),
-    meta: &RequestVoteRes::META,
+    meta: &RequestVoteResMeta::META,
   };
   const START_ELECTION_REQ_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "startElectionReq",
     offset: NumElements(0),
-    meta: &StartElectionReq::META,
+    meta: &StartElectionReqMeta::META,
   };
   const META: &'static UnionMeta = &UnionMeta {
     name: "Payload",

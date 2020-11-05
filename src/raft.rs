@@ -66,7 +66,7 @@ pub enum Input<'a> {
   /// TODO: How often should a tick event happen for a given [`Config`]?
   Tick(Instant),
   /// An rpc resulting from a [`Output::Message`] on another node.
-  Message(Message<'a>),
+  Message(MessageRef<'a>),
   /// A communication that a [`Output::PersistReq`] has completed.
   PersistRes(PersistRes),
   /// A communication that a [`Output::ReadStateMachineReq`] has completed.
@@ -589,7 +589,7 @@ impl State {
           prev_log_index + offset as u64 + 1,
           &payload,
         );
-        let entry_ref: Entry = entry.capnp_as_ref();
+        let entry_ref: EntryRef = entry.capnp_as_ref();
         debug_assert!(leader.write_buffer.get(&(entry_ref.term(), entry_ref.index())).is_none());
         if let Some(res) = res {
           leader.write_buffer.insert((entry_ref.term(), entry_ref.index()), res);
@@ -826,7 +826,7 @@ impl State {
     follower
   }
 
-  fn message(mut self, output: &mut impl Extend<Output>, message: Message) -> State {
+  fn message(mut self, output: &mut impl Extend<Output>, message: MessageRef<'_>) -> State {
     {
       let mut shared = self.shared_mut();
       let term = match &message.payload().expect("WIP").expect("WIP") {
@@ -857,7 +857,7 @@ impl State {
   fn candidate_step<'i>(
     candidate: Candidate,
     output: &mut impl Extend<Output>,
-    message: Message<'i>,
+    message: MessageRef<'i>,
   ) -> State {
     match message.payload().expect("WIP").expect("WIP") {
       Payload::RequestVoteRes(res) => {
@@ -887,7 +887,7 @@ impl State {
   fn follower_step<'i>(
     follower: Follower,
     output: &mut impl Extend<Output>,
-    message: Message<'i>,
+    message: MessageRef<'i>,
   ) -> State {
     match message.payload().expect("WIP").expect("WIP") {
       // Followers (§5.2): Respond to rpcs from candidates and leaders
@@ -917,7 +917,7 @@ impl State {
   fn leader_step<'i>(
     leader: Leader,
     output: &mut impl Extend<Output>,
-    message: Message<'i>,
+    message: MessageRef<'i>,
   ) -> State {
     match message.payload().expect("WIP").expect("WIP") {
       Payload::AppendEntriesRes(res) => {
@@ -938,7 +938,7 @@ impl State {
   fn follower_append_entries<'a>(
     mut follower: Follower,
     output: &'a mut impl Extend<Output>,
-    req: AppendEntriesReq<'a>,
+    req: AppendEntriesReqRef<'a>,
   ) -> Follower {
     // Reply false if term < currentTerm (§5.1)
     if req.term() < follower.shared.current_term {
@@ -1018,7 +1018,7 @@ impl State {
     leader: Leader,
     output: &'a mut impl Extend<Output>,
     src: NodeID,
-    res: AppendEntriesRes<'a>,
+    res: AppendEntriesResRef<'a>,
   ) -> Leader {
     // If successful: update nextIndex and matchIndex for follower (§5.3)
     if res.success() > 0 {
@@ -1114,7 +1114,7 @@ impl State {
   fn process_request_vote<'a>(
     mut self,
     output: &'a mut impl Extend<Output>,
-    req: RequestVoteReq<'a>,
+    req: RequestVoteReqRef<'a>,
   ) -> State {
     // TODO: To prevent [disruption from removed nodes], servers disregard
     // RequestVote rpcs when they believe a current leader exists. Specifically,
@@ -1154,7 +1154,7 @@ impl State {
   fn candidate_process_request_vote_res<'a>(
     mut candidate: Candidate,
     output: &'a mut impl Extend<Output>,
-    res: RequestVoteRes<'a>,
+    res: RequestVoteResRef<'a>,
   ) -> State {
     // NB: The term was checked earlier so don't need to check it again.
     if res.vote_granted() > 0 {

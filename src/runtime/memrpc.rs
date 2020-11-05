@@ -39,7 +39,7 @@ pub struct MemConn {
 }
 impl MemConn {
   /// Sends the given message.
-  pub fn send<'a>(&self, m: Message<'a>) {
+  pub fn send<'a>(&self, m: MessageRef<'a>) {
     // TODO: handle error
     self.sender.send(OwnedInput::Message(m.capnp_to_owned())).unwrap();
   }

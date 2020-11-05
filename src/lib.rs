@@ -99,7 +99,7 @@ pub use crate::error::{ClientError, NotLeaderError};
 pub use crate::future::{ReadFuture, WriteFuture};
 pub use crate::raft::{Config, Input, Output, OwnedInput, PersistRes, Raft, ReadStateMachineRes};
 pub use crate::serde::{
-  Entry, EntryShared, Index, Message, MessageShared, NodeID, ReadID, ReadReq, ReadRes, Term,
+  EntryRef, EntryShared, Index, MessageRef, MessageShared, NodeID, ReadID, ReadReq, ReadRes, Term,
   WriteReq, WriteRes,
 };
 

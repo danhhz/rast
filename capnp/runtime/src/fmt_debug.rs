@@ -237,14 +237,14 @@ impl fmt::Write for PaddedWriter<'_, '_> {
 mod test {
   use std::error;
 
-  use crate::samples::test_capnp::TestAllTypes;
+  use crate::samples::test_capnp::TestAllTypesRef;
 
   use capnp_runtime::segment_framing_official;
 
   #[test]
   fn fmt_debug_short() -> Result<(), Box<dyn error::Error>> {
     let buf = include_bytes!("../testdata/binary");
-    let message: TestAllTypes = segment_framing_official::decode(buf)?;
+    let message: TestAllTypesRef = segment_framing_official::decode(buf)?;
     let expected = include_str!("../testdata/short.txt");
     assert_eq!(format!("{:?}", message), expected);
     Ok(())
@@ -253,7 +253,7 @@ mod test {
   #[test]
   fn fmt_debug_pretty() -> Result<(), Box<dyn error::Error>> {
     let buf = include_bytes!("../testdata/binary");
-    let message: TestAllTypes = segment_framing_official::decode(buf)?;
+    let message: TestAllTypesRef = segment_framing_official::decode(buf)?;
     // TODO: This doesn't exactly match the official capnp pretty format, which
     // does some work to smush things on one line if they fit.
     let expected = include_str!("../testdata/pretty.txt");

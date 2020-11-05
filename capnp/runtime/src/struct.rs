@@ -7,6 +7,8 @@
 //!
 //! [struct]: crate#struct
 
+use std::fmt;
+
 use crate::common::{
   CapnpAsRef, CapnpToOwned, Discriminant, NumElements, NumWords, POINTER_WIDTH_WORDS,
 };
@@ -48,8 +50,19 @@ impl StructMeta {
   }
 }
 
+/// A codegen'd Cap'n Proto struct.
+pub trait TypedStruct<'a> {
+  /// The codegen'd ref type corresponding to this struct.
+  type Ref: TypedStructRef<'a>;
+  /// The codegen'd shared type corresponding to this struct.
+  type Shared: TypedStructShared + CapnpAsRef<'a, Self::Ref>;
+
+  /// The schema of this struct
+  fn meta() -> &'static StructMeta;
+}
+
 /// A borrowed codegen'd Cap'n Proto struct
-pub trait TypedStruct<'a>: Sized {
+pub trait TypedStructRef<'a>: Sized + fmt::Debug {
   /// The schema of this struct
   fn meta() -> &'static StructMeta;
   /// Returns an instance of this struct using the given data.
@@ -160,6 +173,12 @@ impl UntypedStructOwned {
     let off = POINTER_WIDTH_WORDS;
     let pointer_end = SegmentPointerOwned { seg: SegmentOwned::new_from_buf(buf), off: off };
     UntypedStructOwned { pointer: pointer, pointer_end: pointer_end }
+  }
+
+  pub(crate) fn from_root(seg: SegmentOwned) -> Result<Self, Error> {
+    let (pointer, pointer_end) =
+      SegmentPointerOwned::from_root(seg).struct_pointer(NumElements(0))?;
+    Ok(UntypedStructOwned { pointer: pointer, pointer_end: pointer_end })
   }
 
   /// Returns this struct data as a reference-counted version of the same.

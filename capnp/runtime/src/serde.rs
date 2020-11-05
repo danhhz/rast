@@ -122,17 +122,20 @@ mod test {
   use serde_json;
   use std::error;
 
-  use crate::samples::test_capnp::TestAllTypes;
+  use crate::samples::test_capnp::TestAllTypesRef;
   use capnp_runtime::prelude::*;
   use capnp_runtime::segment_framing_official;
 
   #[test]
   fn serialize_json() -> Result<(), Box<dyn error::Error>> {
     let buf = include_bytes!("../testdata/binary");
-    let message: TestAllTypes = segment_framing_official::decode(buf)?;
-    let expected = include_str!("../testdata/short.json");
-    let actual = serde_json::ser::to_string(&message.as_element())?;
-    assert_eq!(actual, expected);
+    let message: TestAllTypesRef = segment_framing_official::decode(buf)?;
+    let expected_short = include_str!("../testdata/short.json");
+    let actual_short = serde_json::ser::to_string(&message.as_element())?;
+    assert_eq!(actual_short, expected_short);
+    let expected_pretty = include_str!("../testdata/pretty.json");
+    let actual_pretty = serde_json::ser::to_string_pretty(&message.as_element())?;
+    assert_eq!(actual_pretty, expected_pretty);
     Ok(())
   }
 }

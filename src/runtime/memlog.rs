@@ -29,7 +29,7 @@ impl MemLog {
 
   /// Appends a new entry to the log, truncating existing entries that conflict,
   /// if necessary.
-  pub fn add<'a>(&mut self, entry: Entry<'a>) {
+  pub fn add<'a>(&mut self, entry: EntryRef<'a>) {
     // Invariant: All entries <= the stable one will not change.
     debug_assert!(self.stable.map_or(true, |stable| entry.index() > stable));
     // Invariant: Indexes are consecutive.

@@ -56,12 +56,9 @@ impl TypedEnum for Operation {
   }
 }
 
-#[derive(Clone)]
-pub struct Expression<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct ExpressionMeta;
 
-impl<'a> Expression<'a> {
+impl ExpressionMeta {
   const OP_META: &'static EnumFieldMeta = &EnumFieldMeta {
     name: "op",
     offset: NumElements(0),
@@ -83,56 +80,93 @@ impl<'a> Expression<'a> {
     data_size: NumWords(2),
     pointer_size: NumWords(2),
     fields: || &[
-      FieldMeta::Enum(Expression::OP_META),
-      FieldMeta::Union(Expression::LEFT_META),
-      FieldMeta::Union(Expression::RIGHT_META),
+      FieldMeta::Enum(ExpressionMeta::OP_META),
+      FieldMeta::Union(ExpressionMeta::LEFT_META),
+      FieldMeta::Union(ExpressionMeta::RIGHT_META),
     ],
   };
+}
 
-  pub fn op(&self) -> Result<Operation, UnknownDiscriminant> { Expression::OP_META.get(&self.data) }
+impl<'a> TypedStruct<'a> for ExpressionMeta {
+  type Ref = ExpressionRef<'a>;
+  type Shared = ExpressionShared;
+  fn meta() -> &'static StructMeta {
+    &ExpressionMeta::META
+  }
+}
 
-  pub fn left(&self) -> Result<Result<Left<'a>, UnknownDiscriminant>,Error> { Expression::LEFT_META.get(&self.data) }
+pub trait Expression {
 
-  pub fn right(&self) -> Result<Result<Right<'a>, UnknownDiscriminant>,Error> { Expression::RIGHT_META.get(&self.data) }
+  fn op<'a>(&'a self) -> Result<Operation, UnknownDiscriminant>;
+
+  fn left<'a>(&'a self) -> Result<Result<Left<'a>, UnknownDiscriminant>,Error>;
+
+  fn right<'a>(&'a self) -> Result<Result<Right<'a>, UnknownDiscriminant>,Error>;
+}
+
+#[derive(Clone)]
+pub struct ExpressionRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> ExpressionRef<'a> {
+
+  pub fn op(&self) -> Result<Operation, UnknownDiscriminant> {ExpressionMeta::OP_META.get(&self.data) }
+
+  pub fn left(&self) -> Result<Result<Left<'a>, UnknownDiscriminant>,Error> {ExpressionMeta::LEFT_META.get(&self.data) }
+
+  pub fn right(&self) -> Result<Result<Right<'a>, UnknownDiscriminant>,Error> {ExpressionMeta::RIGHT_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> ExpressionShared {
     ExpressionShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for Expression<'a> {
+impl Expression for ExpressionRef<'_> {
+  fn op<'a>(&'a self) -> Result<Operation, UnknownDiscriminant> {
+    self.op()
+ }
+  fn left<'a>(&'a self) -> Result<Result<Left<'a>, UnknownDiscriminant>,Error> {
+    self.left()
+ }
+  fn right<'a>(&'a self) -> Result<Result<Right<'a>, UnknownDiscriminant>,Error> {
+    self.right()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for ExpressionRef<'a> {
   fn meta() -> &'static StructMeta {
-    &Expression::META
+    &ExpressionMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    Expression { data: data }
+    ExpressionRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for Expression<'a> {
+impl<'a> CapnpToOwned<'a> for ExpressionRef<'a> {
   type Owned = ExpressionShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    Expression::capnp_to_owned(self)
+    ExpressionRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for Expression<'a> {
+impl<'a> std::fmt::Debug for ExpressionRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for Expression<'a> {
-  fn partial_cmp(&self, other: &Expression<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for ExpressionRef<'a> {
+  fn partial_cmp(&self, other: &ExpressionRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for Expression<'a> {
-  fn eq(&self, other: &Expression<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for ExpressionRef<'a> {
+  fn eq(&self, other: &ExpressionRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -148,21 +182,21 @@ impl ExpressionShared {
     left: LeftShared,
     right: RightShared,
   ) -> ExpressionShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(Expression::META.data_size, Expression::META.pointer_size);
-    Expression::OP_META.set(&mut data, op);
-    Expression::LEFT_META.set(&mut data, left);
-    Expression::RIGHT_META.set(&mut data, right);
+    let mut data = UntypedStructOwned::new_with_root_struct(ExpressionMeta::META.data_size, ExpressionMeta::META.pointer_size);
+    ExpressionMeta::OP_META.set(&mut data, op);
+    ExpressionMeta::LEFT_META.set(&mut data, left);
+    ExpressionMeta::RIGHT_META.set(&mut data, right);
     ExpressionShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> Expression<'a> {
-    Expression { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> ExpressionRef<'a> {
+    ExpressionRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for ExpressionShared {
   fn meta() -> &'static StructMeta {
-    &Expression::META
+    &ExpressionMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     ExpressionShared { data: data }
@@ -172,8 +206,8 @@ impl TypedStructShared for ExpressionShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, Expression<'a>> for ExpressionShared {
-  fn capnp_as_ref(&'a self) -> Expression<'a> {
+impl<'a> CapnpAsRef<'a, ExpressionRef<'a>> for ExpressionShared {
+  fn capnp_as_ref(&'a self) -> ExpressionRef<'a> {
     ExpressionShared::capnp_as_ref(self)
   }
 }
@@ -181,7 +215,7 @@ impl<'a> CapnpAsRef<'a, Expression<'a>> for ExpressionShared {
 #[derive(Clone)]
 pub enum Left<'a> {
   Value(i32),
-  Expression(Expression<'a>),
+  Expression(ExpressionRef<'a>),
 }
 
 impl Left<'_> {
@@ -192,7 +226,7 @@ impl Left<'_> {
   const EXPRESSION_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "expression",
     offset: NumElements(0),
-    meta: &Expression::META,
+    meta: &ExpressionMeta::META,
   };
   const META: &'static UnionMeta = &UnionMeta {
     name: "Left",
@@ -275,7 +309,7 @@ impl<'a> CapnpAsRef<'a, Left<'a>> for LeftShared {
 #[derive(Clone)]
 pub enum Right<'a> {
   Value(i32),
-  Expression(Expression<'a>),
+  Expression(ExpressionRef<'a>),
 }
 
 impl Right<'_> {
@@ -286,7 +320,7 @@ impl Right<'_> {
   const EXPRESSION_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "expression",
     offset: NumElements(1),
-    meta: &Expression::META,
+    meta: &ExpressionMeta::META,
   };
   const META: &'static UnionMeta = &UnionMeta {
     name: "Right",
@@ -366,12 +400,9 @@ impl<'a> CapnpAsRef<'a, Right<'a>> for RightShared {
   }
 }
 
-#[derive(Clone)]
-pub struct EvaluationResult<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct EvaluationResultMeta;
 
-impl<'a> EvaluationResult<'a> {
+impl EvaluationResultMeta {
   const VALUE_META: &'static I32FieldMeta = &I32FieldMeta {
     name: "value",
     offset: NumElements(0),
@@ -382,50 +413,77 @@ impl<'a> EvaluationResult<'a> {
     data_size: NumWords(1),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::I32(EvaluationResult::VALUE_META),
+      FieldMeta::I32(EvaluationResultMeta::VALUE_META),
     ],
   };
+}
 
-  pub fn value(&self) -> i32 { EvaluationResult::VALUE_META.get(&self.data) }
+impl<'a> TypedStruct<'a> for EvaluationResultMeta {
+  type Ref = EvaluationResultRef<'a>;
+  type Shared = EvaluationResultShared;
+  fn meta() -> &'static StructMeta {
+    &EvaluationResultMeta::META
+  }
+}
+
+pub trait EvaluationResult {
+
+  fn value<'a>(&'a self) -> i32;
+}
+
+#[derive(Clone)]
+pub struct EvaluationResultRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> EvaluationResultRef<'a> {
+
+  pub fn value(&self) -> i32 {EvaluationResultMeta::VALUE_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> EvaluationResultShared {
     EvaluationResultShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for EvaluationResult<'a> {
+impl EvaluationResult for EvaluationResultRef<'_> {
+  fn value<'a>(&'a self) -> i32 {
+    self.value()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for EvaluationResultRef<'a> {
   fn meta() -> &'static StructMeta {
-    &EvaluationResult::META
+    &EvaluationResultMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    EvaluationResult { data: data }
+    EvaluationResultRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for EvaluationResult<'a> {
+impl<'a> CapnpToOwned<'a> for EvaluationResultRef<'a> {
   type Owned = EvaluationResultShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    EvaluationResult::capnp_to_owned(self)
+    EvaluationResultRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for EvaluationResult<'a> {
+impl<'a> std::fmt::Debug for EvaluationResultRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for EvaluationResult<'a> {
-  fn partial_cmp(&self, other: &EvaluationResult<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for EvaluationResultRef<'a> {
+  fn partial_cmp(&self, other: &EvaluationResultRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for EvaluationResult<'a> {
-  fn eq(&self, other: &EvaluationResult<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for EvaluationResultRef<'a> {
+  fn eq(&self, other: &EvaluationResultRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -439,19 +497,19 @@ impl EvaluationResultShared {
   pub fn new(
     value: i32,
   ) -> EvaluationResultShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(EvaluationResult::META.data_size, EvaluationResult::META.pointer_size);
-    EvaluationResult::VALUE_META.set(&mut data, value);
+    let mut data = UntypedStructOwned::new_with_root_struct(EvaluationResultMeta::META.data_size, EvaluationResultMeta::META.pointer_size);
+    EvaluationResultMeta::VALUE_META.set(&mut data, value);
     EvaluationResultShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> EvaluationResult<'a> {
-    EvaluationResult { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> EvaluationResultRef<'a> {
+    EvaluationResultRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for EvaluationResultShared {
   fn meta() -> &'static StructMeta {
-    &EvaluationResult::META
+    &EvaluationResultMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     EvaluationResultShared { data: data }
@@ -461,8 +519,8 @@ impl TypedStructShared for EvaluationResultShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, EvaluationResult<'a>> for EvaluationResultShared {
-  fn capnp_as_ref(&'a self) -> EvaluationResult<'a> {
+impl<'a> CapnpAsRef<'a, EvaluationResultRef<'a>> for EvaluationResultShared {
+  fn capnp_as_ref(&'a self) -> EvaluationResultRef<'a> {
     EvaluationResultShared::capnp_as_ref(self)
   }
 }

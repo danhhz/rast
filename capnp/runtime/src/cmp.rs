@@ -138,16 +138,16 @@ mod test {
   use std::cmp::Ordering;
   use std::error;
 
-  use crate::samples::test_capnp::TestAllTypes;
+  use crate::samples::test_capnp::TestAllTypesRef;
   use capnp_runtime::segment_framing_official;
 
   #[test]
   fn cmp_equal() -> Result<(), Box<dyn error::Error>> {
     let buf = include_bytes!("../testdata/binary");
-    let binary: TestAllTypes = segment_framing_official::decode(buf)?;
+    let binary: TestAllTypesRef = segment_framing_official::decode(buf)?;
 
     let buf = include_bytes!("../testdata/segmented");
-    let segmented: TestAllTypes = segment_framing_official::decode(buf)?;
+    let segmented: TestAllTypesRef = segment_framing_official::decode(buf)?;
 
     assert_eq!(binary.partial_cmp(&segmented), Some(Ordering::Equal));
     assert_eq!(binary == segmented, true);

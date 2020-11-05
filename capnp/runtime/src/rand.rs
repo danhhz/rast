@@ -163,14 +163,14 @@ mod test {
   use std::error::Error;
 
   use crate::samples::carsales_capnp::{
-    ParkingLot, ParkingLotShared, TotalValue, TotalValueShared,
+    ParkingLotRef, ParkingLotShared, TotalValueRef, TotalValueShared,
   };
-  use crate::samples::catrank_capnp::{SearchResultList, SearchResultListShared};
+  use crate::samples::catrank_capnp::{SearchResultListRef, SearchResultListShared};
   use crate::samples::eval_capnp::{
-    EvaluationResult, EvaluationResultShared, Expression, ExpressionShared,
+    EvaluationResultRef, EvaluationResultShared, ExpressionRef, ExpressionShared,
   };
-  use crate::samples::rast_capnp::{Message, MessageShared};
-  use crate::samples::test_capnp::{TestAllTypes, TestAllTypesShared};
+  use crate::samples::rast_capnp::{MessageRef, MessageShared};
+  use crate::samples::test_capnp::{TestAllTypesRef, TestAllTypesShared};
   use capnp_runtime::segment_framing_alternate;
 
   // TODO: Pull out all the common bits here.
@@ -182,7 +182,7 @@ mod test {
         capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
       let mut buf = Vec::new();
       segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-      let after: ParkingLot = segment_framing_alternate::decode(&buf)?;
+      let after: ParkingLotRef = segment_framing_alternate::decode_buf(&mut &*buf)?;
       assert_eq!(before.capnp_as_ref(), after);
     }
     {
@@ -190,7 +190,7 @@ mod test {
         capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
       let mut buf = Vec::new();
       segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-      let after: TotalValue = segment_framing_alternate::decode(&buf)?;
+      let after: TotalValueRef = segment_framing_alternate::decode_buf(&mut &*buf)?;
       assert_eq!(before.capnp_as_ref(), after);
     }
     Ok(())
@@ -202,7 +202,7 @@ mod test {
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
     segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-    let after: SearchResultList = segment_framing_alternate::decode(&buf)?;
+    let after: SearchResultListRef = segment_framing_alternate::decode_buf(&mut &*buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }
@@ -214,7 +214,7 @@ mod test {
         capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 10).gen_typed_struct();
       let mut buf = Vec::new();
       segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-      let after: Expression = segment_framing_alternate::decode(&buf)?;
+      let after: ExpressionRef = segment_framing_alternate::decode_buf(&mut &*buf)?;
       assert_eq!(before.capnp_as_ref(), after);
     }
     {
@@ -222,7 +222,7 @@ mod test {
         capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
       let mut buf = Vec::new();
       segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-      let after: EvaluationResult = segment_framing_alternate::decode(&buf)?;
+      let after: EvaluationResultRef = segment_framing_alternate::decode_buf(&mut &*buf)?;
       assert_eq!(before.capnp_as_ref(), after);
     }
     Ok(())
@@ -234,7 +234,7 @@ mod test {
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
     segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-    let after: Message = segment_framing_alternate::decode(&buf)?;
+    let after: MessageRef = segment_framing_alternate::decode_buf(&mut &*buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }
@@ -245,7 +245,7 @@ mod test {
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
     segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-    let after: TestAllTypes = segment_framing_alternate::decode(&buf)?;
+    let after: TestAllTypesRef = segment_framing_alternate::decode_buf(&mut &*buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }

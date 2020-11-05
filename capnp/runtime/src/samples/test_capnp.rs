@@ -74,12 +74,9 @@ impl TypedEnum for TestEnum {
   }
 }
 
-#[derive(Clone)]
-pub struct TestAllTypes<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct TestAllTypesMeta;
 
-impl<'a> TestAllTypes<'a> {
+impl TestAllTypesMeta {
   const BOOL_FIELD_META: &'static BoolFieldMeta = &BoolFieldMeta {
     name: "boolField",
     offset: NumElements(0),
@@ -123,7 +120,7 @@ impl<'a> TestAllTypes<'a> {
   const STRUCT_FIELD_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "structField",
     offset: NumElements(2),
-    meta: &TestAllTypes::META,
+    meta: &TestAllTypesMeta::META,
   };
   const ENUM_FIELD_META: &'static EnumFieldMeta = &EnumFieldMeta {
     name: "enumField",
@@ -134,7 +131,7 @@ impl<'a> TestAllTypes<'a> {
     name: "structList",
     offset: NumElements(17),
     meta: &ListMeta {
-      value_type: ElementType::Struct(&TestAllTypes::META)
+      value_type: ElementType::Struct(&TestAllTypesMeta::META)
     },
   };
 
@@ -143,86 +140,173 @@ impl<'a> TestAllTypes<'a> {
     data_size: NumWords(6),
     pointer_size: NumWords(20),
     fields: || &[
-      FieldMeta::Bool(TestAllTypes::BOOL_FIELD_META),
-      FieldMeta::I32(TestAllTypes::INT32_FIELD_META),
-      FieldMeta::U8(TestAllTypes::U_INT8_FIELD_META),
-      FieldMeta::U16(TestAllTypes::U_INT16_FIELD_META),
-      FieldMeta::U32(TestAllTypes::U_INT32_FIELD_META),
-      FieldMeta::U64(TestAllTypes::U_INT64_FIELD_META),
-      FieldMeta::F32(TestAllTypes::FLOAT32_FIELD_META),
-      FieldMeta::F64(TestAllTypes::FLOAT64_FIELD_META),
-      FieldMeta::Text(TestAllTypes::TEXT_FIELD_META),
-      FieldMeta::Data(TestAllTypes::DATA_FIELD_META),
-      FieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META),
-      FieldMeta::Enum(TestAllTypes::ENUM_FIELD_META),
-      FieldMeta::List(TestAllTypes::STRUCT_LIST_META),
+      FieldMeta::Bool(TestAllTypesMeta::BOOL_FIELD_META),
+      FieldMeta::I32(TestAllTypesMeta::INT32_FIELD_META),
+      FieldMeta::U8(TestAllTypesMeta::U_INT8_FIELD_META),
+      FieldMeta::U16(TestAllTypesMeta::U_INT16_FIELD_META),
+      FieldMeta::U32(TestAllTypesMeta::U_INT32_FIELD_META),
+      FieldMeta::U64(TestAllTypesMeta::U_INT64_FIELD_META),
+      FieldMeta::F32(TestAllTypesMeta::FLOAT32_FIELD_META),
+      FieldMeta::F64(TestAllTypesMeta::FLOAT64_FIELD_META),
+      FieldMeta::Text(TestAllTypesMeta::TEXT_FIELD_META),
+      FieldMeta::Data(TestAllTypesMeta::DATA_FIELD_META),
+      FieldMeta::Struct(TestAllTypesMeta::STRUCT_FIELD_META),
+      FieldMeta::Enum(TestAllTypesMeta::ENUM_FIELD_META),
+      FieldMeta::List(TestAllTypesMeta::STRUCT_LIST_META),
     ],
   };
+}
 
-  pub fn bool_field(&self) -> bool { TestAllTypes::BOOL_FIELD_META.get(&self.data) }
+impl<'a> TypedStruct<'a> for TestAllTypesMeta {
+  type Ref = TestAllTypesRef<'a>;
+  type Shared = TestAllTypesShared;
+  fn meta() -> &'static StructMeta {
+    &TestAllTypesMeta::META
+  }
+}
 
-  pub fn int32_field(&self) -> i32 { TestAllTypes::INT32_FIELD_META.get(&self.data) }
+pub trait TestAllTypes {
 
-  pub fn u_int8_field(&self) -> u8 { TestAllTypes::U_INT8_FIELD_META.get(&self.data) }
+  fn bool_field<'a>(&'a self) -> bool;
 
-  pub fn u_int16_field(&self) -> u16 { TestAllTypes::U_INT16_FIELD_META.get(&self.data) }
+  fn int32_field<'a>(&'a self) -> i32;
 
-  pub fn u_int32_field(&self) -> u32 { TestAllTypes::U_INT32_FIELD_META.get(&self.data) }
+  fn u_int8_field<'a>(&'a self) -> u8;
 
-  pub fn u_int64_field(&self) -> u64 { TestAllTypes::U_INT64_FIELD_META.get(&self.data) }
+  fn u_int16_field<'a>(&'a self) -> u16;
 
-  pub fn float32_field(&self) -> f32 { TestAllTypes::FLOAT32_FIELD_META.get(&self.data) }
+  fn u_int32_field<'a>(&'a self) -> u32;
 
-  pub fn float64_field(&self) -> f64 { TestAllTypes::FLOAT64_FIELD_META.get(&self.data) }
+  fn u_int64_field<'a>(&'a self) -> u64;
 
-  pub fn text_field(&self) -> Result<&'a str, Error> { TestAllTypes::TEXT_FIELD_META.get(&self.data) }
+  fn float32_field<'a>(&'a self) -> f32;
 
-  pub fn data_field(&self) -> Result<&'a [u8], Error> { TestAllTypes::DATA_FIELD_META.get(&self.data) }
+  fn float64_field<'a>(&'a self) -> f64;
 
-  pub fn struct_field(&self) -> Result<TestAllTypes<'a>, Error> { TestAllTypes::STRUCT_FIELD_META.get(&self.data) }
+  fn text_field<'a>(&'a self) -> Result<&'a str, Error>;
 
-  pub fn enum_field(&self) -> Result<TestEnum, UnknownDiscriminant> { TestAllTypes::ENUM_FIELD_META.get(&self.data) }
+  fn data_field<'a>(&'a self) -> Result<&'a [u8], Error>;
 
-  pub fn struct_list(&self) -> Result<Slice<'a, TestAllTypes<'a>>, Error> { TestAllTypes::STRUCT_LIST_META.get(&self.data) }
+  fn struct_field<'a>(&'a self) -> Result<TestAllTypesRef<'a>, Error>;
+
+  fn enum_field<'a>(&'a self) -> Result<TestEnum, UnknownDiscriminant>;
+
+  fn struct_list<'a>(&'a self) -> Result<Slice<'a, TestAllTypesRef<'a>>, Error>;
+}
+
+#[derive(Clone)]
+pub struct TestAllTypesRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> TestAllTypesRef<'a> {
+
+  pub fn bool_field(&self) -> bool {TestAllTypesMeta::BOOL_FIELD_META.get(&self.data) }
+
+  pub fn int32_field(&self) -> i32 {TestAllTypesMeta::INT32_FIELD_META.get(&self.data) }
+
+  pub fn u_int8_field(&self) -> u8 {TestAllTypesMeta::U_INT8_FIELD_META.get(&self.data) }
+
+  pub fn u_int16_field(&self) -> u16 {TestAllTypesMeta::U_INT16_FIELD_META.get(&self.data) }
+
+  pub fn u_int32_field(&self) -> u32 {TestAllTypesMeta::U_INT32_FIELD_META.get(&self.data) }
+
+  pub fn u_int64_field(&self) -> u64 {TestAllTypesMeta::U_INT64_FIELD_META.get(&self.data) }
+
+  pub fn float32_field(&self) -> f32 {TestAllTypesMeta::FLOAT32_FIELD_META.get(&self.data) }
+
+  pub fn float64_field(&self) -> f64 {TestAllTypesMeta::FLOAT64_FIELD_META.get(&self.data) }
+
+  pub fn text_field(&self) -> Result<&'a str, Error> {TestAllTypesMeta::TEXT_FIELD_META.get(&self.data) }
+
+  pub fn data_field(&self) -> Result<&'a [u8], Error> {TestAllTypesMeta::DATA_FIELD_META.get(&self.data) }
+
+  pub fn struct_field(&self) -> Result<TestAllTypesRef<'a>, Error> {TestAllTypesMeta::STRUCT_FIELD_META.get(&self.data) }
+
+  pub fn enum_field(&self) -> Result<TestEnum, UnknownDiscriminant> {TestAllTypesMeta::ENUM_FIELD_META.get(&self.data) }
+
+  pub fn struct_list(&self) -> Result<Slice<'a, TestAllTypesRef<'a>>, Error> {TestAllTypesMeta::STRUCT_LIST_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> TestAllTypesShared {
     TestAllTypesShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for TestAllTypes<'a> {
+impl TestAllTypes for TestAllTypesRef<'_> {
+  fn bool_field<'a>(&'a self) -> bool {
+    self.bool_field()
+ }
+  fn int32_field<'a>(&'a self) -> i32 {
+    self.int32_field()
+ }
+  fn u_int8_field<'a>(&'a self) -> u8 {
+    self.u_int8_field()
+ }
+  fn u_int16_field<'a>(&'a self) -> u16 {
+    self.u_int16_field()
+ }
+  fn u_int32_field<'a>(&'a self) -> u32 {
+    self.u_int32_field()
+ }
+  fn u_int64_field<'a>(&'a self) -> u64 {
+    self.u_int64_field()
+ }
+  fn float32_field<'a>(&'a self) -> f32 {
+    self.float32_field()
+ }
+  fn float64_field<'a>(&'a self) -> f64 {
+    self.float64_field()
+ }
+  fn text_field<'a>(&'a self) -> Result<&'a str, Error> {
+    self.text_field()
+ }
+  fn data_field<'a>(&'a self) -> Result<&'a [u8], Error> {
+    self.data_field()
+ }
+  fn struct_field<'a>(&'a self) -> Result<TestAllTypesRef<'a>, Error> {
+    self.struct_field()
+ }
+  fn enum_field<'a>(&'a self) -> Result<TestEnum, UnknownDiscriminant> {
+    self.enum_field()
+ }
+  fn struct_list<'a>(&'a self) -> Result<Slice<'a, TestAllTypesRef<'a>>, Error> {
+    self.struct_list()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for TestAllTypesRef<'a> {
   fn meta() -> &'static StructMeta {
-    &TestAllTypes::META
+    &TestAllTypesMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    TestAllTypes { data: data }
+    TestAllTypesRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for TestAllTypes<'a> {
+impl<'a> CapnpToOwned<'a> for TestAllTypesRef<'a> {
   type Owned = TestAllTypesShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    TestAllTypes::capnp_to_owned(self)
+    TestAllTypesRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for TestAllTypes<'a> {
+impl<'a> std::fmt::Debug for TestAllTypesRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for TestAllTypes<'a> {
-  fn partial_cmp(&self, other: &TestAllTypes<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for TestAllTypesRef<'a> {
+  fn partial_cmp(&self, other: &TestAllTypesRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for TestAllTypes<'a> {
-  fn eq(&self, other: &TestAllTypes<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for TestAllTypesRef<'a> {
+  fn eq(&self, other: &TestAllTypesRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -248,31 +332,31 @@ impl TestAllTypesShared {
     enum_field: TestEnum,
     struct_list: &'_ [TestAllTypesShared],
   ) -> TestAllTypesShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
-    TestAllTypes::BOOL_FIELD_META.set(&mut data, bool_field);
-    TestAllTypes::INT32_FIELD_META.set(&mut data, int32_field);
-    TestAllTypes::U_INT8_FIELD_META.set(&mut data, u_int8_field);
-    TestAllTypes::U_INT16_FIELD_META.set(&mut data, u_int16_field);
-    TestAllTypes::U_INT32_FIELD_META.set(&mut data, u_int32_field);
-    TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);
-    TestAllTypes::FLOAT32_FIELD_META.set(&mut data, float32_field);
-    TestAllTypes::FLOAT64_FIELD_META.set(&mut data, float64_field);
-    TestAllTypes::TEXT_FIELD_META.set(&mut data, text_field);
-    TestAllTypes::DATA_FIELD_META.set(&mut data, data_field);
-    TestAllTypes::STRUCT_FIELD_META.set(&mut data, struct_field);
-    TestAllTypes::ENUM_FIELD_META.set(&mut data, enum_field);
-    TestAllTypes::STRUCT_LIST_META.set(&mut data, struct_list);
+    let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypesMeta::META.data_size, TestAllTypesMeta::META.pointer_size);
+    TestAllTypesMeta::BOOL_FIELD_META.set(&mut data, bool_field);
+    TestAllTypesMeta::INT32_FIELD_META.set(&mut data, int32_field);
+    TestAllTypesMeta::U_INT8_FIELD_META.set(&mut data, u_int8_field);
+    TestAllTypesMeta::U_INT16_FIELD_META.set(&mut data, u_int16_field);
+    TestAllTypesMeta::U_INT32_FIELD_META.set(&mut data, u_int32_field);
+    TestAllTypesMeta::U_INT64_FIELD_META.set(&mut data, u_int64_field);
+    TestAllTypesMeta::FLOAT32_FIELD_META.set(&mut data, float32_field);
+    TestAllTypesMeta::FLOAT64_FIELD_META.set(&mut data, float64_field);
+    TestAllTypesMeta::TEXT_FIELD_META.set(&mut data, text_field);
+    TestAllTypesMeta::DATA_FIELD_META.set(&mut data, data_field);
+    TestAllTypesMeta::STRUCT_FIELD_META.set(&mut data, struct_field);
+    TestAllTypesMeta::ENUM_FIELD_META.set(&mut data, enum_field);
+    TestAllTypesMeta::STRUCT_LIST_META.set(&mut data, struct_list);
     TestAllTypesShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> TestAllTypes<'a> {
-    TestAllTypes { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> TestAllTypesRef<'a> {
+    TestAllTypesRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for TestAllTypesShared {
   fn meta() -> &'static StructMeta {
-    &TestAllTypes::META
+    &TestAllTypesMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     TestAllTypesShared { data: data }
@@ -282,8 +366,8 @@ impl TypedStructShared for TestAllTypesShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, TestAllTypes<'a>> for TestAllTypesShared {
-  fn capnp_as_ref(&'a self) -> TestAllTypes<'a> {
+impl<'a> CapnpAsRef<'a, TestAllTypesRef<'a>> for TestAllTypesShared {
+  fn capnp_as_ref(&'a self) -> TestAllTypesRef<'a> {
     TestAllTypesShared::capnp_as_ref(self)
   }
 }

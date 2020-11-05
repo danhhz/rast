@@ -9,11 +9,11 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use crate::error::Error;
-use crate::r#struct::{TypedStruct, UntypedStruct};
+use crate::r#struct::{TypedStructRef, UntypedStruct};
 use crate::segment::{SegmentBorrowed, SegmentID};
 
 /// Decode the official Cap'n Proto segment framing.
-pub fn decode<'a, T: TypedStruct<'a>>(buf: &'a [u8]) -> Result<T, Error> {
+pub fn decode<'a, T: TypedStructRef<'a>>(buf: &'a [u8]) -> Result<T, Error> {
   let seg = decode_segments(buf)?;
   Ok(T::from_untyped_struct(UntypedStruct::from_root(seg)?))
 }

@@ -110,7 +110,7 @@ mod generated {
 
   include!("../capnp/runtime/src/samples/rast_capnp.rs");
 
-  impl<'a> fmt::Display for Entry<'_> {
+  impl<'a> fmt::Display for EntryRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       match std::str::from_utf8(&self.payload().expect("WIP")) {
         Ok(payload) => write!(f, "({:}.{:} {:?})", self.term().0, self.index().0, payload),
@@ -125,7 +125,7 @@ mod generated {
     }
   }
 
-  impl fmt::Display for Message<'_> {
+  impl fmt::Display for MessageRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(f, "[{:?}->{:?}:{:?}]", self.src(), self.dest(), self.payload().expect("WIP"))
     }
@@ -155,7 +155,7 @@ mod generated {
     }
   }
 
-  impl fmt::Display for AppendEntriesReq<'_> {
+  impl fmt::Display for AppendEntriesReqRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(
         f,
@@ -177,7 +177,7 @@ mod generated {
     }
   }
 
-  impl fmt::Display for AppendEntriesRes<'_> {
+  impl fmt::Display for AppendEntriesResRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(f, "appRes({:} r{:} success={:?})", self.term().0, self.read_id().0, self.success())
     }
@@ -189,7 +189,7 @@ mod generated {
     }
   }
 
-  impl fmt::Display for RequestVoteReq<'_> {
+  impl fmt::Display for RequestVoteReqRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(
         f,
@@ -208,7 +208,7 @@ mod generated {
     }
   }
 
-  impl fmt::Display for RequestVoteRes<'_> {
+  impl fmt::Display for RequestVoteResRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(f, "voteRes({:} granted={:?})", self.term().0, self.vote_granted())
     }
@@ -220,7 +220,7 @@ mod generated {
     }
   }
 
-  impl fmt::Display for StartElectionReq<'_> {
+  impl fmt::Display for StartElectionReqRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(f, "election({:})", self.term().0)
     }

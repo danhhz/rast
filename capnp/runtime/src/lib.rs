@@ -125,7 +125,7 @@ pub mod prelude {
   pub use crate::list::ListMeta;
   pub use crate::r#enum::{EnumMeta, EnumerantMeta, TypedEnum};
   pub use crate::r#struct::{
-    StructMeta, TypedStruct, TypedStructShared, UntypedStruct, UntypedStructOwned,
+    StructMeta, TypedStruct, TypedStructRef, TypedStructShared, UntypedStruct, UntypedStructOwned,
     UntypedStructShared,
   };
   pub use crate::slice::Slice;

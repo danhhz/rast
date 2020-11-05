@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 use std::iter::{DoubleEndedIterator, FusedIterator};
 
-use crate::serde::{Entry, Index, Term};
+use crate::serde::{EntryRef, Index, Term};
 
 #[derive(Debug)]
 pub struct CompressedLog {
@@ -34,7 +34,7 @@ impl CompressedLog {
   }
 
   // TODO: figure out how to accept either of Entry or EntryShared
-  pub fn extend(&mut self, entries: &[Entry<'_>]) {
+  pub fn extend(&mut self, entries: &[EntryRef<'_>]) {
     if let Some(entry) = entries.first() {
       self.trim(Index(entry.index().0 - 1));
     }
@@ -59,7 +59,7 @@ impl CompressedLog {
     }
   }
 
-  fn extend_trimmed(&mut self, entries: &[Entry<'_>]) {
+  fn extend_trimmed(&mut self, entries: &[EntryRef<'_>]) {
     for entry in entries {
       if self.begin == None {
         self.begin = Some((entry.term(), entry.index()));

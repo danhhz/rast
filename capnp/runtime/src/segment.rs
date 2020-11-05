@@ -1,5 +1,7 @@
 // Copyright 2020 Daniel Harrison. All Rights Reserved.
 
+#![allow(clippy::rc_buffer)]
+
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
@@ -22,6 +24,10 @@ impl SegmentOwned {
     SegmentOwned { buf: buf, other: HashMap::new() }
   }
 
+  pub(crate) fn new(buf: Vec<u8>, other: HashMap<SegmentID, Arc<Vec<u8>>>) -> SegmentOwned {
+    SegmentOwned { buf: buf, other: other }
+  }
+
   pub fn into_shared(self) -> SegmentShared {
     SegmentShared { buf: Arc::new(self.buf), other: Arc::new(self.other) }
   }
@@ -29,6 +35,10 @@ impl SegmentOwned {
   pub fn len_words_rounded_up(&mut self) -> NumWords {
     // TODO: Verify soundness of this i32 conversion
     NumWords(((self.buf.len() + WORD_BYTES - 1) / WORD_BYTES) as i32)
+  }
+
+  pub fn buf(&self) -> &[u8] {
+    &self.buf
   }
 
   pub fn buf_mut(&mut self) -> &mut [u8] {

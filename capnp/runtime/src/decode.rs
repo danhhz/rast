@@ -13,19 +13,20 @@ use crate::pointer::{
   LandingPadSize, ListCompositeTag, ListLayout, ListPointer, Pointer, StructPointer,
 };
 use crate::r#struct::UntypedStruct;
-use crate::segment::{SegmentBorrowed, SegmentID};
+use crate::segment::SegmentID;
 use crate::segment_pointer::SegmentPointer;
 use crate::slice::Slice;
 use crate::union::UntypedUnion;
 
 pub(crate) trait SegmentPointerDecode<'a>: Sized {
+  type Segment;
+
   fn empty() -> Self;
-  fn from_root(seg: SegmentBorrowed<'a>) -> Self;
-  fn add(&self, offset: NumWords) -> Self;
-  fn buf(&self) -> &'a [u8];
+  fn from_root(seg: Self::Segment) -> Self;
+  fn add(self, offset: NumWords) -> Self;
+  fn buf(&self) -> &[u8];
   fn offset_w(&self) -> NumWords;
-  fn other(&self, id: SegmentID) -> Option<SegmentBorrowed<'a>>;
-  fn all_other(&self) -> Vec<(SegmentID, SegmentBorrowed<'a>)>;
+  fn other(self, id: SegmentID) -> Result<Self::Segment, (Self, Error)>;
 
   // TODO: This gets a little nicer with const generics.
   fn u8_raw(&self, offset_e: NumElements) -> Option<[u8; U8_WIDTH_BYTES]> {
@@ -83,7 +84,7 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
     self.u64_raw(offset_e).map_or(Pointer::Null, |raw| Pointer::decode(raw))
   }
 
-  fn struct_pointer(&self, offset_e: NumElements) -> Result<(StructPointer, Self), Error> {
+  fn struct_pointer(self, offset_e: NumElements) -> Result<(StructPointer, Self), Error> {
     match self.pointer(offset_e) {
       Pointer::Null => Ok((StructPointer::empty(), Self::empty())),
       Pointer::Struct(x) => {
@@ -92,13 +93,9 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
         Ok((sp, sp_end))
       }
       Pointer::Far(x) => {
-        let seg = self.other(x.seg).ok_or_else(|| {
-          Error::Encoding(format!(
-            "far struct pointer segment {:?} not found in {:?}",
-            x.seg,
-            self.all_other().iter().map(|x| x.0).collect::<Vec<_>>()
-          ))
-        })?;
+        let seg = self
+          .other(x.seg)
+          .map_err(|(_, err)| Error::Encoding(format!("far struct pointer: {}", err)))?;
         let far = Self::from_root(seg).add(x.off);
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -133,10 +130,13 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
             // a tag word. The tag word looks exactly like an intra-segment
             // pointer to the target object would look, except that the offset is
             // always zero.
-            let (sp_template, _) = far.struct_pointer(NumElements(1))?;
-            let seg = far.other(far_far.seg).ok_or_else(|| {
-              Error::Encoding(format!("far far pointer segment {:?} not found", far_far.seg))
-            })?;
+            let sp_template = match far.pointer(NumElements(1)) {
+              Pointer::Struct(x) => x,
+              x => Err(Error::Encoding(format!("expected struct pointer got: {:?}", x)))?,
+            };
+            let seg = far
+              .other(far_far.seg)
+              .map_err(|(_, err)| Error::Encoding(format!("far far struct pointer: {}", err)))?;
             let sp_end = Self::from_root(seg);
             let sp = StructPointer {
               off: far_far.off,
@@ -152,7 +152,7 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
   }
 
   // TODO: Dedup this with fn struct_pointer
-  fn list_pointer(&self, offset_e: NumElements) -> Result<(ListPointer, Self), Error> {
+  fn list_pointer(self, offset_e: NumElements) -> Result<(ListPointer, Self), Error> {
     match self.pointer(offset_e) {
       Pointer::Null => Ok((ListPointer::empty(), Self::empty())),
       Pointer::List(lp) => {
@@ -160,9 +160,10 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
         Ok((lp, lp_end))
       }
       Pointer::Far(x) => {
-        let seg = self.other(x.seg).ok_or_else(|| {
-          Error::Encoding(format!("far list pointer segment {:?} not found", x.seg))
-        })?;
+        let seg = self
+          .other(x.seg)
+          .map_err(|(_, err)| Error::Encoding(format!("far list pointer: {}", err)))?;
+
         let far = Self::from_root(seg).add(x.off);
         match x.landing_pad_size {
           LandingPadSize::OneWord => {
@@ -197,10 +198,13 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
             // a tag word. The tag word looks exactly like an intra-segment
             // pointer to the target object would look, except that the offset is
             // always zero.
-            let (lp_template, _) = far.list_pointer(NumElements(1))?;
-            let seg = far.other(far_far.seg).ok_or_else(|| {
-              Error::Encoding(format!("far far pointer segment {:?} not found", far_far.seg))
-            })?;
+            let lp_template = match far.pointer(NumElements(1)) {
+              Pointer::List(x) => x,
+              x => Err(Error::Encoding(format!("expected list pointer got: {:?}", x)))?,
+            };
+            let seg = far
+              .other(far_far.seg)
+              .map_err(|(_, err)| Error::Encoding(format!("far far list pointer: {}", err)))?;
             let lp_end = Self::from_root(seg);
             let lp = ListPointer { off: far_far.off, layout: lp_template.layout };
             Ok((lp, lp_end))
@@ -211,7 +215,7 @@ pub(crate) trait SegmentPointerDecode<'a>: Sized {
     }
   }
 
-  fn list_composite_tag(&self) -> Result<(ListCompositeTag, Self), Error> {
+  fn list_composite_tag(self) -> Result<(ListCompositeTag, Self), Error> {
     let raw = self
       .u64_raw(NumElements(0))
       .ok_or_else(|| Error::Encoding(format!("expected composite tag")))?;
@@ -226,7 +230,7 @@ pub(crate) trait StructDecode<'a> {
   fn pointer_end(&self) -> &SegmentPointer<'a>;
 
   fn data_fields_begin(&self) -> SegmentPointer<'a> {
-    self.pointer_end().add(self.pointer().off)
+    self.pointer_end().clone().add(self.pointer().off)
   }
 
   fn pointer_fields_begin(&self) -> SegmentPointer<'a> {
@@ -283,7 +287,7 @@ pub(crate) trait StructDecode<'a> {
         let sp = pointer_end.add(pointer.off);
         let data_begin = sp.offset_w().as_bytes();
         let data_end = data_begin + num_elements.as_bytes(U8_WIDTH_BYTES);
-        sp.buf().get(data_begin..data_end).ok_or_else(|| {
+        sp.buf_ref().get(data_begin..data_end).ok_or_else(|| {
           Error::Encoding(format!(
             "truncated byte field had {} of {}",
             sp.buf()[data_begin..].len(),
@@ -328,7 +332,7 @@ pub(crate) trait ListDecode<'a> {
   fn pointer_end(&self) -> &SegmentPointer<'a>;
 
   fn list_data_begin(&self) -> SegmentPointer<'a> {
-    self.pointer_end().add(self.pointer().off)
+    self.pointer_end().clone().add(self.pointer().off)
   }
 
   fn list<T: TypedListElement<'a>>(&self) -> Result<Slice<'a, T>, Error> {

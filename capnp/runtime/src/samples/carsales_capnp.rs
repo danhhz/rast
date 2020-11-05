@@ -1,11 +1,8 @@
 use capnp_runtime::prelude::*;
 
-#[derive(Clone)]
-pub struct Car<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct CarMeta;
 
-impl<'a> Car<'a> {
+impl CarMeta {
   const MAKE_META: &'static TextFieldMeta = &TextFieldMeta {
     name: "make",
     offset: NumElements(0),
@@ -31,7 +28,7 @@ impl<'a> Car<'a> {
     name: "wheels",
     offset: NumElements(2),
     meta: &ListMeta {
-      value_type: ElementType::Struct(&Wheel::META)
+      value_type: ElementType::Struct(&WheelMeta::META)
     },
   };
   const LENGTH_META: &'static U16FieldMeta = &U16FieldMeta {
@@ -53,7 +50,7 @@ impl<'a> Car<'a> {
   const ENGINE_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "engine",
     offset: NumElements(3),
-    meta: &Engine::META,
+    meta: &EngineMeta::META,
   };
   const FUEL_CAPACITY_META: &'static F32FieldMeta = &F32FieldMeta {
     name: "fuelCapacity",
@@ -89,101 +86,213 @@ impl<'a> Car<'a> {
     data_size: NumWords(3),
     pointer_size: NumWords(4),
     fields: || &[
-      FieldMeta::Text(Car::MAKE_META),
-      FieldMeta::Text(Car::MODEL_META),
-      FieldMeta::Enum(Car::COLOR_META),
-      FieldMeta::U8(Car::SEATS_META),
-      FieldMeta::U8(Car::DOORS_META),
-      FieldMeta::List(Car::WHEELS_META),
-      FieldMeta::U16(Car::LENGTH_META),
-      FieldMeta::U16(Car::WIDTH_META),
-      FieldMeta::U16(Car::HEIGHT_META),
-      FieldMeta::U32(Car::WEIGHT_META),
-      FieldMeta::Struct(Car::ENGINE_META),
-      FieldMeta::F32(Car::FUEL_CAPACITY_META),
-      FieldMeta::F32(Car::FUEL_LEVEL_META),
-      FieldMeta::Bool(Car::HAS_POWER_WINDOWS_META),
-      FieldMeta::Bool(Car::HAS_POWER_STEERING_META),
-      FieldMeta::Bool(Car::HAS_CRUISE_CONTROL_META),
-      FieldMeta::U8(Car::CUP_HOLDERS_META),
-      FieldMeta::Bool(Car::HAS_NAV_SYSTEM_META),
+      FieldMeta::Text(CarMeta::MAKE_META),
+      FieldMeta::Text(CarMeta::MODEL_META),
+      FieldMeta::Enum(CarMeta::COLOR_META),
+      FieldMeta::U8(CarMeta::SEATS_META),
+      FieldMeta::U8(CarMeta::DOORS_META),
+      FieldMeta::List(CarMeta::WHEELS_META),
+      FieldMeta::U16(CarMeta::LENGTH_META),
+      FieldMeta::U16(CarMeta::WIDTH_META),
+      FieldMeta::U16(CarMeta::HEIGHT_META),
+      FieldMeta::U32(CarMeta::WEIGHT_META),
+      FieldMeta::Struct(CarMeta::ENGINE_META),
+      FieldMeta::F32(CarMeta::FUEL_CAPACITY_META),
+      FieldMeta::F32(CarMeta::FUEL_LEVEL_META),
+      FieldMeta::Bool(CarMeta::HAS_POWER_WINDOWS_META),
+      FieldMeta::Bool(CarMeta::HAS_POWER_STEERING_META),
+      FieldMeta::Bool(CarMeta::HAS_CRUISE_CONTROL_META),
+      FieldMeta::U8(CarMeta::CUP_HOLDERS_META),
+      FieldMeta::Bool(CarMeta::HAS_NAV_SYSTEM_META),
     ],
   };
+}
 
-  pub fn make(&self) -> Result<&'a str, Error> { Car::MAKE_META.get(&self.data) }
+impl<'a> TypedStruct<'a> for CarMeta {
+  type Ref = CarRef<'a>;
+  type Shared = CarShared;
+  fn meta() -> &'static StructMeta {
+    &CarMeta::META
+  }
+}
 
-  pub fn model(&self) -> Result<&'a str, Error> { Car::MODEL_META.get(&self.data) }
+pub trait Car {
 
-  pub fn color(&self) -> Result<Color, UnknownDiscriminant> { Car::COLOR_META.get(&self.data) }
+  fn make<'a>(&'a self) -> Result<&'a str, Error>;
 
-  pub fn seats(&self) -> u8 { Car::SEATS_META.get(&self.data) }
+  fn model<'a>(&'a self) -> Result<&'a str, Error>;
 
-  pub fn doors(&self) -> u8 { Car::DOORS_META.get(&self.data) }
+  fn color<'a>(&'a self) -> Result<Color, UnknownDiscriminant>;
 
-  pub fn wheels(&self) -> Result<Slice<'a, Wheel<'a>>, Error> { Car::WHEELS_META.get(&self.data) }
+  fn seats<'a>(&'a self) -> u8;
 
-  pub fn length(&self) -> u16 { Car::LENGTH_META.get(&self.data) }
+  fn doors<'a>(&'a self) -> u8;
 
-  pub fn width(&self) -> u16 { Car::WIDTH_META.get(&self.data) }
+  fn wheels<'a>(&'a self) -> Result<Slice<'a, WheelRef<'a>>, Error>;
 
-  pub fn height(&self) -> u16 { Car::HEIGHT_META.get(&self.data) }
+  fn length<'a>(&'a self) -> u16;
 
-  pub fn weight(&self) -> u32 { Car::WEIGHT_META.get(&self.data) }
+  fn width<'a>(&'a self) -> u16;
 
-  pub fn engine(&self) -> Result<Engine<'a>, Error> { Car::ENGINE_META.get(&self.data) }
+  fn height<'a>(&'a self) -> u16;
 
-  pub fn fuel_capacity(&self) -> f32 { Car::FUEL_CAPACITY_META.get(&self.data) }
+  fn weight<'a>(&'a self) -> u32;
 
-  pub fn fuel_level(&self) -> f32 { Car::FUEL_LEVEL_META.get(&self.data) }
+  fn engine<'a>(&'a self) -> Result<EngineRef<'a>, Error>;
 
-  pub fn has_power_windows(&self) -> bool { Car::HAS_POWER_WINDOWS_META.get(&self.data) }
+  fn fuel_capacity<'a>(&'a self) -> f32;
 
-  pub fn has_power_steering(&self) -> bool { Car::HAS_POWER_STEERING_META.get(&self.data) }
+  fn fuel_level<'a>(&'a self) -> f32;
 
-  pub fn has_cruise_control(&self) -> bool { Car::HAS_CRUISE_CONTROL_META.get(&self.data) }
+  fn has_power_windows<'a>(&'a self) -> bool;
 
-  pub fn cup_holders(&self) -> u8 { Car::CUP_HOLDERS_META.get(&self.data) }
+  fn has_power_steering<'a>(&'a self) -> bool;
 
-  pub fn has_nav_system(&self) -> bool { Car::HAS_NAV_SYSTEM_META.get(&self.data) }
+  fn has_cruise_control<'a>(&'a self) -> bool;
+
+  fn cup_holders<'a>(&'a self) -> u8;
+
+  fn has_nav_system<'a>(&'a self) -> bool;
+}
+
+#[derive(Clone)]
+pub struct CarRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> CarRef<'a> {
+
+  pub fn make(&self) -> Result<&'a str, Error> {CarMeta::MAKE_META.get(&self.data) }
+
+  pub fn model(&self) -> Result<&'a str, Error> {CarMeta::MODEL_META.get(&self.data) }
+
+  pub fn color(&self) -> Result<Color, UnknownDiscriminant> {CarMeta::COLOR_META.get(&self.data) }
+
+  pub fn seats(&self) -> u8 {CarMeta::SEATS_META.get(&self.data) }
+
+  pub fn doors(&self) -> u8 {CarMeta::DOORS_META.get(&self.data) }
+
+  pub fn wheels(&self) -> Result<Slice<'a, WheelRef<'a>>, Error> {CarMeta::WHEELS_META.get(&self.data) }
+
+  pub fn length(&self) -> u16 {CarMeta::LENGTH_META.get(&self.data) }
+
+  pub fn width(&self) -> u16 {CarMeta::WIDTH_META.get(&self.data) }
+
+  pub fn height(&self) -> u16 {CarMeta::HEIGHT_META.get(&self.data) }
+
+  pub fn weight(&self) -> u32 {CarMeta::WEIGHT_META.get(&self.data) }
+
+  pub fn engine(&self) -> Result<EngineRef<'a>, Error> {CarMeta::ENGINE_META.get(&self.data) }
+
+  pub fn fuel_capacity(&self) -> f32 {CarMeta::FUEL_CAPACITY_META.get(&self.data) }
+
+  pub fn fuel_level(&self) -> f32 {CarMeta::FUEL_LEVEL_META.get(&self.data) }
+
+  pub fn has_power_windows(&self) -> bool {CarMeta::HAS_POWER_WINDOWS_META.get(&self.data) }
+
+  pub fn has_power_steering(&self) -> bool {CarMeta::HAS_POWER_STEERING_META.get(&self.data) }
+
+  pub fn has_cruise_control(&self) -> bool {CarMeta::HAS_CRUISE_CONTROL_META.get(&self.data) }
+
+  pub fn cup_holders(&self) -> u8 {CarMeta::CUP_HOLDERS_META.get(&self.data) }
+
+  pub fn has_nav_system(&self) -> bool {CarMeta::HAS_NAV_SYSTEM_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> CarShared {
     CarShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for Car<'a> {
+impl Car for CarRef<'_> {
+  fn make<'a>(&'a self) -> Result<&'a str, Error> {
+    self.make()
+ }
+  fn model<'a>(&'a self) -> Result<&'a str, Error> {
+    self.model()
+ }
+  fn color<'a>(&'a self) -> Result<Color, UnknownDiscriminant> {
+    self.color()
+ }
+  fn seats<'a>(&'a self) -> u8 {
+    self.seats()
+ }
+  fn doors<'a>(&'a self) -> u8 {
+    self.doors()
+ }
+  fn wheels<'a>(&'a self) -> Result<Slice<'a, WheelRef<'a>>, Error> {
+    self.wheels()
+ }
+  fn length<'a>(&'a self) -> u16 {
+    self.length()
+ }
+  fn width<'a>(&'a self) -> u16 {
+    self.width()
+ }
+  fn height<'a>(&'a self) -> u16 {
+    self.height()
+ }
+  fn weight<'a>(&'a self) -> u32 {
+    self.weight()
+ }
+  fn engine<'a>(&'a self) -> Result<EngineRef<'a>, Error> {
+    self.engine()
+ }
+  fn fuel_capacity<'a>(&'a self) -> f32 {
+    self.fuel_capacity()
+ }
+  fn fuel_level<'a>(&'a self) -> f32 {
+    self.fuel_level()
+ }
+  fn has_power_windows<'a>(&'a self) -> bool {
+    self.has_power_windows()
+ }
+  fn has_power_steering<'a>(&'a self) -> bool {
+    self.has_power_steering()
+ }
+  fn has_cruise_control<'a>(&'a self) -> bool {
+    self.has_cruise_control()
+ }
+  fn cup_holders<'a>(&'a self) -> u8 {
+    self.cup_holders()
+ }
+  fn has_nav_system<'a>(&'a self) -> bool {
+    self.has_nav_system()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for CarRef<'a> {
   fn meta() -> &'static StructMeta {
-    &Car::META
+    &CarMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    Car { data: data }
+    CarRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for Car<'a> {
+impl<'a> CapnpToOwned<'a> for CarRef<'a> {
   type Owned = CarShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    Car::capnp_to_owned(self)
+    CarRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for Car<'a> {
+impl<'a> std::fmt::Debug for CarRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for Car<'a> {
-  fn partial_cmp(&self, other: &Car<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for CarRef<'a> {
+  fn partial_cmp(&self, other: &CarRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for Car<'a> {
-  fn eq(&self, other: &Car<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for CarRef<'a> {
+  fn eq(&self, other: &CarRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -214,36 +323,36 @@ impl CarShared {
     cup_holders: u8,
     has_nav_system: bool,
   ) -> CarShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(Car::META.data_size, Car::META.pointer_size);
-    Car::MAKE_META.set(&mut data, make);
-    Car::MODEL_META.set(&mut data, model);
-    Car::COLOR_META.set(&mut data, color);
-    Car::SEATS_META.set(&mut data, seats);
-    Car::DOORS_META.set(&mut data, doors);
-    Car::WHEELS_META.set(&mut data, wheels);
-    Car::LENGTH_META.set(&mut data, length);
-    Car::WIDTH_META.set(&mut data, width);
-    Car::HEIGHT_META.set(&mut data, height);
-    Car::WEIGHT_META.set(&mut data, weight);
-    Car::ENGINE_META.set(&mut data, engine);
-    Car::FUEL_CAPACITY_META.set(&mut data, fuel_capacity);
-    Car::FUEL_LEVEL_META.set(&mut data, fuel_level);
-    Car::HAS_POWER_WINDOWS_META.set(&mut data, has_power_windows);
-    Car::HAS_POWER_STEERING_META.set(&mut data, has_power_steering);
-    Car::HAS_CRUISE_CONTROL_META.set(&mut data, has_cruise_control);
-    Car::CUP_HOLDERS_META.set(&mut data, cup_holders);
-    Car::HAS_NAV_SYSTEM_META.set(&mut data, has_nav_system);
+    let mut data = UntypedStructOwned::new_with_root_struct(CarMeta::META.data_size, CarMeta::META.pointer_size);
+    CarMeta::MAKE_META.set(&mut data, make);
+    CarMeta::MODEL_META.set(&mut data, model);
+    CarMeta::COLOR_META.set(&mut data, color);
+    CarMeta::SEATS_META.set(&mut data, seats);
+    CarMeta::DOORS_META.set(&mut data, doors);
+    CarMeta::WHEELS_META.set(&mut data, wheels);
+    CarMeta::LENGTH_META.set(&mut data, length);
+    CarMeta::WIDTH_META.set(&mut data, width);
+    CarMeta::HEIGHT_META.set(&mut data, height);
+    CarMeta::WEIGHT_META.set(&mut data, weight);
+    CarMeta::ENGINE_META.set(&mut data, engine);
+    CarMeta::FUEL_CAPACITY_META.set(&mut data, fuel_capacity);
+    CarMeta::FUEL_LEVEL_META.set(&mut data, fuel_level);
+    CarMeta::HAS_POWER_WINDOWS_META.set(&mut data, has_power_windows);
+    CarMeta::HAS_POWER_STEERING_META.set(&mut data, has_power_steering);
+    CarMeta::HAS_CRUISE_CONTROL_META.set(&mut data, has_cruise_control);
+    CarMeta::CUP_HOLDERS_META.set(&mut data, cup_holders);
+    CarMeta::HAS_NAV_SYSTEM_META.set(&mut data, has_nav_system);
     CarShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> Car<'a> {
-    Car { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> CarRef<'a> {
+    CarRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for CarShared {
   fn meta() -> &'static StructMeta {
-    &Car::META
+    &CarMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     CarShared { data: data }
@@ -253,23 +362,20 @@ impl TypedStructShared for CarShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, Car<'a>> for CarShared {
-  fn capnp_as_ref(&'a self) -> Car<'a> {
+impl<'a> CapnpAsRef<'a, CarRef<'a>> for CarShared {
+  fn capnp_as_ref(&'a self) -> CarRef<'a> {
     CarShared::capnp_as_ref(self)
   }
 }
 
-#[derive(Clone)]
-pub struct ParkingLot<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct ParkingLotMeta;
 
-impl<'a> ParkingLot<'a> {
+impl ParkingLotMeta {
   const CARS_META: &'static ListFieldMeta = &ListFieldMeta {
     name: "cars",
     offset: NumElements(0),
     meta: &ListMeta {
-      value_type: ElementType::Struct(&Car::META)
+      value_type: ElementType::Struct(&CarMeta::META)
     },
   };
 
@@ -278,50 +384,77 @@ impl<'a> ParkingLot<'a> {
     data_size: NumWords(0),
     pointer_size: NumWords(1),
     fields: || &[
-      FieldMeta::List(ParkingLot::CARS_META),
+      FieldMeta::List(ParkingLotMeta::CARS_META),
     ],
   };
+}
 
-  pub fn cars(&self) -> Result<Slice<'a, Car<'a>>, Error> { ParkingLot::CARS_META.get(&self.data) }
+impl<'a> TypedStruct<'a> for ParkingLotMeta {
+  type Ref = ParkingLotRef<'a>;
+  type Shared = ParkingLotShared;
+  fn meta() -> &'static StructMeta {
+    &ParkingLotMeta::META
+  }
+}
+
+pub trait ParkingLot {
+
+  fn cars<'a>(&'a self) -> Result<Slice<'a, CarRef<'a>>, Error>;
+}
+
+#[derive(Clone)]
+pub struct ParkingLotRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> ParkingLotRef<'a> {
+
+  pub fn cars(&self) -> Result<Slice<'a, CarRef<'a>>, Error> {ParkingLotMeta::CARS_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> ParkingLotShared {
     ParkingLotShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for ParkingLot<'a> {
+impl ParkingLot for ParkingLotRef<'_> {
+  fn cars<'a>(&'a self) -> Result<Slice<'a, CarRef<'a>>, Error> {
+    self.cars()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for ParkingLotRef<'a> {
   fn meta() -> &'static StructMeta {
-    &ParkingLot::META
+    &ParkingLotMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    ParkingLot { data: data }
+    ParkingLotRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for ParkingLot<'a> {
+impl<'a> CapnpToOwned<'a> for ParkingLotRef<'a> {
   type Owned = ParkingLotShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    ParkingLot::capnp_to_owned(self)
+    ParkingLotRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for ParkingLot<'a> {
+impl<'a> std::fmt::Debug for ParkingLotRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for ParkingLot<'a> {
-  fn partial_cmp(&self, other: &ParkingLot<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for ParkingLotRef<'a> {
+  fn partial_cmp(&self, other: &ParkingLotRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for ParkingLot<'a> {
-  fn eq(&self, other: &ParkingLot<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for ParkingLotRef<'a> {
+  fn eq(&self, other: &ParkingLotRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -335,19 +468,19 @@ impl ParkingLotShared {
   pub fn new(
     cars: &'_ [CarShared],
   ) -> ParkingLotShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(ParkingLot::META.data_size, ParkingLot::META.pointer_size);
-    ParkingLot::CARS_META.set(&mut data, cars);
+    let mut data = UntypedStructOwned::new_with_root_struct(ParkingLotMeta::META.data_size, ParkingLotMeta::META.pointer_size);
+    ParkingLotMeta::CARS_META.set(&mut data, cars);
     ParkingLotShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> ParkingLot<'a> {
-    ParkingLot { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> ParkingLotRef<'a> {
+    ParkingLotRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for ParkingLotShared {
   fn meta() -> &'static StructMeta {
-    &ParkingLot::META
+    &ParkingLotMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     ParkingLotShared { data: data }
@@ -357,8 +490,8 @@ impl TypedStructShared for ParkingLotShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, ParkingLot<'a>> for ParkingLotShared {
-  fn capnp_as_ref(&'a self) -> ParkingLot<'a> {
+impl<'a> CapnpAsRef<'a, ParkingLotRef<'a>> for ParkingLotShared {
+  fn capnp_as_ref(&'a self) -> ParkingLotRef<'a> {
     ParkingLotShared::capnp_as_ref(self)
   }
 }
@@ -443,12 +576,9 @@ impl TypedEnum for Color {
   }
 }
 
-#[derive(Clone)]
-pub struct Wheel<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct WheelMeta;
 
-impl<'a> Wheel<'a> {
+impl WheelMeta {
   const DIAMETER_META: &'static U16FieldMeta = &U16FieldMeta {
     name: "diameter",
     offset: NumElements(0),
@@ -467,56 +597,93 @@ impl<'a> Wheel<'a> {
     data_size: NumWords(1),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::U16(Wheel::DIAMETER_META),
-      FieldMeta::F32(Wheel::AIR_PRESSURE_META),
-      FieldMeta::Bool(Wheel::SNOW_TIRES_META),
+      FieldMeta::U16(WheelMeta::DIAMETER_META),
+      FieldMeta::F32(WheelMeta::AIR_PRESSURE_META),
+      FieldMeta::Bool(WheelMeta::SNOW_TIRES_META),
     ],
   };
+}
 
-  pub fn diameter(&self) -> u16 { Wheel::DIAMETER_META.get(&self.data) }
+impl<'a> TypedStruct<'a> for WheelMeta {
+  type Ref = WheelRef<'a>;
+  type Shared = WheelShared;
+  fn meta() -> &'static StructMeta {
+    &WheelMeta::META
+  }
+}
 
-  pub fn air_pressure(&self) -> f32 { Wheel::AIR_PRESSURE_META.get(&self.data) }
+pub trait Wheel {
 
-  pub fn snow_tires(&self) -> bool { Wheel::SNOW_TIRES_META.get(&self.data) }
+  fn diameter<'a>(&'a self) -> u16;
+
+  fn air_pressure<'a>(&'a self) -> f32;
+
+  fn snow_tires<'a>(&'a self) -> bool;
+}
+
+#[derive(Clone)]
+pub struct WheelRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> WheelRef<'a> {
+
+  pub fn diameter(&self) -> u16 {WheelMeta::DIAMETER_META.get(&self.data) }
+
+  pub fn air_pressure(&self) -> f32 {WheelMeta::AIR_PRESSURE_META.get(&self.data) }
+
+  pub fn snow_tires(&self) -> bool {WheelMeta::SNOW_TIRES_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> WheelShared {
     WheelShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for Wheel<'a> {
+impl Wheel for WheelRef<'_> {
+  fn diameter<'a>(&'a self) -> u16 {
+    self.diameter()
+ }
+  fn air_pressure<'a>(&'a self) -> f32 {
+    self.air_pressure()
+ }
+  fn snow_tires<'a>(&'a self) -> bool {
+    self.snow_tires()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for WheelRef<'a> {
   fn meta() -> &'static StructMeta {
-    &Wheel::META
+    &WheelMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    Wheel { data: data }
+    WheelRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for Wheel<'a> {
+impl<'a> CapnpToOwned<'a> for WheelRef<'a> {
   type Owned = WheelShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    Wheel::capnp_to_owned(self)
+    WheelRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for Wheel<'a> {
+impl<'a> std::fmt::Debug for WheelRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for Wheel<'a> {
-  fn partial_cmp(&self, other: &Wheel<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for WheelRef<'a> {
+  fn partial_cmp(&self, other: &WheelRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for Wheel<'a> {
-  fn eq(&self, other: &Wheel<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for WheelRef<'a> {
+  fn eq(&self, other: &WheelRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -532,21 +699,21 @@ impl WheelShared {
     air_pressure: f32,
     snow_tires: bool,
   ) -> WheelShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(Wheel::META.data_size, Wheel::META.pointer_size);
-    Wheel::DIAMETER_META.set(&mut data, diameter);
-    Wheel::AIR_PRESSURE_META.set(&mut data, air_pressure);
-    Wheel::SNOW_TIRES_META.set(&mut data, snow_tires);
+    let mut data = UntypedStructOwned::new_with_root_struct(WheelMeta::META.data_size, WheelMeta::META.pointer_size);
+    WheelMeta::DIAMETER_META.set(&mut data, diameter);
+    WheelMeta::AIR_PRESSURE_META.set(&mut data, air_pressure);
+    WheelMeta::SNOW_TIRES_META.set(&mut data, snow_tires);
     WheelShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> Wheel<'a> {
-    Wheel { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> WheelRef<'a> {
+    WheelRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for WheelShared {
   fn meta() -> &'static StructMeta {
-    &Wheel::META
+    &WheelMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     WheelShared { data: data }
@@ -556,18 +723,15 @@ impl TypedStructShared for WheelShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, Wheel<'a>> for WheelShared {
-  fn capnp_as_ref(&'a self) -> Wheel<'a> {
+impl<'a> CapnpAsRef<'a, WheelRef<'a>> for WheelShared {
+  fn capnp_as_ref(&'a self) -> WheelRef<'a> {
     WheelShared::capnp_as_ref(self)
   }
 }
 
-#[derive(Clone)]
-pub struct Engine<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct EngineMeta;
 
-impl<'a> Engine<'a> {
+impl EngineMeta {
   const HORSEPOWER_META: &'static U16FieldMeta = &U16FieldMeta {
     name: "horsepower",
     offset: NumElements(0),
@@ -594,62 +758,109 @@ impl<'a> Engine<'a> {
     data_size: NumWords(1),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::U16(Engine::HORSEPOWER_META),
-      FieldMeta::U8(Engine::CYLINDERS_META),
-      FieldMeta::U32(Engine::CC_META),
-      FieldMeta::Bool(Engine::USES_GAS_META),
-      FieldMeta::Bool(Engine::USES_ELECTRIC_META),
+      FieldMeta::U16(EngineMeta::HORSEPOWER_META),
+      FieldMeta::U8(EngineMeta::CYLINDERS_META),
+      FieldMeta::U32(EngineMeta::CC_META),
+      FieldMeta::Bool(EngineMeta::USES_GAS_META),
+      FieldMeta::Bool(EngineMeta::USES_ELECTRIC_META),
     ],
   };
+}
 
-  pub fn horsepower(&self) -> u16 { Engine::HORSEPOWER_META.get(&self.data) }
+impl<'a> TypedStruct<'a> for EngineMeta {
+  type Ref = EngineRef<'a>;
+  type Shared = EngineShared;
+  fn meta() -> &'static StructMeta {
+    &EngineMeta::META
+  }
+}
 
-  pub fn cylinders(&self) -> u8 { Engine::CYLINDERS_META.get(&self.data) }
+pub trait Engine {
 
-  pub fn cc(&self) -> u32 { Engine::CC_META.get(&self.data) }
+  fn horsepower<'a>(&'a self) -> u16;
 
-  pub fn uses_gas(&self) -> bool { Engine::USES_GAS_META.get(&self.data) }
+  fn cylinders<'a>(&'a self) -> u8;
 
-  pub fn uses_electric(&self) -> bool { Engine::USES_ELECTRIC_META.get(&self.data) }
+  fn cc<'a>(&'a self) -> u32;
+
+  fn uses_gas<'a>(&'a self) -> bool;
+
+  fn uses_electric<'a>(&'a self) -> bool;
+}
+
+#[derive(Clone)]
+pub struct EngineRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> EngineRef<'a> {
+
+  pub fn horsepower(&self) -> u16 {EngineMeta::HORSEPOWER_META.get(&self.data) }
+
+  pub fn cylinders(&self) -> u8 {EngineMeta::CYLINDERS_META.get(&self.data) }
+
+  pub fn cc(&self) -> u32 {EngineMeta::CC_META.get(&self.data) }
+
+  pub fn uses_gas(&self) -> bool {EngineMeta::USES_GAS_META.get(&self.data) }
+
+  pub fn uses_electric(&self) -> bool {EngineMeta::USES_ELECTRIC_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> EngineShared {
     EngineShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for Engine<'a> {
+impl Engine for EngineRef<'_> {
+  fn horsepower<'a>(&'a self) -> u16 {
+    self.horsepower()
+ }
+  fn cylinders<'a>(&'a self) -> u8 {
+    self.cylinders()
+ }
+  fn cc<'a>(&'a self) -> u32 {
+    self.cc()
+ }
+  fn uses_gas<'a>(&'a self) -> bool {
+    self.uses_gas()
+ }
+  fn uses_electric<'a>(&'a self) -> bool {
+    self.uses_electric()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for EngineRef<'a> {
   fn meta() -> &'static StructMeta {
-    &Engine::META
+    &EngineMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    Engine { data: data }
+    EngineRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for Engine<'a> {
+impl<'a> CapnpToOwned<'a> for EngineRef<'a> {
   type Owned = EngineShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    Engine::capnp_to_owned(self)
+    EngineRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for Engine<'a> {
+impl<'a> std::fmt::Debug for EngineRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for Engine<'a> {
-  fn partial_cmp(&self, other: &Engine<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for EngineRef<'a> {
+  fn partial_cmp(&self, other: &EngineRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for Engine<'a> {
-  fn eq(&self, other: &Engine<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for EngineRef<'a> {
+  fn eq(&self, other: &EngineRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -667,23 +878,23 @@ impl EngineShared {
     uses_gas: bool,
     uses_electric: bool,
   ) -> EngineShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(Engine::META.data_size, Engine::META.pointer_size);
-    Engine::HORSEPOWER_META.set(&mut data, horsepower);
-    Engine::CYLINDERS_META.set(&mut data, cylinders);
-    Engine::CC_META.set(&mut data, cc);
-    Engine::USES_GAS_META.set(&mut data, uses_gas);
-    Engine::USES_ELECTRIC_META.set(&mut data, uses_electric);
+    let mut data = UntypedStructOwned::new_with_root_struct(EngineMeta::META.data_size, EngineMeta::META.pointer_size);
+    EngineMeta::HORSEPOWER_META.set(&mut data, horsepower);
+    EngineMeta::CYLINDERS_META.set(&mut data, cylinders);
+    EngineMeta::CC_META.set(&mut data, cc);
+    EngineMeta::USES_GAS_META.set(&mut data, uses_gas);
+    EngineMeta::USES_ELECTRIC_META.set(&mut data, uses_electric);
     EngineShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> Engine<'a> {
-    Engine { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> EngineRef<'a> {
+    EngineRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for EngineShared {
   fn meta() -> &'static StructMeta {
-    &Engine::META
+    &EngineMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     EngineShared { data: data }
@@ -693,18 +904,15 @@ impl TypedStructShared for EngineShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, Engine<'a>> for EngineShared {
-  fn capnp_as_ref(&'a self) -> Engine<'a> {
+impl<'a> CapnpAsRef<'a, EngineRef<'a>> for EngineShared {
+  fn capnp_as_ref(&'a self) -> EngineRef<'a> {
     EngineShared::capnp_as_ref(self)
   }
 }
 
-#[derive(Clone)]
-pub struct TotalValue<'a> {
-  data: UntypedStruct<'a>,
-}
+pub struct TotalValueMeta;
 
-impl<'a> TotalValue<'a> {
+impl TotalValueMeta {
   const AMOUNT_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "amount",
     offset: NumElements(0),
@@ -715,50 +923,77 @@ impl<'a> TotalValue<'a> {
     data_size: NumWords(1),
     pointer_size: NumWords(0),
     fields: || &[
-      FieldMeta::U64(TotalValue::AMOUNT_META),
+      FieldMeta::U64(TotalValueMeta::AMOUNT_META),
     ],
   };
+}
 
-  pub fn amount(&self) -> u64 { TotalValue::AMOUNT_META.get(&self.data) }
+impl<'a> TypedStruct<'a> for TotalValueMeta {
+  type Ref = TotalValueRef<'a>;
+  type Shared = TotalValueShared;
+  fn meta() -> &'static StructMeta {
+    &TotalValueMeta::META
+  }
+}
+
+pub trait TotalValue {
+
+  fn amount<'a>(&'a self) -> u64;
+}
+
+#[derive(Clone)]
+pub struct TotalValueRef<'a> {
+  data: UntypedStruct<'a>,
+}
+
+impl<'a> TotalValueRef<'a> {
+
+  pub fn amount(&self) -> u64 {TotalValueMeta::AMOUNT_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> TotalValueShared {
     TotalValueShared { data: self.data.capnp_to_owned() }
   }
 }
 
-impl<'a> TypedStruct<'a> for TotalValue<'a> {
+impl TotalValue for TotalValueRef<'_> {
+  fn amount<'a>(&'a self) -> u64 {
+    self.amount()
+ }
+}
+
+impl<'a> TypedStructRef<'a> for TotalValueRef<'a> {
   fn meta() -> &'static StructMeta {
-    &TotalValue::META
+    &TotalValueMeta::META
   }
   fn from_untyped_struct(data: UntypedStruct<'a>) -> Self {
-    TotalValue { data: data }
+    TotalValueRef { data: data }
   }
   fn as_untyped(&self) -> UntypedStruct<'a> {
     self.data.clone()
   }
 }
 
-impl<'a> CapnpToOwned<'a> for TotalValue<'a> {
+impl<'a> CapnpToOwned<'a> for TotalValueRef<'a> {
   type Owned = TotalValueShared;
   fn capnp_to_owned(&self) -> Self::Owned {
-    TotalValue::capnp_to_owned(self)
+    TotalValueRef::capnp_to_owned(self)
   }
 }
 
-impl<'a> std::fmt::Debug for TotalValue<'a> {
+impl<'a> std::fmt::Debug for TotalValueRef<'a> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.as_element().fmt(f)
   }
 }
 
-impl<'a> std::cmp::PartialOrd for TotalValue<'a> {
-  fn partial_cmp(&self, other: &TotalValue<'a>) -> Option<std::cmp::Ordering> {
+impl<'a> std::cmp::PartialOrd for TotalValueRef<'a> {
+  fn partial_cmp(&self, other: &TotalValueRef<'a>) -> Option<std::cmp::Ordering> {
     self.as_element().partial_cmp(&other.as_element())
   }
 }
 
-impl<'a> std::cmp::PartialEq for TotalValue<'a> {
-  fn eq(&self, other: &TotalValue<'a>) -> bool {
+impl<'a> std::cmp::PartialEq for TotalValueRef<'a> {
+  fn eq(&self, other: &TotalValueRef<'a>) -> bool {
     self.partial_cmp(&other) == Some(std::cmp::Ordering::Equal)
   }
 }
@@ -772,19 +1007,19 @@ impl TotalValueShared {
   pub fn new(
     amount: u64,
   ) -> TotalValueShared {
-    let mut data = UntypedStructOwned::new_with_root_struct(TotalValue::META.data_size, TotalValue::META.pointer_size);
-    TotalValue::AMOUNT_META.set(&mut data, amount);
+    let mut data = UntypedStructOwned::new_with_root_struct(TotalValueMeta::META.data_size, TotalValueMeta::META.pointer_size);
+    TotalValueMeta::AMOUNT_META.set(&mut data, amount);
     TotalValueShared { data: data.into_shared() }
   }
 
-  pub fn capnp_as_ref<'a>(&'a self) -> TotalValue<'a> {
-    TotalValue { data: self.data.capnp_as_ref() }
+  pub fn capnp_as_ref<'a>(&'a self) -> TotalValueRef<'a> {
+    TotalValueRef { data: self.data.capnp_as_ref() }
   }
 }
 
 impl TypedStructShared for TotalValueShared {
   fn meta() -> &'static StructMeta {
-    &TotalValue::META
+    &TotalValueMeta::META
   }
   fn from_untyped_struct(data: UntypedStructShared) -> Self {
     TotalValueShared { data: data }
@@ -794,8 +1029,8 @@ impl TypedStructShared for TotalValueShared {
   }
 }
 
-impl<'a> CapnpAsRef<'a, TotalValue<'a>> for TotalValueShared {
-  fn capnp_as_ref(&'a self) -> TotalValue<'a> {
+impl<'a> CapnpAsRef<'a, TotalValueRef<'a>> for TotalValueShared {
+  fn capnp_as_ref(&'a self) -> TotalValueRef<'a> {
     TotalValueShared::capnp_as_ref(self)
   }
 }
