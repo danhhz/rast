@@ -6,7 +6,7 @@ use std::str;
 use crate::common::CapnpAsRef;
 use crate::element::{
   DataElement, Element, ElementShared, EnumElement, ListDecodedElement, ListElement, StructElement,
-  UnionElement,
+  TextElement, UnionElement,
 };
 use crate::error::UnknownDiscriminant;
 use crate::r#struct::StructMeta;
@@ -36,7 +36,9 @@ impl<'a> fmt::Debug for Element<'a> {
       Element::I32(x) => x.fmt(f),
       Element::U8(x) => x.fmt(f),
       Element::U64(x) => x.fmt(f),
+      Element::F64(x) => x.fmt(f),
       Element::Data(x) => x.fmt(f),
+      Element::Text(x) => x.fmt(f),
       Element::Enum(x) => x.fmt(f),
       Element::Struct(x) => x.fmt(f),
       Element::List(x) => x.fmt(f),
@@ -66,6 +68,28 @@ impl<'a> fmt::Debug for DataElement<'a> {
         f.write_str("]")
       }
     }
+  }
+}
+
+// TODO: Expose something like this as the type of Text fields instead of &str.
+// It's definitely confusing that this prints differently than the str returned
+// by the generated getter method.
+struct NullTerminatedUTF8String<'a>(&'a str);
+
+impl fmt::Debug for NullTerminatedUTF8String<'_> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self.0.strip_suffix('\0') {
+      Some(x) => x.fmt(f),
+      // NB: Should be unreachable, but we don't actually enforce this in the
+      // getter/constructor yet.
+      None => self.0.fmt(f),
+    }
+  }
+}
+
+impl<'a> fmt::Debug for TextElement<'a> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    NullTerminatedUTF8String(self.0).fmt(f)
   }
 }
 

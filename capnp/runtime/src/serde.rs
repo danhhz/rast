@@ -8,7 +8,8 @@ use serde::ser::{SerializeSeq, SerializeStruct};
 use serde::{Serialize, Serializer};
 
 use crate::element::{
-  DataElement, Element, EnumElement, ListDecodedElement, ListElement, StructElement, UnionElement,
+  DataElement, Element, EnumElement, ListDecodedElement, ListElement, StructElement, TextElement,
+  UnionElement,
 };
 use crate::field_meta::FieldMeta;
 
@@ -18,7 +19,9 @@ impl<'a> Serialize for Element<'a> {
       Element::I32(x) => serializer.serialize_i32(*x),
       Element::U8(x) => serializer.serialize_u8(*x),
       Element::U64(x) => serializer.serialize_u64(*x),
+      Element::F64(x) => serializer.serialize_f64(*x),
       Element::Data(x) => x.serialize(serializer),
+      Element::Text(x) => x.serialize(serializer),
       Element::Enum(x) => x.serialize(serializer),
       Element::Struct(x) => x.serialize(serializer),
       Element::List(x) => x.serialize(serializer),
@@ -32,6 +35,13 @@ impl<'a> Serialize for DataElement<'a> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     let DataElement(value) = self;
     serializer.serialize_bytes(value)
+  }
+}
+
+impl<'a> Serialize for TextElement<'a> {
+  fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    let TextElement(value) = self;
+    serializer.serialize_str(value)
   }
 }
 

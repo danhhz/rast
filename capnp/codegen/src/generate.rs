@@ -40,6 +40,7 @@ impl Field {
 enum FieldTypeEnum {
   Primitive(PrimitiveField),
   Data,
+  Text,
   Enum(EnumField),
   List(ListField),
   Struct(StructField),
@@ -52,6 +53,7 @@ impl FieldTypeEnum {
     match self {
       FieldTypeEnum::Primitive(x) => x,
       FieldTypeEnum::Data => &DataField,
+      FieldTypeEnum::Text => &TextField,
       FieldTypeEnum::Enum(x) => x,
       FieldTypeEnum::List(x) => x,
       FieldTypeEnum::Struct(x) => x,
@@ -181,6 +183,41 @@ impl FieldType for DataField {
   }
   fn type_meta_class(&self, field_meta: String) -> String {
     format!("FieldMeta::Data({})", field_meta)
+  }
+}
+
+struct TextField;
+
+impl FieldType for TextField {
+  fn type_param(&self) -> Option<String> {
+    None
+  }
+  fn type_out(&self) -> String {
+    format!("&'a str")
+  }
+  fn type_out_result(&self) -> bool {
+    true
+  }
+  fn type_in(&self) -> String {
+    format!("&str")
+  }
+  fn type_in_option(&self) -> bool {
+    false
+  }
+  fn type_shared(&self) -> String {
+    "String".to_string()
+  }
+  fn type_owned(&self) -> String {
+    todo!()
+  }
+  fn type_meta(&self) -> String {
+    "Text".to_string()
+  }
+  fn type_element(&self) -> String {
+    "ElementType::List(ListElementType {meta: &ListMeta{ WIP }})".to_string()
+  }
+  fn type_meta_class(&self, field_meta: String) -> String {
+    format!("FieldMeta::Text({})", field_meta)
   }
 }
 
@@ -665,6 +702,7 @@ impl Union {
     for variant in &self.variants {
       match variant.field.type_ {
         FieldTypeEnum::Data
+        | FieldTypeEnum::Text
         | FieldTypeEnum::Struct(_)
         | FieldTypeEnum::List(_)
         | FieldTypeEnum::Union(_) => {
@@ -694,6 +732,7 @@ impl Union {
     for variant in self.variants.iter() {
       match variant.field.type_ {
         FieldTypeEnum::Data
+        | FieldTypeEnum::Text
         | FieldTypeEnum::Struct(_)
         | FieldTypeEnum::List(_)
         | FieldTypeEnum::Union(_) => {
@@ -738,6 +777,7 @@ impl Union {
     for variant in &self.variants {
       match variant.field.type_ {
         FieldTypeEnum::Data
+        | FieldTypeEnum::Text
         | FieldTypeEnum::Struct(_)
         | FieldTypeEnum::List(_)
         | FieldTypeEnum::Union(_) => {
@@ -947,7 +987,11 @@ impl<'a> Generator<'a> {
           type_::Which::Uint64(_) => {
             FieldTypeEnum::Primitive(PrimitiveField { type_: "u64".to_string() })
           }
+          type_::Which::Float64(_) => {
+            FieldTypeEnum::Primitive(PrimitiveField { type_: "f64".to_string() })
+          }
           type_::Which::Data(_) => FieldTypeEnum::Data,
+          type_::Which::Text(_) => FieldTypeEnum::Text,
           type_::Which::Enum(x) => {
             let type_name = self.names.get(&x.get_type_id()).ok_or_else(wip_err)?;
             FieldTypeEnum::Enum(EnumField { type_: Enum::name(type_name) })

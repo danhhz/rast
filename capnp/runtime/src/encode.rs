@@ -8,7 +8,7 @@ use crate::common::{
 use crate::decode::SegmentPointerDecode;
 use crate::element::{
   DataElementShared, ElementShared, EnumElement, ListDecodedElementShared, StructElementShared,
-  UnionElementShared,
+  TextElementShared, UnionElementShared,
 };
 use crate::element_type::ElementType;
 use crate::error::Error;
@@ -131,6 +131,10 @@ pub(crate) trait StructEncode {
     self.data_fields_begin().set_u64(offset_e, value)
   }
 
+  fn set_f64(&mut self, offset_e: NumElements, value: f64) {
+    self.set_u64(offset_e, u64::from_le_bytes(f64::to_le_bytes(value)))
+  }
+
   fn set_pointer(&mut self, offset_e: NumElements, value: Pointer) {
     // NB: All mutable structs are expected to have the full data and pointer
     // sections allocated.
@@ -162,6 +166,11 @@ pub(crate) trait StructEncode {
   fn set_bytes(&mut self, offset_e: NumElements, value: &[u8]) {
     // TODO: Specialize this to do a memcpy.
     self.set_list(offset_e, value)
+  }
+
+  fn set_text(&mut self, offset_e: NumElements, value: &str) {
+    // TODO: Verify that value is null-terminated.
+    self.set_bytes(offset_e, value.as_bytes())
   }
 
   fn set_list<T: TypedListElementShared>(&mut self, offset_e: NumElements, value: &[T]) {
@@ -305,7 +314,9 @@ pub(crate) trait StructEncode {
       ElementShared::I32(x) => Ok(self.set_i32(offset_e, *x)),
       ElementShared::U8(x) => Ok(self.set_u8(offset_e, *x)),
       ElementShared::U64(x) => Ok(self.set_u64(offset_e, *x)),
+      ElementShared::F64(x) => Ok(self.set_f64(offset_e, *x)),
       ElementShared::Data(x) => Ok(self.set_data_element(offset_e, x)),
+      ElementShared::Text(x) => Ok(self.set_text_element(offset_e, x)),
       ElementShared::Enum(x) => Ok(self.set_enum_element(offset_e, x)),
       ElementShared::Struct(x) => Ok(self.set_struct_element(offset_e, x)),
       ElementShared::ListDecoded(x) => self.set_list_decoded_element(offset_e, x),
@@ -316,6 +327,11 @@ pub(crate) trait StructEncode {
   fn set_data_element(&mut self, offset_e: NumElements, value: &DataElementShared) {
     let DataElementShared(value) = value;
     self.set_bytes(offset_e, value);
+  }
+
+  fn set_text_element(&mut self, offset_e: NumElements, value: &TextElementShared) {
+    let TextElementShared(value) = value;
+    self.set_text(offset_e, value);
   }
 
   fn set_enum_element(&mut self, offset_e: NumElements, value: &EnumElement) {

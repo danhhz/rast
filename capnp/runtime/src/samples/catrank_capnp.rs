@@ -6,14 +6,35 @@ pub struct SearchResult<'a> {
 }
 
 impl<'a> SearchResult<'a> {
+  const URL_META: &'static TextFieldMeta = &TextFieldMeta {
+    name: "url",
+    offset: NumElements(0),
+  };
+  const SCORE_META: &'static F64FieldMeta = &F64FieldMeta {
+    name: "score",
+    offset: NumElements(0),
+  };
+  const SNIPPET_META: &'static TextFieldMeta = &TextFieldMeta {
+    name: "snippet",
+    offset: NumElements(1),
+  };
 
   const META: &'static StructMeta = &StructMeta {
     name: "SearchResult",
     data_size: NumWords(1),
     pointer_size: NumWords(2),
     fields: || &[
+      FieldMeta::Text(SearchResult::URL_META),
+      FieldMeta::F64(SearchResult::SCORE_META),
+      FieldMeta::Text(SearchResult::SNIPPET_META),
     ],
   };
+
+  pub fn url(&self) -> Result<&'a str, Error> { SearchResult::URL_META.get(&self.data) }
+
+  pub fn score(&self) -> f64 { SearchResult::SCORE_META.get(&self.data) }
+
+  pub fn snippet(&self) -> Result<&'a str, Error> { SearchResult::SNIPPET_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> SearchResultShared {
     SearchResultShared { data: self.data.capnp_to_owned() }
@@ -64,8 +85,14 @@ pub struct SearchResultShared {
 
 impl SearchResultShared {
   pub fn new(
+    url: &str,
+    score: f64,
+    snippet: &str,
   ) -> SearchResultShared {
     let mut data = UntypedStructOwned::new_with_root_struct(SearchResult::META.data_size, SearchResult::META.pointer_size);
+    SearchResult::URL_META.set(&mut data, url);
+    SearchResult::SCORE_META.set(&mut data, score);
+    SearchResult::SNIPPET_META.set(&mut data, snippet);
     SearchResultShared { data: data.into_shared() }
   }
 

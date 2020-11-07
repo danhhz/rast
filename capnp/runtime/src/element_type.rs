@@ -21,8 +21,12 @@ pub enum ElementType {
   U8,
   /// A [`u64`]
   U64,
+  /// An [`f64`]
+  F64,
   /// A slice of [`u8`]s
   Data,
+  /// A null-terminated, valid UTF-8 slice of [`u8`]s
+  Text,
   /// Schema for a Cap'n Proto [enum](crate#enum)
   Enum(&'static EnumMeta),
   /// Schema for a Cap'n Proto [struct](crate#struct)
@@ -40,7 +44,9 @@ impl ElementType {
       ElementType::I32 => ElementWidth::FourBytes,
       ElementType::U8 => ElementWidth::OneByte,
       ElementType::U64 => ElementWidth::EightBytesNonPointer,
+      ElementType::F64 => ElementWidth::EightBytesNonPointer,
       ElementType::Data => ElementWidth::EightBytesPointer,
+      ElementType::Text => ElementWidth::EightBytesPointer,
       ElementType::Enum(_) => ElementWidth::TwoBytes,
       ElementType::Struct(_) => ElementWidth::EightBytesPointer,
       ElementType::List(_) => ElementWidth::EightBytesPointer,
@@ -56,7 +62,9 @@ impl ElementType {
         .map(|xs| xs.into_iter().map(|x| Element::U8(x)).collect()),
       ElementType::U64 => Slice::<u64>::from_untyped_list(untyped)
         .map(|xs| xs.into_iter().map(|x| Element::U64(x)).collect()),
+      ElementType::F64 => todo!(),
       ElementType::Data => todo!(),
+      ElementType::Text => todo!(),
       ElementType::Enum(_) => todo!(),
       ElementType::Struct(meta) => Slice::<UntypedStruct<'a>>::from_untyped_list(untyped)
         .map(|xs| xs.into_iter().map(|x| Element::Struct(StructElement(meta, x))).collect()),

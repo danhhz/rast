@@ -4,7 +4,7 @@ use crate::common::{CapnpAsRef, Discriminant, NumElements};
 use crate::decode::StructDecode;
 use crate::element::{
   DataElement, DataElementShared, Element, ElementShared, EnumElement, ListElement, StructElement,
-  StructElementShared, UnionElement, UnionElementShared,
+  StructElementShared, TextElement, TextElementShared, UnionElement, UnionElementShared,
 };
 use crate::element_type::ElementType;
 use crate::encode::StructEncode;
@@ -25,8 +25,13 @@ pub enum FieldMeta {
   I32(&'static I32FieldMeta),
   /// Schema for a `u64` field in a Cap'n Proto struct
   U64(&'static U64FieldMeta),
+  /// Schema for an `f64` field in a Cap'n Proto struct
+  F64(&'static F64FieldMeta),
   /// Schema for a `[u8]` field in a Cap'n Proto struct
   Data(&'static DataFieldMeta),
+  /// Schema for a null-terminated, valid UTF-8 `[u8]` field in a Cap'n Proto
+  /// struct
+  Text(&'static TextFieldMeta),
   /// Schema for an enum field in a Cap'n Proto struct
   Enum(&'static EnumFieldMeta),
   /// Schema for a struct field in a Cap'n Proto struct
@@ -43,7 +48,9 @@ impl FieldMeta {
     match self {
       FieldMeta::I32(x) => x.name,
       FieldMeta::U64(x) => x.name,
+      FieldMeta::F64(x) => x.name,
       FieldMeta::Data(x) => x.name,
+      FieldMeta::Text(x) => x.name,
       FieldMeta::Enum(x) => x.name,
       FieldMeta::Struct(x) => x.name,
       FieldMeta::List(x) => x.name,
@@ -56,7 +63,9 @@ impl FieldMeta {
     match self {
       FieldMeta::I32(_) => ElementType::I32,
       FieldMeta::U64(_) => ElementType::U64,
+      FieldMeta::F64(_) => ElementType::F64,
       FieldMeta::Data(_) => ElementType::Data,
+      FieldMeta::Text(_) => ElementType::Text,
       FieldMeta::Enum(x) => ElementType::Enum(x.meta),
       FieldMeta::Struct(x) => ElementType::Struct(x.meta),
       FieldMeta::List(x) => ElementType::List(x.meta),
@@ -82,7 +91,9 @@ impl FieldMeta {
     match self {
       FieldMeta::I32(x) => Ok(x.get_element(data)),
       FieldMeta::U64(x) => Ok(x.get_element(data)),
+      FieldMeta::F64(x) => Ok(x.get_element(data)),
       FieldMeta::Data(x) => x.get_element(data).map(|x| Element::Data(x)),
+      FieldMeta::Text(x) => x.get_element(data).map(|x| Element::Text(x)),
       FieldMeta::Enum(x) => Ok(Element::Enum(x.get_element(data))),
       FieldMeta::Struct(x) => x.get_element(data).map(|x| Element::Struct(x)),
       FieldMeta::List(x) => x.get_element(data).map(|x| Element::List(x)),
@@ -100,7 +111,9 @@ impl FieldMeta {
     match self {
       FieldMeta::I32(x) => x.set_element(data, value),
       FieldMeta::U64(x) => x.set_element(data, value),
+      FieldMeta::F64(x) => x.set_element(data, value),
       FieldMeta::Data(x) => x.set_element(data, value),
+      FieldMeta::Text(x) => x.set_element(data, value),
       FieldMeta::Enum(x) => x.set_element(data, value),
       FieldMeta::Struct(x) => x.set_element(data, value),
       FieldMeta::List(x) => x.set_element(data, value),
@@ -195,6 +208,49 @@ impl U64FieldMeta {
   }
 }
 
+/// Schema for an f64 field in a Cap'n Proto struct
+#[derive(Debug)]
+pub struct F64FieldMeta {
+  /// The name of this field
+  pub name: &'static str,
+  /// The offset of this field
+  pub offset: NumElements,
+}
+
+impl F64FieldMeta {
+  /// Returns the value of this field in the given struct (or the default value
+  /// if it's missing).
+  pub fn get(&self, data: &UntypedStruct<'_>) -> f64 {
+    data.f64(self.offset)
+  }
+
+  /// Sets this field in the given struct.
+  pub fn set(&self, data: &mut UntypedStructOwned, value: f64) {
+    data.set_f64(self.offset, value);
+  }
+
+  pub(crate) fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Element<'a> {
+    Element::F64(self.get(data))
+  }
+
+  pub(crate) fn set_element(
+    &self,
+    data: &mut UntypedStructOwned,
+    value: &ElementShared,
+  ) -> Result<(), Error> {
+    match value {
+      ElementShared::F64(value) => {
+        self.set(data, *value);
+        Ok(())
+      }
+      value => Err(Error::Usage(format!(
+        "F64FieldMeta::set_element unsupported_type: {:?}",
+        value.capnp_as_ref().element_type()
+      ))),
+    }
+  }
+}
+
 /// Schema for a [u8] field in a Cap'n Proto struct
 #[derive(Debug)]
 pub struct DataFieldMeta {
@@ -240,6 +296,58 @@ impl DataFieldMeta {
       }
       value => Err(Error::Usage(format!(
         "DataFieldMeta::set_element unsupported_type: {:?}",
+        value.capnp_as_ref().element_type()
+      ))),
+    }
+  }
+}
+
+/// Schema for a null-terminated, valid UTF-8 `[u8]` field in a Cap'n Proto
+/// struct
+#[derive(Debug)]
+pub struct TextFieldMeta {
+  /// The name of this field
+  pub name: &'static str,
+  /// The offset of this field
+  pub offset: NumElements,
+}
+
+impl TextFieldMeta {
+  /// Returns whether this field is null in the given struct.
+  pub fn is_null(&self, data: &UntypedStruct<'_>) -> bool {
+    match data.pointer_raw(self.offset) {
+      Pointer::Null => true,
+      _ => false,
+    }
+  }
+
+  /// Returns the value of this field in the given struct (or the default value
+  /// if it's missing or null).
+  pub fn get<'a>(&self, data: &UntypedStruct<'a>) -> Result<&'a str, Error> {
+    data.text(self.offset)
+  }
+
+  /// Sets this field in the given struct.
+  pub fn set(&self, data: &mut UntypedStructOwned, value: &str) {
+    data.set_text(self.offset, value)
+  }
+
+  pub(crate) fn get_element<'a>(&self, data: &UntypedStruct<'a>) -> Result<TextElement<'a>, Error> {
+    self.get(data).map(|value| TextElement(value))
+  }
+
+  pub(crate) fn set_element(
+    &self,
+    data: &mut UntypedStructOwned,
+    value: &ElementShared,
+  ) -> Result<(), Error> {
+    match value {
+      ElementShared::Text(TextElementShared(value)) => {
+        self.set(data, value);
+        Ok(())
+      }
+      value => Err(Error::Usage(format!(
+        "TextFieldMeta::set_element unsupported_type: {:?}",
         value.capnp_as_ref().element_type()
       ))),
     }

@@ -241,6 +241,10 @@ pub(crate) trait StructDecode<'a> {
     self.data_fields_begin().u64(offset_e)
   }
 
+  fn f64(&self, offset_e: NumElements) -> f64 {
+    f64::from_le_bytes(u64::to_le_bytes(self.u64(offset_e)))
+  }
+
   fn discriminant(&self, offset_e: NumElements) -> Discriminant {
     Discriminant(self.data_fields_begin().u16(offset_e))
   }
@@ -251,20 +255,32 @@ pub(crate) trait StructDecode<'a> {
 
   fn bytes(&self, offset_e: NumElements) -> Result<&'a [u8], Error> {
     let (pointer, pointer_end) = self.pointer_fields_begin().list_pointer(offset_e)?;
-    if let ListLayout::Packed(num_elements, ElementWidth::OneByte) = pointer.layout {
-      let sp = pointer_end.add(pointer.off);
-      let data_begin = sp.offset_w().as_bytes();
-      let data_end = data_begin + num_elements.as_bytes(U8_WIDTH_BYTES);
-      sp.buf().get(data_begin..data_end).ok_or_else(|| {
-        Error::Encoding(format!(
-          "truncated byte field had {} of {}",
-          sp.buf()[data_begin..].len(),
-          data_end - data_begin
-        ))
-      })
-    } else {
-      Err(Error::Encoding(format!("unsupposed list layout for data: {:?}", pointer.layout)))
+    match pointer.layout {
+      ListLayout::Packed(NumElements(0), ElementWidth::Void) => Ok(&[]),
+      ListLayout::Packed(num_elements, ElementWidth::OneByte) => {
+        let sp = pointer_end.add(pointer.off);
+        let data_begin = sp.offset_w().as_bytes();
+        let data_end = data_begin + num_elements.as_bytes(U8_WIDTH_BYTES);
+        sp.buf().get(data_begin..data_end).ok_or_else(|| {
+          Error::Encoding(format!(
+            "truncated byte field had {} of {}",
+            sp.buf()[data_begin..].len(),
+            data_end - data_begin
+          ))
+        })
+      }
+      _ => Err(Error::Encoding(format!("unsupposed list layout for data: {:?}", pointer.layout))),
     }
+  }
+
+  fn text(&self, offset_e: NumElements) -> Result<&'a str, Error> {
+    // TODO: Maybe we want a version of field access that allows the caller to
+    // trust that the encoded bytes are valid UTF-8.
+
+    // TODO: Verify that value is null-terminated.
+    self
+      .bytes(offset_e)
+      .and_then(|bytes| std::str::from_utf8(bytes).map_err(|e| Error::Encoding(e.to_string())))
   }
 
   fn untyped_struct(&self, offset_e: NumElements) -> Result<UntypedStruct<'a>, Error> {

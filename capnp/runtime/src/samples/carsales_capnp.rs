@@ -6,6 +6,14 @@ pub struct Car<'a> {
 }
 
 impl<'a> Car<'a> {
+  const MAKE_META: &'static TextFieldMeta = &TextFieldMeta {
+    name: "make",
+    offset: NumElements(0),
+  };
+  const MODEL_META: &'static TextFieldMeta = &TextFieldMeta {
+    name: "model",
+    offset: NumElements(1),
+  };
   const COLOR_META: &'static EnumFieldMeta = &EnumFieldMeta {
     name: "color",
     offset: NumElements(0),
@@ -29,11 +37,17 @@ impl<'a> Car<'a> {
     data_size: NumWords(3),
     pointer_size: NumWords(4),
     fields: || &[
+      FieldMeta::Text(Car::MAKE_META),
+      FieldMeta::Text(Car::MODEL_META),
       FieldMeta::Enum(Car::COLOR_META),
       FieldMeta::List(Car::WHEELS_META),
       FieldMeta::Struct(Car::ENGINE_META),
     ],
   };
+
+  pub fn make(&self) -> Result<&'a str, Error> { Car::MAKE_META.get(&self.data) }
+
+  pub fn model(&self) -> Result<&'a str, Error> { Car::MODEL_META.get(&self.data) }
 
   pub fn color(&self) -> Result<Color, UnknownDiscriminant> { Car::COLOR_META.get(&self.data) }
 
@@ -90,11 +104,15 @@ pub struct CarShared {
 
 impl CarShared {
   pub fn new(
+    make: &str,
+    model: &str,
     color: Color,
     wheels: &'_ [WheelShared],
     engine: Option<EngineShared>,
   ) -> CarShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Car::META.data_size, Car::META.pointer_size);
+    Car::MAKE_META.set(&mut data, make);
+    Car::MODEL_META.set(&mut data, model);
     Car::COLOR_META.set(&mut data, color);
     Car::WHEELS_META.set(&mut data, wheels);
     Car::ENGINE_META.set(&mut data, engine);

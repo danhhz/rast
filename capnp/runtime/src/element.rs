@@ -13,7 +13,9 @@ pub enum Element<'a> {
   I32(i32),
   U8(u8),
   U64(u64),
+  F64(f64),
   Data(DataElement<'a>),
+  Text(TextElement<'a>),
   Enum(EnumElement),
   Struct(StructElement<'a>),
   List(ListElement<'a>),
@@ -27,7 +29,9 @@ impl<'a> Element<'a> {
       Element::I32(_) => ElementType::I32,
       Element::U8(_) => ElementType::U8,
       Element::U64(_) => ElementType::U64,
+      Element::F64(_) => ElementType::F64,
       Element::Data(_) => ElementType::Data,
+      Element::Text(_) => ElementType::Text,
       Element::Enum(EnumElement(meta, _)) => ElementType::Enum(meta),
       Element::Struct(StructElement(meta, _)) => ElementType::Struct(meta),
       Element::List(ListElement(meta, _)) => ElementType::List(meta),
@@ -39,6 +43,9 @@ impl<'a> Element<'a> {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct DataElement<'a>(pub &'a [u8]);
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub struct TextElement<'a>(pub &'a str);
 
 #[derive(PartialEq, PartialOrd)]
 pub struct EnumElement(pub &'static EnumMeta, pub Discriminant);
@@ -63,7 +70,9 @@ pub enum ElementShared {
   I32(i32),
   U8(u8),
   U64(u64),
+  F64(f64),
   Data(DataElementShared),
+  Text(TextElementShared),
   Enum(EnumElement),
   Struct(StructElementShared),
   ListDecoded(ListDecodedElementShared),
@@ -76,7 +85,9 @@ impl<'a> CapnpAsRef<'a, Element<'a>> for ElementShared {
       ElementShared::I32(x) => Element::I32(*x),
       ElementShared::U8(x) => Element::U8(*x),
       ElementShared::U64(x) => Element::U64(*x),
+      ElementShared::F64(x) => Element::F64(*x),
       ElementShared::Data(x) => Element::Data(x.capnp_as_ref()),
+      ElementShared::Text(x) => Element::Text(x.capnp_as_ref()),
       ElementShared::Enum(EnumElement(meta, x)) => Element::Enum(EnumElement(meta, *x)),
       ElementShared::Struct(x) => Element::Struct(x.capnp_as_ref()),
       ElementShared::ListDecoded(x) => Element::ListDecoded(x.capnp_as_ref()),
@@ -91,6 +102,15 @@ impl<'a> CapnpAsRef<'a, DataElement<'a>> for DataElementShared {
   fn capnp_as_ref(&'a self) -> DataElement<'a> {
     let DataElementShared(value) = self;
     DataElement(&value)
+  }
+}
+
+pub struct TextElementShared(pub String);
+
+impl<'a> CapnpAsRef<'a, TextElement<'a>> for TextElementShared {
+  fn capnp_as_ref(&'a self) -> TextElement<'a> {
+    let TextElementShared(value) = self;
+    TextElement(&value)
   }
 }
 

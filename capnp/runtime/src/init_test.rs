@@ -13,12 +13,14 @@ mod test {
     let message = TestAllTypesShared::new(
       -123,
       123,
+      1.23,
+      "456",
       &[4, 5, 6],
-      Some(TestAllTypesShared::new(0, 789, &[], None, TestEnum::Foo, &[])),
+      Some(TestAllTypesShared::new(0, 789, 0.0, "", &[], None, TestEnum::Foo, &[])),
       TestEnum::Bar,
-      vec![TestAllTypesShared::new(0, 10, &[], None, TestEnum::Foo, &[])].as_slice(),
+      vec![TestAllTypesShared::new(0, 10, 0.0, "", &[], None, TestEnum::Foo, &[])].as_slice(),
     );
-    let expected = "(int32Field = -123, uInt64Field = 123, dataField = [04, 05, 06], structField = (int32Field = 0, uInt64Field = 789, enumField = foo), enumField = bar, structList = [(int32Field = 0, uInt64Field = 10, enumField = foo)])";
+    let expected = "(int32Field = -123, uInt64Field = 123, float64Field = 1.23, textField = \"456\", dataField = [04, 05, 06], structField = (int32Field = 0, uInt64Field = 789, float64Field = 0.0, textField = \"\", enumField = foo), enumField = bar, structList = [(int32Field = 0, uInt64Field = 10, float64Field = 0.0, textField = \"\", enumField = foo)])";
     assert_eq!(format!("{:?}", message.capnp_as_ref()), expected);
     Ok(())
   }

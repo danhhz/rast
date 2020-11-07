@@ -4,12 +4,13 @@
 
 use std::cmp;
 
+use rand::distributions::Alphanumeric;
 use rand::Rng;
 
 use crate::common::Discriminant;
 use crate::element::{
   DataElementShared, ElementShared, EnumElement, ListDecodedElementShared, StructElementShared,
-  UnionElementShared,
+  TextElementShared, UnionElementShared,
 };
 use crate::element_type::ElementType;
 use crate::field_meta::FieldMeta;
@@ -49,8 +50,12 @@ impl<'a, R: Rng> Rand<'a, R> {
       match field_meta {
         FieldMeta::I32(x) => x.set(&mut data, self.rng.gen()),
         FieldMeta::U64(x) => x.set(&mut data, self.rng.gen()),
+        FieldMeta::F64(x) => x.set(&mut data, self.rng.gen()),
         FieldMeta::Data(x) => {
           x.set(&mut data, &self.gen_data_element().0);
+        }
+        FieldMeta::Text(x) => {
+          x.set(&mut data, &self.gen_text_element().0);
         }
         FieldMeta::Enum(x) => x
           .set_enum_element(&mut data, &self.gen_enum_element(x.meta))
@@ -81,7 +86,9 @@ impl<'a, R: Rng> Rand<'a, R> {
       ElementType::I32 => ElementShared::I32(self.rng.gen()),
       ElementType::U8 => ElementShared::U8(self.rng.gen()),
       ElementType::U64 => ElementShared::U64(self.rng.gen()),
+      ElementType::F64 => ElementShared::F64(self.rng.gen()),
       ElementType::Data => ElementShared::Data(self.gen_data_element()),
+      ElementType::Text => ElementShared::Text(self.gen_text_element()),
       ElementType::Enum(x) => ElementShared::Enum(self.gen_enum_element(x)),
       ElementType::Struct(x) => ElementShared::Struct(self.gen_struct_element(x)),
       ElementType::List(x) => ElementShared::ListDecoded(self.gen_list_element(x)),
@@ -91,6 +98,12 @@ impl<'a, R: Rng> Rand<'a, R> {
 
   fn gen_data_element(&mut self) -> DataElementShared {
     DataElementShared((0..self.rng.gen_range(0, 5)).map(|_| self.rng.gen()).collect())
+  }
+
+  fn gen_text_element(&mut self) -> TextElementShared {
+    TextElementShared(
+      (0..self.rng.gen_range(0, 5)).map(|_| self.rng.sample(Alphanumeric)).collect(),
+    )
   }
 
   fn gen_enum_element(&mut self, meta: &'static EnumMeta) -> EnumElement {

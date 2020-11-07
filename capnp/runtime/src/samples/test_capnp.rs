@@ -88,6 +88,14 @@ impl<'a> TestAllTypes<'a> {
     name: "uInt64Field",
     offset: NumElements(3),
   };
+  const FLOAT64_FIELD_META: &'static F64FieldMeta = &F64FieldMeta {
+    name: "float64Field",
+    offset: NumElements(5),
+  };
+  const TEXT_FIELD_META: &'static TextFieldMeta = &TextFieldMeta {
+    name: "textField",
+    offset: NumElements(0),
+  };
   const DATA_FIELD_META: &'static DataFieldMeta = &DataFieldMeta {
     name: "dataField",
     offset: NumElements(1),
@@ -117,6 +125,8 @@ impl<'a> TestAllTypes<'a> {
     fields: || &[
       FieldMeta::I32(TestAllTypes::INT32_FIELD_META),
       FieldMeta::U64(TestAllTypes::U_INT64_FIELD_META),
+      FieldMeta::F64(TestAllTypes::FLOAT64_FIELD_META),
+      FieldMeta::Text(TestAllTypes::TEXT_FIELD_META),
       FieldMeta::Data(TestAllTypes::DATA_FIELD_META),
       FieldMeta::Struct(TestAllTypes::STRUCT_FIELD_META),
       FieldMeta::Enum(TestAllTypes::ENUM_FIELD_META),
@@ -127,6 +137,10 @@ impl<'a> TestAllTypes<'a> {
   pub fn int32_field(&self) -> i32 { TestAllTypes::INT32_FIELD_META.get(&self.data) }
 
   pub fn u_int64_field(&self) -> u64 { TestAllTypes::U_INT64_FIELD_META.get(&self.data) }
+
+  pub fn float64_field(&self) -> f64 { TestAllTypes::FLOAT64_FIELD_META.get(&self.data) }
+
+  pub fn text_field(&self) -> Result<&'a str, Error> { TestAllTypes::TEXT_FIELD_META.get(&self.data) }
 
   pub fn data_field(&self) -> Result<&'a [u8], Error> { TestAllTypes::DATA_FIELD_META.get(&self.data) }
 
@@ -187,6 +201,8 @@ impl TestAllTypesShared {
   pub fn new(
     int32_field: i32,
     u_int64_field: u64,
+    float64_field: f64,
+    text_field: &str,
     data_field: &[u8],
     struct_field: Option<TestAllTypesShared>,
     enum_field: TestEnum,
@@ -195,6 +211,8 @@ impl TestAllTypesShared {
     let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
     TestAllTypes::INT32_FIELD_META.set(&mut data, int32_field);
     TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);
+    TestAllTypes::FLOAT64_FIELD_META.set(&mut data, float64_field);
+    TestAllTypes::TEXT_FIELD_META.set(&mut data, text_field);
     TestAllTypes::DATA_FIELD_META.set(&mut data, data_field);
     TestAllTypes::STRUCT_FIELD_META.set(&mut data, struct_field);
     TestAllTypes::ENUM_FIELD_META.set(&mut data, enum_field);
