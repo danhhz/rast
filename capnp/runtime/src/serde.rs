@@ -16,9 +16,13 @@ use crate::field_meta::FieldMeta;
 impl<'a> Serialize for Element<'a> {
   fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     match self {
+      Element::Bool(x) => serializer.serialize_bool(*x),
       Element::I32(x) => serializer.serialize_i32(*x),
       Element::U8(x) => serializer.serialize_u8(*x),
+      Element::U16(x) => serializer.serialize_u16(*x),
+      Element::U32(x) => serializer.serialize_u32(*x),
       Element::U64(x) => serializer.serialize_u64(*x),
+      Element::F32(x) => serializer.serialize_f32(*x),
       Element::F64(x) => serializer.serialize_f64(*x),
       Element::Data(x) => x.serialize(serializer),
       Element::Text(x) => x.serialize(serializer),

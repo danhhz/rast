@@ -10,9 +10,13 @@ use crate::union::UnionMeta;
 
 #[derive(PartialEq, PartialOrd)]
 pub enum Element<'a> {
+  Bool(bool),
   I32(i32),
   U8(u8),
+  U16(u16),
+  U32(u32),
   U64(u64),
+  F32(f32),
   F64(f64),
   Data(DataElement<'a>),
   Text(TextElement<'a>),
@@ -26,9 +30,13 @@ pub enum Element<'a> {
 impl<'a> Element<'a> {
   pub fn element_type(&self) -> ElementType {
     match self {
+      Element::Bool(_) => ElementType::Bool,
       Element::I32(_) => ElementType::I32,
       Element::U8(_) => ElementType::U8,
+      Element::U16(_) => ElementType::U16,
+      Element::U32(_) => ElementType::U32,
       Element::U64(_) => ElementType::U64,
+      Element::F32(_) => ElementType::F32,
       Element::F64(_) => ElementType::F64,
       Element::Data(_) => ElementType::Data,
       Element::Text(_) => ElementType::Text,
@@ -67,9 +75,13 @@ pub struct UnionElement<'a>(pub &'static UnionMeta, pub Discriminant, pub Box<El
 // TODO: Polish, document, and expose this.
 #[allow(dead_code)]
 pub enum ElementShared {
+  Bool(bool),
   I32(i32),
   U8(u8),
+  U16(u16),
+  U32(u32),
   U64(u64),
+  F32(f32),
   F64(f64),
   Data(DataElementShared),
   Text(TextElementShared),
@@ -82,9 +94,13 @@ pub enum ElementShared {
 impl<'a> CapnpAsRef<'a, Element<'a>> for ElementShared {
   fn capnp_as_ref(&'a self) -> Element<'a> {
     match self {
+      ElementShared::Bool(x) => Element::Bool(*x),
       ElementShared::I32(x) => Element::I32(*x),
       ElementShared::U8(x) => Element::U8(*x),
+      ElementShared::U16(x) => Element::U16(*x),
+      ElementShared::U32(x) => Element::U32(*x),
       ElementShared::U64(x) => Element::U64(*x),
+      ElementShared::F32(x) => Element::F32(*x),
       ElementShared::F64(x) => Element::F64(*x),
       ElementShared::Data(x) => Element::Data(x.capnp_as_ref()),
       ElementShared::Text(x) => Element::Text(x.capnp_as_ref()),

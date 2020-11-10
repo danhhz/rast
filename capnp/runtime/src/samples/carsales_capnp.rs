@@ -19,6 +19,14 @@ impl<'a> Car<'a> {
     offset: NumElements(0),
     meta: &Color::META,
   };
+  const SEATS_META: &'static U8FieldMeta = &U8FieldMeta {
+    name: "seats",
+    offset: NumElements(2),
+  };
+  const DOORS_META: &'static U8FieldMeta = &U8FieldMeta {
+    name: "doors",
+    offset: NumElements(3),
+  };
   const WHEELS_META: &'static ListFieldMeta = &ListFieldMeta {
     name: "wheels",
     offset: NumElements(2),
@@ -26,10 +34,54 @@ impl<'a> Car<'a> {
       value_type: ElementType::Struct(&Wheel::META)
     },
   };
+  const LENGTH_META: &'static U16FieldMeta = &U16FieldMeta {
+    name: "length",
+    offset: NumElements(2),
+  };
+  const WIDTH_META: &'static U16FieldMeta = &U16FieldMeta {
+    name: "width",
+    offset: NumElements(3),
+  };
+  const HEIGHT_META: &'static U16FieldMeta = &U16FieldMeta {
+    name: "height",
+    offset: NumElements(4),
+  };
+  const WEIGHT_META: &'static U32FieldMeta = &U32FieldMeta {
+    name: "weight",
+    offset: NumElements(3),
+  };
   const ENGINE_META: &'static StructFieldMeta = &StructFieldMeta {
     name: "engine",
     offset: NumElements(3),
     meta: &Engine::META,
+  };
+  const FUEL_CAPACITY_META: &'static F32FieldMeta = &F32FieldMeta {
+    name: "fuelCapacity",
+    offset: NumElements(4),
+  };
+  const FUEL_LEVEL_META: &'static F32FieldMeta = &F32FieldMeta {
+    name: "fuelLevel",
+    offset: NumElements(5),
+  };
+  const HAS_POWER_WINDOWS_META: &'static BoolFieldMeta = &BoolFieldMeta {
+    name: "hasPowerWindows",
+    offset: NumElements(80),
+  };
+  const HAS_POWER_STEERING_META: &'static BoolFieldMeta = &BoolFieldMeta {
+    name: "hasPowerSteering",
+    offset: NumElements(81),
+  };
+  const HAS_CRUISE_CONTROL_META: &'static BoolFieldMeta = &BoolFieldMeta {
+    name: "hasCruiseControl",
+    offset: NumElements(82),
+  };
+  const CUP_HOLDERS_META: &'static U8FieldMeta = &U8FieldMeta {
+    name: "cupHolders",
+    offset: NumElements(11),
+  };
+  const HAS_NAV_SYSTEM_META: &'static BoolFieldMeta = &BoolFieldMeta {
+    name: "hasNavSystem",
+    offset: NumElements(83),
   };
 
   const META: &'static StructMeta = &StructMeta {
@@ -40,8 +92,21 @@ impl<'a> Car<'a> {
       FieldMeta::Text(Car::MAKE_META),
       FieldMeta::Text(Car::MODEL_META),
       FieldMeta::Enum(Car::COLOR_META),
+      FieldMeta::U8(Car::SEATS_META),
+      FieldMeta::U8(Car::DOORS_META),
       FieldMeta::List(Car::WHEELS_META),
+      FieldMeta::U16(Car::LENGTH_META),
+      FieldMeta::U16(Car::WIDTH_META),
+      FieldMeta::U16(Car::HEIGHT_META),
+      FieldMeta::U32(Car::WEIGHT_META),
       FieldMeta::Struct(Car::ENGINE_META),
+      FieldMeta::F32(Car::FUEL_CAPACITY_META),
+      FieldMeta::F32(Car::FUEL_LEVEL_META),
+      FieldMeta::Bool(Car::HAS_POWER_WINDOWS_META),
+      FieldMeta::Bool(Car::HAS_POWER_STEERING_META),
+      FieldMeta::Bool(Car::HAS_CRUISE_CONTROL_META),
+      FieldMeta::U8(Car::CUP_HOLDERS_META),
+      FieldMeta::Bool(Car::HAS_NAV_SYSTEM_META),
     ],
   };
 
@@ -51,9 +116,35 @@ impl<'a> Car<'a> {
 
   pub fn color(&self) -> Result<Color, UnknownDiscriminant> { Car::COLOR_META.get(&self.data) }
 
+  pub fn seats(&self) -> u8 { Car::SEATS_META.get(&self.data) }
+
+  pub fn doors(&self) -> u8 { Car::DOORS_META.get(&self.data) }
+
   pub fn wheels(&self) -> Result<Slice<'a, Wheel<'a>>, Error> { Car::WHEELS_META.get(&self.data) }
 
+  pub fn length(&self) -> u16 { Car::LENGTH_META.get(&self.data) }
+
+  pub fn width(&self) -> u16 { Car::WIDTH_META.get(&self.data) }
+
+  pub fn height(&self) -> u16 { Car::HEIGHT_META.get(&self.data) }
+
+  pub fn weight(&self) -> u32 { Car::WEIGHT_META.get(&self.data) }
+
   pub fn engine(&self) -> Result<Engine<'a>, Error> { Car::ENGINE_META.get(&self.data) }
+
+  pub fn fuel_capacity(&self) -> f32 { Car::FUEL_CAPACITY_META.get(&self.data) }
+
+  pub fn fuel_level(&self) -> f32 { Car::FUEL_LEVEL_META.get(&self.data) }
+
+  pub fn has_power_windows(&self) -> bool { Car::HAS_POWER_WINDOWS_META.get(&self.data) }
+
+  pub fn has_power_steering(&self) -> bool { Car::HAS_POWER_STEERING_META.get(&self.data) }
+
+  pub fn has_cruise_control(&self) -> bool { Car::HAS_CRUISE_CONTROL_META.get(&self.data) }
+
+  pub fn cup_holders(&self) -> u8 { Car::CUP_HOLDERS_META.get(&self.data) }
+
+  pub fn has_nav_system(&self) -> bool { Car::HAS_NAV_SYSTEM_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> CarShared {
     CarShared { data: self.data.capnp_to_owned() }
@@ -107,15 +198,41 @@ impl CarShared {
     make: &str,
     model: &str,
     color: Color,
+    seats: u8,
+    doors: u8,
     wheels: &'_ [WheelShared],
+    length: u16,
+    width: u16,
+    height: u16,
+    weight: u32,
     engine: Option<EngineShared>,
+    fuel_capacity: f32,
+    fuel_level: f32,
+    has_power_windows: bool,
+    has_power_steering: bool,
+    has_cruise_control: bool,
+    cup_holders: u8,
+    has_nav_system: bool,
   ) -> CarShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Car::META.data_size, Car::META.pointer_size);
     Car::MAKE_META.set(&mut data, make);
     Car::MODEL_META.set(&mut data, model);
     Car::COLOR_META.set(&mut data, color);
+    Car::SEATS_META.set(&mut data, seats);
+    Car::DOORS_META.set(&mut data, doors);
     Car::WHEELS_META.set(&mut data, wheels);
+    Car::LENGTH_META.set(&mut data, length);
+    Car::WIDTH_META.set(&mut data, width);
+    Car::HEIGHT_META.set(&mut data, height);
+    Car::WEIGHT_META.set(&mut data, weight);
     Car::ENGINE_META.set(&mut data, engine);
+    Car::FUEL_CAPACITY_META.set(&mut data, fuel_capacity);
+    Car::FUEL_LEVEL_META.set(&mut data, fuel_level);
+    Car::HAS_POWER_WINDOWS_META.set(&mut data, has_power_windows);
+    Car::HAS_POWER_STEERING_META.set(&mut data, has_power_steering);
+    Car::HAS_CRUISE_CONTROL_META.set(&mut data, has_cruise_control);
+    Car::CUP_HOLDERS_META.set(&mut data, cup_holders);
+    Car::HAS_NAV_SYSTEM_META.set(&mut data, has_nav_system);
     CarShared { data: data.into_shared() }
   }
 
@@ -332,14 +449,35 @@ pub struct Wheel<'a> {
 }
 
 impl<'a> Wheel<'a> {
+  const DIAMETER_META: &'static U16FieldMeta = &U16FieldMeta {
+    name: "diameter",
+    offset: NumElements(0),
+  };
+  const AIR_PRESSURE_META: &'static F32FieldMeta = &F32FieldMeta {
+    name: "airPressure",
+    offset: NumElements(1),
+  };
+  const SNOW_TIRES_META: &'static BoolFieldMeta = &BoolFieldMeta {
+    name: "snowTires",
+    offset: NumElements(16),
+  };
 
   const META: &'static StructMeta = &StructMeta {
     name: "Wheel",
     data_size: NumWords(1),
     pointer_size: NumWords(0),
     fields: || &[
+      FieldMeta::U16(Wheel::DIAMETER_META),
+      FieldMeta::F32(Wheel::AIR_PRESSURE_META),
+      FieldMeta::Bool(Wheel::SNOW_TIRES_META),
     ],
   };
+
+  pub fn diameter(&self) -> u16 { Wheel::DIAMETER_META.get(&self.data) }
+
+  pub fn air_pressure(&self) -> f32 { Wheel::AIR_PRESSURE_META.get(&self.data) }
+
+  pub fn snow_tires(&self) -> bool { Wheel::SNOW_TIRES_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> WheelShared {
     WheelShared { data: self.data.capnp_to_owned() }
@@ -390,8 +528,14 @@ pub struct WheelShared {
 
 impl WheelShared {
   pub fn new(
+    diameter: u16,
+    air_pressure: f32,
+    snow_tires: bool,
   ) -> WheelShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Wheel::META.data_size, Wheel::META.pointer_size);
+    Wheel::DIAMETER_META.set(&mut data, diameter);
+    Wheel::AIR_PRESSURE_META.set(&mut data, air_pressure);
+    Wheel::SNOW_TIRES_META.set(&mut data, snow_tires);
     WheelShared { data: data.into_shared() }
   }
 
@@ -424,14 +568,49 @@ pub struct Engine<'a> {
 }
 
 impl<'a> Engine<'a> {
+  const HORSEPOWER_META: &'static U16FieldMeta = &U16FieldMeta {
+    name: "horsepower",
+    offset: NumElements(0),
+  };
+  const CYLINDERS_META: &'static U8FieldMeta = &U8FieldMeta {
+    name: "cylinders",
+    offset: NumElements(2),
+  };
+  const CC_META: &'static U32FieldMeta = &U32FieldMeta {
+    name: "cc",
+    offset: NumElements(1),
+  };
+  const USES_GAS_META: &'static BoolFieldMeta = &BoolFieldMeta {
+    name: "usesGas",
+    offset: NumElements(24),
+  };
+  const USES_ELECTRIC_META: &'static BoolFieldMeta = &BoolFieldMeta {
+    name: "usesElectric",
+    offset: NumElements(25),
+  };
 
   const META: &'static StructMeta = &StructMeta {
     name: "Engine",
     data_size: NumWords(1),
     pointer_size: NumWords(0),
     fields: || &[
+      FieldMeta::U16(Engine::HORSEPOWER_META),
+      FieldMeta::U8(Engine::CYLINDERS_META),
+      FieldMeta::U32(Engine::CC_META),
+      FieldMeta::Bool(Engine::USES_GAS_META),
+      FieldMeta::Bool(Engine::USES_ELECTRIC_META),
     ],
   };
+
+  pub fn horsepower(&self) -> u16 { Engine::HORSEPOWER_META.get(&self.data) }
+
+  pub fn cylinders(&self) -> u8 { Engine::CYLINDERS_META.get(&self.data) }
+
+  pub fn cc(&self) -> u32 { Engine::CC_META.get(&self.data) }
+
+  pub fn uses_gas(&self) -> bool { Engine::USES_GAS_META.get(&self.data) }
+
+  pub fn uses_electric(&self) -> bool { Engine::USES_ELECTRIC_META.get(&self.data) }
 
   pub fn capnp_to_owned(&self) -> EngineShared {
     EngineShared { data: self.data.capnp_to_owned() }
@@ -482,8 +661,18 @@ pub struct EngineShared {
 
 impl EngineShared {
   pub fn new(
+    horsepower: u16,
+    cylinders: u8,
+    cc: u32,
+    uses_gas: bool,
+    uses_electric: bool,
   ) -> EngineShared {
     let mut data = UntypedStructOwned::new_with_root_struct(Engine::META.data_size, Engine::META.pointer_size);
+    Engine::HORSEPOWER_META.set(&mut data, horsepower);
+    Engine::CYLINDERS_META.set(&mut data, cylinders);
+    Engine::CC_META.set(&mut data, cc);
+    Engine::USES_GAS_META.set(&mut data, uses_gas);
+    Engine::USES_ELECTRIC_META.set(&mut data, uses_electric);
     EngineShared { data: data.into_shared() }
   }
 

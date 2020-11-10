@@ -118,8 +118,9 @@ pub mod prelude {
   pub use crate::element_type::ElementType;
   pub use crate::error::{Error, UnknownDiscriminant};
   pub use crate::field_meta::{
-    DataFieldMeta, EnumFieldMeta, F64FieldMeta, FieldMeta, I32FieldMeta, ListFieldMeta,
-    StructFieldMeta, TextFieldMeta, U64FieldMeta, UnionFieldMeta,
+    BoolFieldMeta, DataFieldMeta, EnumFieldMeta, F32FieldMeta, F64FieldMeta, FieldMeta,
+    I32FieldMeta, ListFieldMeta, StructFieldMeta, TextFieldMeta, U16FieldMeta, U32FieldMeta,
+    U64FieldMeta, U8FieldMeta, UnionFieldMeta,
   };
   pub use crate::list::ListMeta;
   pub use crate::r#enum::{EnumMeta, EnumerantMeta, TypedEnum};

@@ -233,12 +233,34 @@ pub(crate) trait StructDecode<'a> {
     self.data_fields_begin().add(self.pointer().data_size)
   }
 
+  fn bool(&self, offset_e: NumElements) -> bool {
+    let byte = self.u8(NumElements(offset_e.0 >> 3));
+    let bit_pos = (offset_e.0 % 8) as usize;
+    byte & (1 << bit_pos) == 1
+  }
+
   fn i32(&self, offset_e: NumElements) -> i32 {
     self.data_fields_begin().u32(offset_e) as i32
   }
 
+  fn u8(&self, offset_e: NumElements) -> u8 {
+    self.data_fields_begin().u8(offset_e)
+  }
+
+  fn u16(&self, offset_e: NumElements) -> u16 {
+    self.data_fields_begin().u16(offset_e)
+  }
+
+  fn u32(&self, offset_e: NumElements) -> u32 {
+    self.data_fields_begin().u32(offset_e)
+  }
+
   fn u64(&self, offset_e: NumElements) -> u64 {
     self.data_fields_begin().u64(offset_e)
+  }
+
+  fn f32(&self, offset_e: NumElements) -> f32 {
+    f32::from_le_bytes(u32::to_le_bytes(self.u32(offset_e)))
   }
 
   fn f64(&self, offset_e: NumElements) -> f64 {

@@ -48,8 +48,13 @@ impl<'a, R: Rng> Rand<'a, R> {
     let mut data = UntypedStructOwned::new_with_root_struct(meta.data_size, meta.pointer_size);
     for field_meta in meta.fields() {
       match field_meta {
+        FieldMeta::Bool(x) => x.set(&mut data, self.rng.gen()),
         FieldMeta::I32(x) => x.set(&mut data, self.rng.gen()),
+        FieldMeta::U8(x) => x.set(&mut data, self.rng.gen()),
+        FieldMeta::U16(x) => x.set(&mut data, self.rng.gen()),
+        FieldMeta::U32(x) => x.set(&mut data, self.rng.gen()),
         FieldMeta::U64(x) => x.set(&mut data, self.rng.gen()),
+        FieldMeta::F32(x) => x.set(&mut data, self.rng.gen()),
         FieldMeta::F64(x) => x.set(&mut data, self.rng.gen()),
         FieldMeta::Data(x) => {
           x.set(&mut data, &self.gen_data_element().0);
@@ -83,9 +88,13 @@ impl<'a, R: Rng> Rand<'a, R> {
 
   fn gen_element(&mut self, element_type: &ElementType) -> ElementShared {
     match element_type {
+      ElementType::Bool => ElementShared::Bool(self.rng.gen()),
       ElementType::I32 => ElementShared::I32(self.rng.gen()),
       ElementType::U8 => ElementShared::U8(self.rng.gen()),
+      ElementType::U16 => ElementShared::U16(self.rng.gen()),
+      ElementType::U32 => ElementShared::U32(self.rng.gen()),
       ElementType::U64 => ElementShared::U64(self.rng.gen()),
+      ElementType::F32 => ElementShared::F32(self.rng.gen()),
       ElementType::F64 => ElementShared::F64(self.rng.gen()),
       ElementType::Data => ElementShared::Data(self.gen_data_element()),
       ElementType::Text => ElementShared::Text(self.gen_text_element()),

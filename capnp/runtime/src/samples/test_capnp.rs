@@ -80,13 +80,33 @@ pub struct TestAllTypes<'a> {
 }
 
 impl<'a> TestAllTypes<'a> {
+  const BOOL_FIELD_META: &'static BoolFieldMeta = &BoolFieldMeta {
+    name: "boolField",
+    offset: NumElements(0),
+  };
   const INT32_FIELD_META: &'static I32FieldMeta = &I32FieldMeta {
     name: "int32Field",
     offset: NumElements(1),
   };
+  const U_INT8_FIELD_META: &'static U8FieldMeta = &U8FieldMeta {
+    name: "uInt8Field",
+    offset: NumElements(16),
+  };
+  const U_INT16_FIELD_META: &'static U16FieldMeta = &U16FieldMeta {
+    name: "uInt16Field",
+    offset: NumElements(9),
+  };
+  const U_INT32_FIELD_META: &'static U32FieldMeta = &U32FieldMeta {
+    name: "uInt32Field",
+    offset: NumElements(5),
+  };
   const U_INT64_FIELD_META: &'static U64FieldMeta = &U64FieldMeta {
     name: "uInt64Field",
     offset: NumElements(3),
+  };
+  const FLOAT32_FIELD_META: &'static F32FieldMeta = &F32FieldMeta {
+    name: "float32Field",
+    offset: NumElements(8),
   };
   const FLOAT64_FIELD_META: &'static F64FieldMeta = &F64FieldMeta {
     name: "float64Field",
@@ -123,8 +143,13 @@ impl<'a> TestAllTypes<'a> {
     data_size: NumWords(6),
     pointer_size: NumWords(20),
     fields: || &[
+      FieldMeta::Bool(TestAllTypes::BOOL_FIELD_META),
       FieldMeta::I32(TestAllTypes::INT32_FIELD_META),
+      FieldMeta::U8(TestAllTypes::U_INT8_FIELD_META),
+      FieldMeta::U16(TestAllTypes::U_INT16_FIELD_META),
+      FieldMeta::U32(TestAllTypes::U_INT32_FIELD_META),
       FieldMeta::U64(TestAllTypes::U_INT64_FIELD_META),
+      FieldMeta::F32(TestAllTypes::FLOAT32_FIELD_META),
       FieldMeta::F64(TestAllTypes::FLOAT64_FIELD_META),
       FieldMeta::Text(TestAllTypes::TEXT_FIELD_META),
       FieldMeta::Data(TestAllTypes::DATA_FIELD_META),
@@ -134,9 +159,19 @@ impl<'a> TestAllTypes<'a> {
     ],
   };
 
+  pub fn bool_field(&self) -> bool { TestAllTypes::BOOL_FIELD_META.get(&self.data) }
+
   pub fn int32_field(&self) -> i32 { TestAllTypes::INT32_FIELD_META.get(&self.data) }
 
+  pub fn u_int8_field(&self) -> u8 { TestAllTypes::U_INT8_FIELD_META.get(&self.data) }
+
+  pub fn u_int16_field(&self) -> u16 { TestAllTypes::U_INT16_FIELD_META.get(&self.data) }
+
+  pub fn u_int32_field(&self) -> u32 { TestAllTypes::U_INT32_FIELD_META.get(&self.data) }
+
   pub fn u_int64_field(&self) -> u64 { TestAllTypes::U_INT64_FIELD_META.get(&self.data) }
+
+  pub fn float32_field(&self) -> f32 { TestAllTypes::FLOAT32_FIELD_META.get(&self.data) }
 
   pub fn float64_field(&self) -> f64 { TestAllTypes::FLOAT64_FIELD_META.get(&self.data) }
 
@@ -199,8 +234,13 @@ pub struct TestAllTypesShared {
 
 impl TestAllTypesShared {
   pub fn new(
+    bool_field: bool,
     int32_field: i32,
+    u_int8_field: u8,
+    u_int16_field: u16,
+    u_int32_field: u32,
     u_int64_field: u64,
+    float32_field: f32,
     float64_field: f64,
     text_field: &str,
     data_field: &[u8],
@@ -209,8 +249,13 @@ impl TestAllTypesShared {
     struct_list: &'_ [TestAllTypesShared],
   ) -> TestAllTypesShared {
     let mut data = UntypedStructOwned::new_with_root_struct(TestAllTypes::META.data_size, TestAllTypes::META.pointer_size);
+    TestAllTypes::BOOL_FIELD_META.set(&mut data, bool_field);
     TestAllTypes::INT32_FIELD_META.set(&mut data, int32_field);
+    TestAllTypes::U_INT8_FIELD_META.set(&mut data, u_int8_field);
+    TestAllTypes::U_INT16_FIELD_META.set(&mut data, u_int16_field);
+    TestAllTypes::U_INT32_FIELD_META.set(&mut data, u_int32_field);
     TestAllTypes::U_INT64_FIELD_META.set(&mut data, u_int64_field);
+    TestAllTypes::FLOAT32_FIELD_META.set(&mut data, float32_field);
     TestAllTypes::FLOAT64_FIELD_META.set(&mut data, float64_field);
     TestAllTypes::TEXT_FIELD_META.set(&mut data, text_field);
     TestAllTypes::DATA_FIELD_META.set(&mut data, data_field);

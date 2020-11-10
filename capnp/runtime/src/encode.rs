@@ -99,6 +99,18 @@ pub(crate) trait StructEncode {
     self.data_fields_begin().add(data_size)
   }
 
+  fn set_bool(&mut self, offset_e: NumElements, value: bool) {
+    // NB: All mutable structs are expected to have the full data and pointer
+    // sections allocated.
+    let u8_offset_e = NumElements(offset_e.0 >> 3);
+    let bit_pos = (offset_e.0 % 8) as usize;
+    let existing = self.data_fields_begin().capnp_as_ref().u8_raw(u8_offset_e);
+    debug_assert!(existing.is_some());
+    let existing = existing.map(|x| x[0]).unwrap_or(0);
+    let bit = if value { 1 } else { 0 };
+    self.data_fields_begin().set_u8(u8_offset_e, existing & bit << bit_pos)
+  }
+
   fn set_i32(&mut self, offset_e: NumElements, value: i32) {
     // NB: All mutable structs are expected to have the full data and pointer
     // sections allocated.
@@ -124,11 +136,22 @@ pub(crate) trait StructEncode {
     self.data_fields_begin().set_u16(offset_e, value.0)
   }
 
+  fn set_u32(&mut self, offset_e: NumElements, value: u32) {
+    // NB: All mutable structs are expected to have the full data and pointer
+    // sections allocated.
+    debug_assert!(self.data_fields_begin().capnp_as_ref().u32_raw(offset_e).is_some());
+    self.data_fields_begin().set_u32(offset_e, value)
+  }
+
   fn set_u64(&mut self, offset_e: NumElements, value: u64) {
     // NB: All mutable structs are expected to have the full data and pointer
     // sections allocated.
     debug_assert!(self.data_fields_begin().capnp_as_ref().u64_raw(offset_e).is_some());
     self.data_fields_begin().set_u64(offset_e, value)
+  }
+
+  fn set_f32(&mut self, offset_e: NumElements, value: f32) {
+    self.set_u32(offset_e, u32::from_le_bytes(f32::to_le_bytes(value)))
   }
 
   fn set_f64(&mut self, offset_e: NumElements, value: f64) {
@@ -311,9 +334,13 @@ pub(crate) trait StructEncode {
 
   fn set_element(&mut self, offset_e: NumElements, value: &ElementShared) -> Result<(), Error> {
     match value {
+      ElementShared::Bool(x) => Ok(self.set_bool(offset_e, *x)),
       ElementShared::I32(x) => Ok(self.set_i32(offset_e, *x)),
       ElementShared::U8(x) => Ok(self.set_u8(offset_e, *x)),
+      ElementShared::U16(x) => Ok(self.set_u16(offset_e, *x)),
+      ElementShared::U32(x) => Ok(self.set_u32(offset_e, *x)),
       ElementShared::U64(x) => Ok(self.set_u64(offset_e, *x)),
+      ElementShared::F32(x) => Ok(self.set_f32(offset_e, *x)),
       ElementShared::F64(x) => Ok(self.set_f64(offset_e, *x)),
       ElementShared::Data(x) => Ok(self.set_data_element(offset_e, x)),
       ElementShared::Text(x) => Ok(self.set_text_element(offset_e, x)),

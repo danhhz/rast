@@ -33,9 +33,13 @@ impl fmt::Debug for ElementShared {
 impl<'a> fmt::Debug for Element<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
+      Element::Bool(x) => x.fmt(f),
       Element::I32(x) => x.fmt(f),
       Element::U8(x) => x.fmt(f),
+      Element::U16(x) => x.fmt(f),
+      Element::U32(x) => x.fmt(f),
       Element::U64(x) => x.fmt(f),
+      Element::F32(x) => x.fmt(f),
       Element::F64(x) => x.fmt(f),
       Element::Data(x) => x.fmt(f),
       Element::Text(x) => x.fmt(f),

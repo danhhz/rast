@@ -103,13 +103,13 @@ impl FieldType for PrimitiveField {
     self.type_.clone()
   }
   fn type_meta(&self) -> String {
-    self.type_.to_shouty_snake_case()
+    self.type_.to_camel_case()
   }
   fn type_element(&self) -> String {
-    format!("ElementType::{}", self.type_.to_shouty_snake_case())
+    format!("ElementType::{}", self.type_.to_camel_case())
   }
   fn type_meta_class(&self, field_meta: String) -> String {
-    format!("FieldMeta::{}({})", self.type_.to_shouty_snake_case(), field_meta)
+    format!("FieldMeta::{}({})", self.type_.to_camel_case(), field_meta)
   }
 }
 
@@ -981,11 +981,26 @@ impl<'a> Generator<'a> {
     let ret = match field.which()? {
       field::Which::Slot(slot) => {
         let field_type: FieldTypeEnum = match slot.get_type()?.which()? {
+          type_::Which::Bool(_) => {
+            FieldTypeEnum::Primitive(PrimitiveField { type_: "bool".to_string() })
+          }
           type_::Which::Int32(_) => {
             FieldTypeEnum::Primitive(PrimitiveField { type_: "i32".to_string() })
           }
+          type_::Which::Uint8(_) => {
+            FieldTypeEnum::Primitive(PrimitiveField { type_: "u8".to_string() })
+          }
+          type_::Which::Uint16(_) => {
+            FieldTypeEnum::Primitive(PrimitiveField { type_: "u16".to_string() })
+          }
+          type_::Which::Uint32(_) => {
+            FieldTypeEnum::Primitive(PrimitiveField { type_: "u32".to_string() })
+          }
           type_::Which::Uint64(_) => {
             FieldTypeEnum::Primitive(PrimitiveField { type_: "u64".to_string() })
+          }
+          type_::Which::Float32(_) => {
+            FieldTypeEnum::Primitive(PrimitiveField { type_: "f32".to_string() })
           }
           type_::Which::Float64(_) => {
             FieldTypeEnum::Primitive(PrimitiveField { type_: "f64".to_string() })
