@@ -96,7 +96,16 @@ impl<'a, R: Rng> Rand<'a, R> {
   fn gen_element_list(&mut self, value_type: &ElementType) -> Vec<ElementShared> {
     // TODO: Use a Poisson (or user-selectable) distribution for this.
     let mut len = self.rng.gen_range(0, 3);
-    if let ElementType::Struct(_) = value_type {
+    fn should_trim(value_type: &ElementType) -> bool {
+      match value_type {
+        ElementType::Struct(_) => true,
+        ElementType::Union(x) => {
+          x.variants.iter().any(|v| should_trim(&v.field_meta.element_type()))
+        }
+        _ => false,
+      }
+    }
+    if should_trim(value_type) {
       len = cmp::min(len, self.max_struct_recursion);
       self.max_struct_recursion -= len;
     }
@@ -118,18 +127,69 @@ mod test {
   use rand;
   use std::error::Error;
 
+  use crate::samples::carsales_capnp::{
+    ParkingLot, ParkingLotShared, TotalValue, TotalValueShared,
+  };
+  use crate::samples::catrank_capnp::{SearchResultList, SearchResultListShared};
+  use crate::samples::eval_capnp::{
+    EvaluationResult, EvaluationResultShared, Expression, ExpressionShared,
+  };
   use crate::samples::rast_capnp::{Message, MessageShared};
   use crate::samples::test_capnp::{TestAllTypes, TestAllTypesShared};
   use capnp_runtime::segment_framing_alternate;
 
+  // TODO: Pull out all the common bits here.
+
   #[test]
-  fn rand_roundtrip_testalltypes() -> Result<(), Box<dyn Error>> {
-    let before: TestAllTypesShared =
+  fn rand_roundtrip_carsales() -> Result<(), Box<dyn Error>> {
+    {
+      let before: ParkingLotShared =
+        capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
+      let mut buf = Vec::new();
+      segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
+      let after: ParkingLot = segment_framing_alternate::decode(&buf)?;
+      assert_eq!(before.capnp_as_ref(), after);
+    }
+    {
+      let before: TotalValueShared =
+        capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
+      let mut buf = Vec::new();
+      segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
+      let after: TotalValue = segment_framing_alternate::decode(&buf)?;
+      assert_eq!(before.capnp_as_ref(), after);
+    }
+    Ok(())
+  }
+
+  #[test]
+  fn rand_roundtrip_catrank() -> Result<(), Box<dyn Error>> {
+    let before: SearchResultListShared =
       capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
     let mut buf = Vec::new();
     segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
-    let after: TestAllTypes = segment_framing_alternate::decode(&buf)?;
+    let after: SearchResultList = segment_framing_alternate::decode(&buf)?;
     assert_eq!(before.capnp_as_ref(), after);
+    Ok(())
+  }
+
+  #[test]
+  fn rand_roundtrip_eval() -> Result<(), Box<dyn Error>> {
+    {
+      let before: ExpressionShared =
+        capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 10).gen_typed_struct();
+      let mut buf = Vec::new();
+      segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
+      let after: Expression = segment_framing_alternate::decode(&buf)?;
+      assert_eq!(before.capnp_as_ref(), after);
+    }
+    {
+      let before: EvaluationResultShared =
+        capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
+      let mut buf = Vec::new();
+      segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
+      let after: EvaluationResult = segment_framing_alternate::decode(&buf)?;
+      assert_eq!(before.capnp_as_ref(), after);
+    }
     Ok(())
   }
 
@@ -140,6 +200,17 @@ mod test {
     let mut buf = Vec::new();
     segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
     let after: Message = segment_framing_alternate::decode(&buf)?;
+    assert_eq!(before.capnp_as_ref(), after);
+    Ok(())
+  }
+
+  #[test]
+  fn rand_roundtrip_test() -> Result<(), Box<dyn Error>> {
+    let before: TestAllTypesShared =
+      capnp_runtime::rand::Rand::new(&mut rand::thread_rng(), 20).gen_typed_struct();
+    let mut buf = Vec::new();
+    segment_framing_alternate::encode(&mut buf, &before.capnp_as_ref())?;
+    let after: TestAllTypes = segment_framing_alternate::decode(&buf)?;
     assert_eq!(before.capnp_as_ref(), after);
     Ok(())
   }

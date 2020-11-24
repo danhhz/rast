@@ -549,7 +549,7 @@ impl Union {
       write!(w, "      Discriminant({}) => {}::{}_META.get(&untyped.variant_data).map(|x| Ok({}::{}(x))),\n",
         variant.discriminant, &self.name, variant.field.meta_name(), &self.name, variant.name)?;
     }
-    write!(w, "      x => Ok(Err(UnknownDiscriminant(x, Payload::META.name))),\n")?;
+    write!(w, "      x => Ok(Err(UnknownDiscriminant(x, {}::META.name))),\n", &self.name)?;
     write!(w, "    }}\n")?;
     write!(w, "  }}\n")?;
     write!(w, "}}\n")?;

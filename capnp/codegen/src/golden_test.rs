@@ -41,11 +41,26 @@ fn golden_capnp(file: &'static str) -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn golden_test_capnp() -> Result<(), Box<dyn Error>> {
-  golden_capnp("test")
+fn golden_carsales_capnp() -> Result<(), Box<dyn Error>> {
+  golden_capnp("carsales")
+}
+
+#[test]
+fn golden_catrank_capnp() -> Result<(), Box<dyn Error>> {
+  golden_capnp("catrank")
+}
+
+#[test]
+fn golden_eval_capnp() -> Result<(), Box<dyn Error>> {
+  golden_capnp("eval")
 }
 
 #[test]
 fn golden_rast_capnp() -> Result<(), Box<dyn Error>> {
   golden_capnp("rast")
+}
+
+#[test]
+fn golden_test_capnp() -> Result<(), Box<dyn Error>> {
+  golden_capnp("test")
 }

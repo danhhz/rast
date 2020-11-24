@@ -17,4 +17,7 @@ pub mod rast_capnp {
 
   include!("rast_capnp.rs");
 }
+pub mod carsales_capnp;
+pub mod catrank_capnp;
+pub mod eval_capnp;
 pub mod test_capnp;
