@@ -19,33 +19,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-fn try_main() -> ::capnp::Result<()> {
-    let args: Vec<String> = ::std::env::args().collect();
+use benchmark;
+use benchmark::error::Error;
 
-    assert!(args.len() == 6,
-            "USAGE: {} CASE MODE REUSE COMPRESSION ITERATION_COUNT",
-            args[0]);
+fn try_main() -> Result<(), Error> {
+  let args: Vec<String> = ::std::env::args().collect();
 
-    let iters = match args[5].parse::<u64>() {
-        Ok(n) => n,
-        Err(_) =>
-            return Err(::capnp::Error::failed(format!("Could not parse a u64 from: {}", args[5]))),
-    };
+  assert!(args.len() == 6, "USAGE: {} CASE MODE REUSE COMPRESSION ITERATION_COUNT", args[0]);
 
-    let mode = Mode::parse(&*args[2])?;
+  let iters = match args[5].parse::<u64>() {
+    Ok(n) => n,
+    Err(_) => return Err(Error::failed(format!("Could not parse a u64 from: {}", args[5]))),
+  };
 
-    match &*args[4] {
-        "none" => do_testcase2(&*args[1], mode, &*args[3], NoCompression, iters),
-        "packed" => do_testcase2(&*args[1], mode, &*args[3], Packed, iters),
-        s => Err(::capnp::Error::failed(format!("unrecognized compression: {}", s))),
-    }
+  benchmark::do_testcase3(&*args[1], &*args[2], &*args[3], &*args[4], iters)
 }
 
 pub fn main() {
-    match try_main() {
-        Ok(()) => (),
-        Err(e) => {
-            panic!("error: {:?}", e);
-        }
+  match try_main() {
+    Ok(()) => (),
+    Err(e) => {
+      panic!("error: {:?}", e);
     }
+  }
 }
